@@ -1,5 +1,5 @@
 {
-  "name": "aws-transform-custom-container",
+  "name": "aws-transform-scaled-execution-container",
   "version": "1.0.0",
   "description": "Node.js dependencies for AWS Transform CLI container",
   "dependencies": {},

@@ -4,8 +4,8 @@ This repository contains the following components:
 
 ## Directory Structure
 
-- **custom-container/** - Scalable, production-ready infrastructure for [AWS Transform custom](https://docs.aws.amazon.com/transform/latest/userguide/custom.html) - Run AI-driven code transformations on 1000s of repositories in parallel using AWS Batch and Fargate.
-- **definitions/** - Out of the box (OOB) transformation defintions that can be leveraged for your project transformations
+- **scaled-execution-containers/** - Scalable, production-ready infrastructure for [AWS Transform custom](https://docs.aws.amazon.com/transform/latest/userguide/custom.html) - Run AI-driven code transformations on 1000s of repositories in parallel using AWS Batch and Fargate.
+- **aws-managed-definitions/** - AWS-Managed Transformations that can be leveraged for your project transformations
 
 ## Getting Started
 
