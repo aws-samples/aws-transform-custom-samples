@@ -11,8 +11,8 @@ This repository contains the following components:
 
 **Clone the repository:**
 ```bash
-git clone https://github.com/aws-samples/aws-transfom-custom-samples.git
-cd aws-transfom-custom-samples
+git clone https://github.com/aws-samples/aws-transform-custom-samples.git
+cd aws-transform-custom-samples
 ```
 
 ## License
