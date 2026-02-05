@@ -14,7 +14,7 @@
 **Clone the repository:**
 ```bash
 git clone https://github.com/aws-samples/aws-transform-custom-samples.git
-cd aws-transform-custom-samples/custom-container
+cd aws-transform-custom-samples/scaled-execution-containers
 ```
 
 ## What is this?
@@ -63,7 +63,6 @@ export CDK_DEFAULT_REGION=us-east-1
 
 **Set up IAM permissions (optional but recommended):**
 ```bash
-cd deployment
 chmod +x generate-custom-policy.sh
 ./generate-custom-policy.sh
 # Follow instructions to create and attach the policy
@@ -80,8 +79,8 @@ Choose your deployment method:
 ### Option 1: CDK Deployment (Recommended)
 
 ```bash
-# From aws-transform-custom-samples/custom-container root
-cd cdk
+# From aws-transform-custom-samples/scaled-execution-containers root
+cd ../cdk
 chmod +x deploy.sh
 ./deploy.sh
 ```
@@ -102,8 +101,7 @@ chmod +x deploy.sh
 ### Option 2: Bash Scripts
 
 ```bash
-# From aws-transform-custom-samples/custom-container root
-cd deployment
+# From aws-transform-custom-samples/scaled-execution-containers root
 ./1-build-and-push.sh
 ./2-deploy-infrastructure.sh
 ./3-deploy-api.sh
