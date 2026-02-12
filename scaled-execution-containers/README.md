@@ -29,6 +29,7 @@ This project provides complete infrastructure to run AWS Transform custom at ent
 - 🔐 **Secure** - Automatic IAM credential management, no long-lived keys, auto-refresh every 45 minutes
 - 📡 **REST API** - API endpoints for single job submission, job management, bulk submission, and status tracking
 - 📊 **Full Monitoring** - CloudWatch dashboard with job tracking, API metrics, and real-time logs
+- 🔔 **SNS Notifications** - Automatic email/SMS notifications when jobs complete (success or failure)
 - 🎯 **Campaign Support** - Centralized tracking and management across multiple repositories
 - ⚡ **One-Command Deploy** - CDK deployment handles everything automatically
 - 🔧 **Extensible** - Customize container for private repositories and additional tools
@@ -294,6 +295,7 @@ aws batch describe-jobs --jobs <JOB_ID> --region us-east-1
 - **[CDK Deployment](cdk/README.md)** - CDK deployment guide
 - **[API Documentation](api/README.md)** - REST API for job management
 - **[Container Details](container/README.md)** - What's included in the container
+- **[SNS Notifications](docs/SNS_NOTIFICATIONS.md)** - Email/SMS notifications for job completion
 - **[Troubleshooting](docs/TROUBLESHOOTING.md)** - Common issues and solutions
 - **[Security Guide](docs/SECURITY.md)** - Security best practices
 
