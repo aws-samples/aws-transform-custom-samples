@@ -1,0 +1,8 @@
+[
+  {
+    "Source": "aws.batch",
+    "DetailType": "Batch Job State Change",
+    "Detail": "{\"jobName\":\"test-job-failure\",\"jobId\":\"xyz-789-ghi-012\",\"jobQueue\":\"arn:aws:batch:us-east-1:123456789012:job-queue/atx-job-queue\",\"status\":\"FAILED\",\"statusReason\":\"Essential container in task exited\",\"jobDefinition\":\"arn:aws:batch:us-east-1:123456789012:job-definition/atx-transform-job:1\",\"container\":{\"exitCode\":1,\"logStreamName\":\"atx-transform-job/default/xyz-789-ghi-012\"}}",
+    "Resources": []
+  }
+]
