@@ -41,7 +41,7 @@ cp config.env.template config.env
 All settings have defaults and auto-detection. Customization is optional.
 
 **Common customizations:**
-- `ECR_REPO_NAME` - ECR repository name (default: `atx-custom-ecr`)
+- `ECR_REPO_NAME` - ECR repository name (default: `aws-transform-custom`)
 - `AWS_REGION` - AWS region (default: `us-east-1`)
 - `FARGATE_VCPU` / `FARGATE_MEMORY` - Container resources
 - `JOB_TIMEOUT` - Maximum job duration in seconds

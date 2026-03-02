@@ -53,7 +53,7 @@ fi
 
 # Set defaults from config or use standard defaults
 AWS_REGION="${AWS_REGION:-us-east-1}"
-ECR_REPO_NAME="${ECR_REPO_NAME:-aws-transform-cli}"
+ECR_REPO_NAME="${ECR_REPO_NAME:-aws-transform-custom}"
 S3_BUCKET_NAME="${S3_BUCKET_NAME:-atx-custom-output}"
 SOURCE_BUCKET="${SOURCE_BUCKET:-atx-source-code}"
 COMPUTE_ENV_NAME="${COMPUTE_ENV_NAME:-atx-fargate-compute}"

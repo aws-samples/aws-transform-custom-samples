@@ -80,7 +80,7 @@ fi
 
 # Set defaults
 AWS_REGION="${AWS_REGION:-us-east-1}"
-ECR_REPO_NAME="${ECR_REPO_NAME:-aws-transform-cli}"
+ECR_REPO_NAME="${ECR_REPO_NAME:-aws-transform-custom}"
 S3_BUCKET_NAME="${S3_BUCKET_NAME:-atx-custom-output}"
 COMPUTE_ENV_NAME="${COMPUTE_ENV_NAME:-atx-fargate-compute}"
 JOB_QUEUE_NAME="${JOB_QUEUE_NAME:-atx-job-queue}"

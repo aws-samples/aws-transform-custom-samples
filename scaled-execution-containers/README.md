@@ -72,23 +72,58 @@ chmod +x generate-custom-policy.sh
 
 ---
 
+## Deployment Options
+
+### 🎯 Choose Your Image Source
+
+**Option A: Use Public ECR Image (Fastest)**
+- ✅ No build required - deploy in 10 minutes
+- ✅ AWS-managed, pre-built image
+- ✅ Ideal for testing and getting started
+- ⚠️ Public visibility (no custom modifications)
+
+**Option B: Build Private ECR Image (Full Control)**
+- ✅ Complete customization
+- ✅ Private, isolated in your AWS account
+- ✅ Add custom tools or configurations
+- ⏱️ Requires 20-30 minute build + push
+
+**See [docs/PUBLIC_ECR.md](docs/PUBLIC_ECR.md) for detailed comparison and setup.**
+
+---
+
 ## Quick Start
 
 Choose your deployment method:
 
 ### Option 1: CDK Deployment (Recommended)
 
+#### Using Public ECR (Fastest - No Build)
+
 ```bash
-# From aws-transform-custom-samples/scaled-execution-containers root
-cd ../cdk
+cd cdk
+chmod +x deploy.sh
+
+# Deploy with public ECR image
+cdk deploy --all \
+  -c usePublicEcr=true \
+  -c publicEcrImage=public.ecr.aws/b7y6j9m3/aws-transform-custom:latest
+```
+
+**Time:** ~10 minutes (infrastructure only, no container build)
+
+#### Using Private ECR (Full Control)
+
+```bash
+cd cdk
 chmod +x deploy.sh
 ./deploy.sh
 ```
 
-**Time:** 30 minutes (all resources) including building the container
+**Time:** ~30 minutes (includes container build and push)
 
 **What gets deployed:**
-- ECR repository with Docker image
+- ECR repository with Docker image (private mode only)
 - S3 buckets (output, source)
 - IAM roles with least-privilege
 - AWS Batch infrastructure (Fargate)
@@ -100,8 +135,22 @@ chmod +x deploy.sh
 
 ### Option 2: Bash Scripts
 
+#### Using Public ECR
+
 ```bash
-# From aws-transform-custom-samples/scaled-execution-containers root
+cd deployment
+
+# Edit config.env
+# Set: USE_PUBLIC_ECR=true
+
+./2-deploy-infrastructure.sh
+./3-deploy-api.sh
+```
+
+#### Using Private ECR
+
+```bash
+cd deployment
 ./1-build-and-push.sh
 ./2-deploy-infrastructure.sh
 ./3-deploy-api.sh
