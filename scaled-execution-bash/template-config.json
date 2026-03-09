@@ -1,0 +1,74 @@
+{
+  "repositories": [
+    {
+      "name": "payment-service",
+      "path": "https://github.com/myorg/payment-service.git",
+      "transformation_name": "AWS/java-version-upgrade,AWS/java-aws-sdk-v1-to-v2",
+      "build_command": "mvn clean install",
+      "validation_commands": "Use Java 21",
+      "additional_plan_context": "Java 8→21, SDK v1→v2 sequential",
+      "parallel_eligible": true,
+      "batch_group": 1,
+      "execution_priority": "high"
+    },
+    {
+      "name": "user-service",
+      "path": "./my-java-app",
+      "transformation_name": "AWS/java-version-upgrade",
+      "build_command": "gradle clean build",
+      "parallel_eligible": true,
+      "batch_group": 1,
+      "execution_priority": "normal"
+    },
+    {
+      "name": "data-processor",
+      "path": "git@github.com:myorg/data-processor.git",
+      "transformation_name": "AWS/python-version-upgrade",
+      "build_command": "pytest",
+      "additional_plan_context": "Python 3.8 to 3.11",
+      "parallel_eligible": true,
+      "batch_group": 2,
+      "execution_priority": "high"
+    },
+    {
+      "name": "backend-api",
+      "path": "~/repos/backend-api",
+      "transformation_name": "AWS/nodejs-version-upgrade,AWS/early-access-comprehensive-codebase-analysis",
+      "build_command": "npm test",
+      "additional_plan_context": "Node.js upgrade + codebase analysis",
+      "parallel_eligible": true,
+      "batch_group": 2,
+      "execution_priority": "high"
+    },
+    {
+      "name": "legacy-app",
+      "path": "/absolute/path/to/legacy-app",
+      "transformation_name": "AWS/java-version-upgrade",
+      "build_command": "",
+      "validation_commands": "Skip integration tests",
+      "additional_plan_context": "Java 8 to 17 (no build cmd - ATX handles)",
+      "parallel_eligible": true,
+      "batch_group": 3,
+      "execution_priority": "low"
+    },
+    {
+      "name": "mobile-backend",
+      "path": "git@github.com:myorg/mobile-backend.git",
+      "transformation_name": "AWS/nodejs-version-upgrade",
+      "build_command": "npm run test:ci",
+      "parallel_eligible": false,
+      "batch_group": 0,
+      "execution_priority": "high"
+    },
+    {
+      "name": "analytics-service",
+      "path": "https://github.com/myorg/analytics-service.git",
+      "transformation_name": "AWS/python-version-upgrade",
+      "build_command": "poetry run pytest",
+      "additional_plan_context": "Python 3.9 to 3.11 with Poetry",
+      "parallel_eligible": true,
+      "batch_group": 3,
+      "execution_priority": "normal"
+    }
+  ]
+}

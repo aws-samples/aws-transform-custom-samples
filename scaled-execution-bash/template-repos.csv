@@ -1,0 +1,9 @@
+repo_path,transformation_name,build_command,validation_commands,additional_plan_context
+https://github.com/spring-projects/spring-petclinic.git,AWS/java-version-upgrade,./mvnw clean test,"Use Java 21","Java 8 to 21 upgrade"
+git@github.com:myorg/private-service.git,AWS/nodejs-version-upgrade,npm test,"Node 20 LTS","Node.js 16 to 20 upgrade"
+./my-python-app,AWS/python-version-upgrade,pytest,"","Python 3.8 to 3.11 migration"
+~/projects/legacy-java-app,AWS/java-version-upgrade,mvn clean install,"","Java 8 to 17 upgrade"
+https://github.com/myorg/data-processor.git,AWS/python-version-upgrade,,"","Python upgrade (no build cmd)"
+git@github.com:myorg/backend-api.git,AWS/java-aws-sdk-v1-to-v2,gradle clean build,"Java 17","AWS SDK v1 to v2 migration"
+/absolute/path/to/nodejs-service,AWS/nodejs-version-upgrade,npm run test:ci,"","Node.js upgrade with CI tests"
+
