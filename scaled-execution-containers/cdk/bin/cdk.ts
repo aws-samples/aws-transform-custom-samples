@@ -14,7 +14,9 @@ Aspects.of(app).add(new AwsSolutionsChecks({ verbose: true }));
 
 // Get configuration from context or use defaults
 // Note: Context from cdk.json is read automatically by CDK
-const ecrRepoName = app.node.tryGetContext('ecrRepoName') || 'atx-custom-ecr';
+const ecrRepoName = app.node.tryGetContext('ecrRepoName') || 'aws-transform-custom';
+const usePublicEcr = app.node.tryGetContext('usePublicEcr') === 'true';
+const publicEcrImage = app.node.tryGetContext('publicEcrImage') || 'public.ecr.aws/b7y6j9m3/aws-transform-custom:latest';
 const awsRegion = app.node.tryGetContext('awsRegion') || 'us-east-1';
 const fargateVcpu = app.node.tryGetContext('fargateVcpu') || 2;
 const fargateMemory = app.node.tryGetContext('fargateMemory') || 4096;
@@ -33,17 +35,27 @@ const env = {
   region: awsRegion,
 };
 
-// Stack 1: Container (ECR + Docker Image)
-const containerStack = new ContainerStack(app, 'AtxContainerStack', {
-  env,
-  ecrRepoName,
-  description: 'AWS Transform CLI - Container and ECR Repository',
-});
+let imageUri: string;
+let containerStack: ContainerStack | undefined;
+
+if (usePublicEcr) {
+  // Use public ECR image directly
+  imageUri = publicEcrImage;
+  console.log(`Using public ECR image: ${imageUri}`);
+} else {
+  // Stack 1: Container (ECR + Docker Image) - only for private ECR
+  containerStack = new ContainerStack(app, 'AtxContainerStack', {
+    env,
+    ecrRepoName,
+    description: 'AWS Transform CLI - Container and ECR Repository',
+  });
+  imageUri = containerStack.imageUri;
+}
 
 // Stack 2: Infrastructure (Batch, S3, IAM, CloudWatch)
 const infrastructureStack = new InfrastructureStack(app, 'AtxInfrastructureStack', {
   env,
-  imageUri: containerStack.imageUri, // Direct reference creates dependency
+  imageUri,
   fargateVcpu,
   fargateMemory,
   jobTimeout,
@@ -55,7 +67,9 @@ const infrastructureStack = new InfrastructureStack(app, 'AtxInfrastructureStack
   existingSecurityGroupId,
   description: 'AWS Transform CLI - Batch Infrastructure',
 });
-infrastructureStack.addDependency(containerStack);
+if (containerStack) {
+  infrastructureStack.addDependency(containerStack);
+}
 
 // Stack 3: API (Lambda + API Gateway)
 const apiStack = new ApiStack(app, 'AtxApiStack', {

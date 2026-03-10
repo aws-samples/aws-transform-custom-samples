@@ -96,7 +96,7 @@ aws s3 rb s3://atx-custom-output-$ACCOUNT_ID 2>/dev/null
 
 # Delete ECR repository
 echo "13. Deleting ECR repository..."
-aws ecr delete-repository --repository-name aws-transform-cli --force --region $REGION 2>/dev/null
+aws ecr delete-repository --repository-name aws-transform-custom --force --region $REGION 2>/dev/null
 
 echo ""
 echo "✓ Cleanup complete!"
