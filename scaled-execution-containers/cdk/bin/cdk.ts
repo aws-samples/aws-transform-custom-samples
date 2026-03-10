@@ -5,6 +5,7 @@ import { Aspects } from 'aws-cdk-lib';
 import { ContainerStack } from '../lib/container-stack';
 import { InfrastructureStack } from '../lib/infrastructure-stack';
 import { ApiStack } from '../lib/api-stack';
+import { NotificationStack } from '../lib/notification-stack';
 
 const app = new cdk.App();
 
@@ -66,3 +67,11 @@ const apiStack = new ApiStack(app, 'AtxApiStack', {
   description: 'AWS Transform CLI - REST API',
 });
 apiStack.addDependency(infrastructureStack);
+
+// Stack 4: Notifications (EventBridge + SNS)
+const notificationStack = new NotificationStack(app, 'AtxNotificationStack', {
+  env,
+  jobQueueArn: infrastructureStack.jobQueue.attrJobQueueArn,
+  description: 'AWS Transform CLI - Job Notifications',
+});
+notificationStack.addDependency(infrastructureStack);

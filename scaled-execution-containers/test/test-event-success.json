@@ -1,0 +1,8 @@
+[
+  {
+    "Source": "aws.batch",
+    "DetailType": "Batch Job State Change",
+    "Detail": "{\"jobName\":\"test-job-success\",\"jobId\":\"abc-123-def-456\",\"jobQueue\":\"arn:aws:batch:us-east-1:123456789012:job-queue/atx-job-queue\",\"status\":\"SUCCEEDED\",\"jobDefinition\":\"arn:aws:batch:us-east-1:123456789012:job-definition/atx-transform-job:1\",\"container\":{\"exitCode\":0,\"logStreamName\":\"atx-transform-job/default/abc-123-def-456\"}}",
+    "Resources": []
+  }
+]
