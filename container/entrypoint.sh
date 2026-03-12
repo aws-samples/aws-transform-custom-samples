@@ -508,35 +508,6 @@ else
     log "No output specified, skipping S3 upload"
 fi
 
-# ============================================================================
-# CUSTOM POST-TRANSFORMATION ACTIONS (Optional)
-# ============================================================================
-# After transformation and S3 upload, create PR and push changes to remote.
-#
-# Option 1: Script-based PR creation (add git credentials in Dockerfile)
-# ----------------------------------------------------------------------------
-# if [[ -n "$SOURCE" ]] && [[ -n "$GIT_REMOTE_URL" ]]; then
-#     log "Creating PR and pushing changes to remote..."
-#     cd "$PROJECT_PATH"
-#     
-#     # AWS Transform CLI auto-creates a branch for changes
-#     CURRENT_BRANCH=$(git branch --show-current)
-#     log "Current branch: $CURRENT_BRANCH"
-#     
-#     git add .
-#     git commit -m "Automated transformation by AWS Transform CLI" || true
-#     git push "$GIT_REMOTE_URL" "$CURRENT_BRANCH"
-#     
-#     # Create PR using GitHub CLI (install gh in Dockerfile)
-#     # gh pr create --title "Automated transformation" --body "..." --base main
-# fi
-#
-# Option 2: Use AWS Transform Custom Definition with MCP (Recommended)
-# ----------------------------------------------------------------------------
-# Use a Custom Transformation definition along with PR creation using MCP
-# connecting to your git repos for more sophisticated workflows.
-# ============================================================================
-
 log "AWS Transform CLI execution completed successfully!"
 
 # Propagate ATX exit code so Batch marks the job as failed if transformation failed
