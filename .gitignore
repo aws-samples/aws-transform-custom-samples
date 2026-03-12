@@ -1,3 +1,7 @@
-# Ignore the `build/` directory in the package root.
-/build
-node_modules
+node_modules/
+cdk.out/
+*.js
+*.d.ts
+*.js.map
+!jest.config.js
+.DS_Store
