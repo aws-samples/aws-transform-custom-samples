@@ -52,7 +52,18 @@ info "AWS CLI $(aws --version 2>&1 | head -1)"
 
 aws sts get-caller-identity >/dev/null 2>&1 || fail "AWS credentials not configured. Run: aws configure sso"
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-REGION=$(aws configure get region 2>/dev/null || echo "us-east-1")
+
+# Region resolution: match bin/cdk.ts precedence
+SUPPORTED_REGIONS=("us-east-1" "eu-central-1")
+REGION="${AWS_REGION:-${AWS_DEFAULT_REGION:-$(aws configure get region 2>/dev/null || echo "")}}"
+REGION="${REGION:-us-east-1}"
+
+is_supported=false
+for r in "${SUPPORTED_REGIONS[@]}"; do
+  [[ "$r" == "$REGION" ]] && is_supported=true && break
+done
+$is_supported || fail "Region '$REGION' is not supported by AWS Transform Custom. Supported: ${SUPPORTED_REGIONS[*]}. Set a supported region via AWS_REGION, 'aws configure set region <region>', or -c awsRegion=<region>."
+
 info "AWS Account: $ACCOUNT_ID | Region: $REGION"
 
 echo ""

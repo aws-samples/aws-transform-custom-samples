@@ -134,6 +134,20 @@ RUN . $NVM_DIR/nvm.sh && \
     done && \
     nvm use default
 
+# ============================================================================
+# CUSTOM LANGUAGES AND TOOLS
+# ============================================================================
+# Add additional languages, compilers, or tools here. The agent will insert
+# new RUN commands in this section when the user needs a language not included
+# by default. Examples:
+#
+#   RUN dnf install -y cmake clang libstdc++-devel && dnf clean all
+#   RUN curl -fsSL https://go.dev/dl/go1.22.0.linux-amd64.tar.gz | tar -C /usr/local -xz
+#
+# After editing, redeploy with: ./setup.sh
+# CDK auto-detects Dockerfile changes and rebuilds the image.
+# ============================================================================
+
 USER root
 
 # ============================================================================

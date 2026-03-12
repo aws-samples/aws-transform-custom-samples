@@ -349,70 +349,78 @@ export class InfrastructureStack extends cdk.Stack {
         ...overrides,
       });
 
-    const triggerJobFn = makeFn('TriggerJobFunction', 'atx-trigger-job', 'trigger-job');
-    const getJobStatusFn = makeFn('GetJobStatusFunction', 'atx-get-job-status', 'get-job-status');
-    const terminateJobFn = makeFn('TerminateJobFunction', 'atx-terminate-job', 'terminate-job');
-    const listJobsFn = makeFn('ListJobsFunction', 'atx-list-jobs', 'list-jobs');
-    const triggerBatchJobsFn = makeFn('TriggerBatchJobsFunction', 'atx-trigger-batch-jobs', 'trigger-batch-jobs', {
+    makeFn('TriggerJobFunction', 'atx-trigger-job', 'trigger-job');
+    makeFn('GetJobStatusFunction', 'atx-get-job-status', 'get-job-status');
+    makeFn('TerminateJobFunction', 'atx-terminate-job', 'terminate-job');
+    makeFn('ListJobsFunction', 'atx-list-jobs', 'list-jobs');
+    makeFn('TriggerBatchJobsFunction', 'atx-trigger-batch-jobs', 'trigger-batch-jobs', {
       timeout: cdk.Duration.minutes(15),
     });
-    const getBatchStatusFn = makeFn('GetBatchStatusFunction', 'atx-get-batch-status', 'get-batch-status');
-    const terminateBatchJobsFn = makeFn('TerminateBatchJobsFunction', 'atx-terminate-batch-jobs', 'terminate-batch-jobs');
-    const listBatchesFn = makeFn('ListBatchesFunction', 'atx-list-batches', 'list-batches');
-    const configureMcpFn = makeFn('ConfigureMcpFunction', 'atx-configure-mcp', 'configure-mcp');
+    makeFn('GetBatchStatusFunction', 'atx-get-batch-status', 'get-batch-status');
+    makeFn('TerminateBatchJobsFunction', 'atx-terminate-batch-jobs', 'terminate-batch-jobs');
+    makeFn('ListBatchesFunction', 'atx-list-batches', 'list-batches');
+    makeFn('ConfigureMcpFunction', 'atx-configure-mcp', 'configure-mcp');
 
     // CloudWatch Dashboard
     const dashboard = new cloudwatch.Dashboard(this, 'Dashboard', {
       dashboardName: 'ATX-Transform-CLI-Dashboard',
     });
 
+    // Row 1: Job results summary — success/failure counts by TD
     dashboard.addWidgets(
       new cloudwatch.LogQueryWidget({
-        title: '📊 Job Completion Rate (Hourly)',
+        title: '📊 Transformation Results by TD',
         logGroupNames: [this.logGroup.logGroupName],
         queryLines: [
-          'filter @message like /Results uploaded successfully/ or @message like /Command failed after/',
-          'stats sum(@message like /Results uploaded successfully/) as Completed, sum(@message like /Command failed after/) as Failed by bin(1h)',
+          'filter @message like /JOB_SUMMARY/',
+          'parse @message "* | status=* | exit_code=* | td=* | source=* | output=*" as timestamp, status, exitCode, td, source, output',
+          'stats count(*) as Total, sum(status="SUCCEEDED") as Succeeded, sum(status="FAILED") as Failed by td',
+          'sort Total desc',
         ],
         width: 24,
         height: 6,
       })
     );
 
+    // Row 2: Recent job history with status and TD
     dashboard.addWidgets(
       new cloudwatch.LogQueryWidget({
-        title: '📋 Recent Jobs',
+        title: '📋 Recent Job History',
         logGroupNames: [this.logGroup.logGroupName],
         queryLines: [
-          "parse @message 'Output: transformations/*/' as jobName",
-          'stats latest(jobName) as job, latest(@timestamp) as lastActivity, latest(@message) as lastMessage by @logStream',
-          'sort lastActivity desc',
-          'limit 25',
+          'filter @message like /JOB_SUMMARY/',
+          'parse @message "* | status=* | exit_code=* | td=* | source=* | output=*" as timestamp, status, exitCode, td, source, output',
+          'display @timestamp, status, td, source, exitCode',
+          'sort @timestamp desc',
+          'limit 500',
         ],
         width: 24,
         height: 8,
       })
     );
 
+    // Row 3: Success/failure trend over time
     dashboard.addWidgets(
-      new cloudwatch.GraphWidget({
-        title: '⚡ Lambda Invocations',
-        left: [
-          triggerJobFn.metricInvocations({ statistic: 'Sum' }),
-          triggerBatchJobsFn.metricInvocations({ statistic: 'Sum' }),
-          getJobStatusFn.metricInvocations({ statistic: 'Sum' }),
-          getBatchStatusFn.metricInvocations({ statistic: 'Sum' }),
+      new cloudwatch.LogQueryWidget({
+        title: '📈 Job Success/Failure Trend (Hourly)',
+        logGroupNames: [this.logGroup.logGroupName],
+        queryLines: [
+          'filter @message like /JOB_SUMMARY/',
+          'parse @message "* | status=* | exit_code=* | td=* | source=* | output=*" as timestamp, status, exitCode, td, source, output',
+          'stats sum(status="SUCCEEDED") as Succeeded, sum(status="FAILED") as Failed by bin(1h)',
         ],
         width: 12,
         height: 6,
       }),
-      new cloudwatch.GraphWidget({
-        title: '⚡ Lambda Duration (ms)',
-        left: [
-          triggerJobFn.metricDuration({ statistic: 'Average' }),
-          triggerBatchJobsFn.metricDuration({ statistic: 'Average' }),
-          getJobStatusFn.metricDuration({ statistic: 'Average' }),
-          getBatchStatusFn.metricDuration({ statistic: 'Average' }),
+      new cloudwatch.LogQueryWidget({
+        title: '❌ Recent Errors',
+        logGroupNames: [this.logGroup.logGroupName],
+        queryLines: [
+          'filter @message like /JOB_SUMMARY/ and @message like /status=FAILED/',
+          'parse @message "* | status=* | exit_code=* | td=* | source=* | output=*" as timestamp, status, exitCode, td, source, output',
+          'display @timestamp, td, source, exitCode',
+          'sort @timestamp desc',
+          'limit 500',
         ],
         width: 12,
         height: 6,

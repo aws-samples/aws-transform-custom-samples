@@ -41,7 +41,7 @@ if (!accountId) {
   log.info(`AWS Account: ${accountId}`);
 }
 
-const region = exec('aws configure get region') || 'us-east-1';
+const region = exec('echo ${AWS_REGION:-${AWS_DEFAULT_REGION:-}}') || exec('aws configure get region') || 'us-east-1';
 log.info(`AWS Region:  ${region}`);
 
 // -- Resource names (must match CDK stack definitions) ------------------------
@@ -330,7 +330,7 @@ Two policies generated:
   1. atx-runtime-policy.json
      Day-to-day operations: invoke Lambdas, upload source to S3,
      download results, manage private repo secrets, read logs.
-     This is what the agent needs for a hands-off remote mode.
+     Required for remote mode execution.
 
   2. atx-deployment-policy.json
      One-time infrastructure setup: CDK deploy, CloudFormation,

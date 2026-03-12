@@ -19,12 +19,15 @@ fi
 # Validate source URL format before clearing /source
 if [[ "$SOURCE_URL" == s3://* ]]; then
     SOURCE_TYPE="s3"
+elif [[ "$SOURCE_URL" == ssh://* ]] || [[ "$SOURCE_URL" == git@* ]]; then
+    SOURCE_TYPE="git-ssh"
 elif [[ "$SOURCE_URL" == https://* ]] || [[ "$SOURCE_URL" == http://* ]] || [[ "$SOURCE_URL" == *.git ]]; then
     SOURCE_TYPE="git"
 else
     log "Error: Unsupported source URL format: $SOURCE_URL"
     log "Supported formats:"
     log "  - Git repositories: https://github.com/user/repo.git or any HTTPS git URL"
+    log "  - SSH repositories: ssh://git@github.com/user/repo.git or git@github.com:user/repo.git"
     log "  - S3 directories: s3://bucket-name/path/"
     log "  - S3 ZIP files: s3://bucket-name/path/file.zip"
     exit 1
@@ -79,10 +82,14 @@ if [[ "$SOURCE_TYPE" == "s3" ]]; then
         echo "project" > /tmp/repo_name.txt
     fi
     
-elif [[ "$SOURCE_TYPE" == "git" ]]; then
+elif [[ "$SOURCE_TYPE" == "git" ]] || [[ "$SOURCE_TYPE" == "git-ssh" ]]; then
     log "Cloning git repository: $SOURCE_URL"
-    # Extract repo name: strip trailing .git and take basename
-    REPO_NAME=$(basename "$SOURCE_URL" .git)
+    # Extract repo name: handle both HTTPS and SSH formats
+    # git@github.com:org/repo.git → repo
+    # ssh://git@github.com/org/repo.git → repo
+    # https://github.com/org/repo.git → repo
+    REPO_NAME=$(basename "$SOURCE_URL" .git | sed 's/.*://')
+    REPO_NAME=$(basename "$REPO_NAME")
     git clone "$SOURCE_URL" "/source/$REPO_NAME"
     echo "$REPO_NAME" > /tmp/repo_name.txt
 fi

@@ -23,8 +23,8 @@ export function validateJobRequest(body: { command?: string; source?: string; jo
   if (body.jobName.length > 128) return 'jobName must not exceed 128 characters';
   if (!body.command) return 'Missing required field: command';
   try { validateCommand(body.command); } catch (e) { return `Invalid command: ${(e as Error).message}`; }
-  if (body.source && !body.source.startsWith('s3://') && !body.source.startsWith('https://')) {
-    return 'Invalid source format. Supported: HTTPS git URLs or S3 paths';
+  if (body.source && !body.source.startsWith('s3://') && !body.source.startsWith('https://') && !body.source.startsWith('ssh://') && !body.source.startsWith('git@')) {
+    return 'Invalid source format. Supported: HTTPS git URLs, SSH git URLs (ssh:// or git@), or S3 paths';
   }
   return null;
 }

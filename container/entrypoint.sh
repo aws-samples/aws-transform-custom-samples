@@ -333,11 +333,13 @@ log "AWS credentials verified successfully"
 # Fetch credentials from AWS Secrets Manager for private repositories.
 # Secrets are optional — if a secret doesn't exist, that credential is skipped.
 #
-# Two secret types supported:
+# Three secret types supported:
 #
-# 1. atx/github-token (plain string) — GitHub PAT for private repo cloning
+# 1. atx/ssh-key (plain string) — SSH private key for private SSH repo cloning
 #
-# 2. atx/credentials (JSON array) — Generic credential files for any tool/registry
+# 2. atx/github-token (plain string) — GitHub PAT for private HTTPS repo cloning
+#
+# 3. atx/credentials (JSON array) — Generic credential files for any tool/registry
 #    Each entry writes content to a file path inside the container.
 #    Example:
 #    [
@@ -351,7 +353,26 @@ log "AWS credentials verified successfully"
 fetch_private_credentials() {
     log "Fetching private repository credentials from Secrets Manager..."
 
-    # GitHub token for private repos
+    # SSH key for private repos (SSH URLs: git@github.com:org/repo.git)
+    SSH_KEY=$(aws secretsmanager get-secret-value \
+        --secret-id "atx/ssh-key" --query SecretString --output text 2>/dev/null || true)
+    if [[ -n "$SSH_KEY" ]]; then
+        mkdir -p /home/atxuser/.ssh
+        echo "$SSH_KEY" > /home/atxuser/.ssh/id_rsa
+        chmod 0600 /home/atxuser/.ssh/id_rsa
+        chown -R atxuser:atxuser /home/atxuser/.ssh
+        # Disable strict host key checking for non-interactive cloning
+        cat > /home/atxuser/.ssh/config <<'EOF'
+Host *
+    StrictHostKeyChecking no
+    UserKnownHostsFile /dev/null
+    LogLevel ERROR
+EOF
+        chmod 0600 /home/atxuser/.ssh/config
+        log "✓ SSH key configured for private repository access"
+    fi
+
+    # GitHub token for private repos (HTTPS URLs)
     GITHUB_TOKEN=$(aws secretsmanager get-secret-value \
         --secret-id "atx/github-token" --query SecretString --output text 2>/dev/null || true)
     if [[ -n "$GITHUB_TOKEN" ]]; then
@@ -508,7 +529,16 @@ else
     log "No output specified, skipping S3 upload"
 fi
 
-log "AWS Transform CLI execution completed successfully!"
+# Emit structured job summary for CloudWatch dashboard queries
+JOB_STATUS="SUCCEEDED"
+if [[ "${ATX_EXIT:-0}" -ne 0 ]]; then
+    JOB_STATUS="FAILED"
+fi
+TD_NAME=$(echo "$COMMAND" | sed -n 's/.*-n \([^ ]*\).*/\1/p')
+TD_NAME="${TD_NAME:-unknown}"
+log "JOB_SUMMARY | status=${JOB_STATUS} | exit_code=${ATX_EXIT:-0} | td=${TD_NAME} | source=${SOURCE:-none} | output=${OUTPUT:-none}"
+
+log "AWS Transform CLI execution completed!"
 
 # Propagate ATX exit code so Batch marks the job as failed if transformation failed
 exit "${ATX_EXIT:-0}"
