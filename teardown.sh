@@ -55,7 +55,7 @@ info "AWS Account: $ACCOUNT_ID | Region: $REGION"
 # --- Check if deployed ---
 
 STACK_STATUS=$(aws cloudformation describe-stacks --stack-name AtxInfrastructureStack \
-  --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo "NOT_DEPLOYED")
+  --region "$REGION" --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo "NOT_DEPLOYED")
 
 if [ "$STACK_STATUS" = "NOT_DEPLOYED" ]; then
   echo "Infrastructure is not deployed. Nothing to tear down."
@@ -84,7 +84,7 @@ fi
 
 echo ""
 echo "Destroying ATX infrastructure..."
-npx cdk destroy --all --force
+AWS_REGION="$REGION" npx cdk destroy --all --force
 
 echo ""
 echo "═══════════════════════════════════════════════"
