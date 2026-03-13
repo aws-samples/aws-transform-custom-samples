@@ -137,7 +137,7 @@ RUN . $NVM_DIR/nvm.sh && \
 # ============================================================================
 # CUSTOM LANGUAGES AND TOOLS
 # ============================================================================
-# Add additional languages, compilers, or tools here. The agent will insert
+# Add additional languages, compilers, or tools here. Insert
 # new RUN commands in this section when the user needs a language not included
 # by default. Examples:
 #

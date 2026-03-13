@@ -536,7 +536,7 @@ if [[ "${ATX_EXIT:-0}" -ne 0 ]]; then
 fi
 TD_NAME=$(echo "$COMMAND" | sed -n 's/.*-n \([^ ]*\).*/\1/p')
 TD_NAME="${TD_NAME:-unknown}"
-log "JOB_SUMMARY | status=${JOB_STATUS} | exit_code=${ATX_EXIT:-0} | td=${TD_NAME} | source=${SOURCE:-none} | output=${OUTPUT:-none}"
+log "JOB_SUMMARY | jobStatus=${JOB_STATUS} | exitCode=${ATX_EXIT:-0} | tdName=${TD_NAME} | sourceRepo=${SOURCE:-none} | outputPath=${OUTPUT:-none}"
 
 log "AWS Transform CLI execution completed!"
 

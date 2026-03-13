@@ -48,19 +48,7 @@ export class InfrastructureStack extends cdk.Stack {
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
 
-    // Create log bucket for S3 access logs (only if creating new buckets)
-    let logBucket: s3.IBucket | undefined;
-    if (!props.existingOutputBucket || !props.existingSourceBucket) {
-      logBucket = new s3.Bucket(this, 'LogBucket', {
-        bucketName: `atx-logs-${accountId}`,
-        encryptionKey: this.encryptionKey,
-        encryption: s3.BucketEncryption.KMS,
-        blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
-        removalPolicy: cdk.RemovalPolicy.RETAIN,
-        enforceSSL: true,
-      });
-    }
-    
+    // S3 Buckets - Use existing or create new
     if (props.existingOutputBucket) {
       this.outputBucket = s3.Bucket.fromBucketName(this, 'OutputBucket', props.existingOutputBucket);
     } else {
@@ -72,8 +60,6 @@ export class InfrastructureStack extends cdk.Stack {
         blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
         removalPolicy: cdk.RemovalPolicy.RETAIN,
         enforceSSL: true,
-        serverAccessLogsBucket: logBucket,
-        serverAccessLogsPrefix: 'output-bucket/',
         lifecycleRules: [{ id: 'expire-30d', expiration: cdk.Duration.days(30) }],
       });
     }
@@ -89,8 +75,6 @@ export class InfrastructureStack extends cdk.Stack {
         lifecycleRules: [{ id: 'expire-48h', expiration: cdk.Duration.days(2) }],
         removalPolicy: cdk.RemovalPolicy.RETAIN,
         enforceSSL: true,
-        serverAccessLogsBucket: logBucket,
-        serverAccessLogsPrefix: 'source-bucket/',
       });
     }
 
@@ -99,6 +83,7 @@ export class InfrastructureStack extends cdk.Stack {
       logGroupName: '/aws/batch/atx-transform',
       retention: logs.RetentionDays.ONE_MONTH,
       removalPolicy: cdk.RemovalPolicy.RETAIN,
+      encryptionKey: this.encryptionKey,
     });
 
     // IAM Role for Batch Job
@@ -373,8 +358,9 @@ export class InfrastructureStack extends cdk.Stack {
         logGroupNames: [this.logGroup.logGroupName],
         queryLines: [
           'filter @message like /JOB_SUMMARY/',
-          'parse @message "* | status=* | exit_code=* | td=* | source=* | output=*" as timestamp, status, exitCode, td, source, output',
-          'stats count(*) as Total, sum(status="SUCCEEDED") as Succeeded, sum(status="FAILED") as Failed by td',
+          'parse @message /jobStatus=(?<jobStat>\\S+)/',
+          'parse @message /tdName=(?<tdNm>\\S+)/',
+          'stats count(*) as Total, sum(jobStat="SUCCEEDED") as Succeeded, sum(jobStat="FAILED") as Failed by tdNm',
           'sort Total desc',
         ],
         width: 24,
@@ -389,8 +375,11 @@ export class InfrastructureStack extends cdk.Stack {
         logGroupNames: [this.logGroup.logGroupName],
         queryLines: [
           'filter @message like /JOB_SUMMARY/',
-          'parse @message "* | status=* | exit_code=* | td=* | source=* | output=*" as timestamp, status, exitCode, td, source, output',
-          'display @timestamp, status, td, source, exitCode',
+          'parse @message /jobStatus=(?<jobStat>\\S+)/',
+          'parse @message /exitCode=(?<exitCd>\\S+)/',
+          'parse @message /tdName=(?<tdNm>\\S+)/',
+          'parse @message /sourceRepo=(?<srcRepo>\\S+)/',
+          'display @timestamp, jobStat, tdNm, srcRepo, exitCd',
           'sort @timestamp desc',
           'limit 500',
         ],
@@ -406,8 +395,8 @@ export class InfrastructureStack extends cdk.Stack {
         logGroupNames: [this.logGroup.logGroupName],
         queryLines: [
           'filter @message like /JOB_SUMMARY/',
-          'parse @message "* | status=* | exit_code=* | td=* | source=* | output=*" as timestamp, status, exitCode, td, source, output',
-          'stats sum(status="SUCCEEDED") as Succeeded, sum(status="FAILED") as Failed by bin(1h)',
+          'parse @message /jobStatus=(?<jobStat>\\S+)/',
+          'stats sum(jobStat="SUCCEEDED") as Succeeded, sum(jobStat="FAILED") as Failed by bin(1h)',
         ],
         width: 12,
         height: 6,
@@ -416,9 +405,11 @@ export class InfrastructureStack extends cdk.Stack {
         title: '❌ Recent Errors',
         logGroupNames: [this.logGroup.logGroupName],
         queryLines: [
-          'filter @message like /JOB_SUMMARY/ and @message like /status=FAILED/',
-          'parse @message "* | status=* | exit_code=* | td=* | source=* | output=*" as timestamp, status, exitCode, td, source, output',
-          'display @timestamp, td, source, exitCode',
+          'filter @message like /JOB_SUMMARY/ and @message like /jobStatus=FAILED/',
+          'parse @message /exitCode=(?<exitCd>\\S+)/',
+          'parse @message /tdName=(?<tdNm>\\S+)/',
+          'parse @message /sourceRepo=(?<srcRepo>\\S+)/',
+          'display @timestamp, tdNm, srcRepo, exitCd',
           'sort @timestamp desc',
           'limit 500',
         ],

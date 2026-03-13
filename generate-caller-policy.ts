@@ -48,7 +48,6 @@ log.info(`AWS Region:  ${region}`);
 const resources = {
   s3Output:    `atx-custom-output-${accountId}`,
   s3Source:    `atx-source-code-${accountId}`,
-  s3Logs:      `atx-logs-${accountId}`,
   logGroup:    '/aws/batch/atx-transform',
   kmsAlias:    'atx-encryption-key',
   computeEnv:  'atx-fargate-compute',
@@ -60,7 +59,6 @@ const resources = {
 console.log('\nGenerating policies for these resources:');
 console.log(`  • S3 Output:    ${resources.s3Output}`);
 console.log(`  • S3 Source:    ${resources.s3Source}`);
-console.log(`  • S3 Logs:      ${resources.s3Logs}`);
 console.log(`  • Log Group:    ${resources.logGroup}`);
 console.log(`  • KMS Alias:    ${resources.kmsAlias}`);
 console.log(`  • Job Queue:    ${resources.jobQueue}`);
@@ -186,7 +184,7 @@ const deploymentPolicy: PolicyDocument = {
       Resource: [
         `arn:aws:s3:::cdk-*-assets-${accountId}-${region}`,
         `arn:aws:s3:::cdk-*-assets-${accountId}-${region}/*`,
-        ...[resources.s3Output, resources.s3Source, resources.s3Logs].flatMap(b =>
+        ...[resources.s3Output, resources.s3Source].flatMap(b =>
           [`arn:aws:s3:::${b}`, `arn:aws:s3:::${b}/*`]
         ),
       ],

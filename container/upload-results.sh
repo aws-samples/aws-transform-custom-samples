@@ -25,19 +25,13 @@ OUTPUT_PATH="${OUTPUT_PATH%/}"
 
 # Construct full S3 URL
 S3_BASE_URL="s3://${S3_BUCKET}/${OUTPUT_PATH}"
-
-# Ensure it ends with /
 [[ "$S3_BASE_URL" != */ ]] && S3_BASE_URL="${S3_BASE_URL}/"
 
 # Find the conversation ID from ATX logs
-# ATX stores logs in ~/.aws/atx/custom/ not ~/.atx/
 CONVERSATION_ID=""
 if [ -d "$HOME/.aws/atx/custom" ]; then
-    # Get the most recent conversation directory
     CONVERSATION_ID=$(ls -t "$HOME/.aws/atx/custom" 2>/dev/null | head -n 1)
 fi
-
-# Use conversation ID or generate timestamp-based ID
 if [[ -z "$CONVERSATION_ID" ]]; then
     CONVERSATION_ID="job_$(date +"%Y%m%d_%H%M%S")"
     log "No conversation ID found, using: $CONVERSATION_ID"
@@ -45,45 +39,66 @@ else
     log "Found conversation ID: $CONVERSATION_ID"
 fi
 
-# Create S3 structure: s3://<bucket>/<output-path><conversation-id>/code/ and /logs/
-# Note: OUTPUT_PATH should end with / if it's a prefix (e.g., "transformations/")
 S3_BASE="${S3_BASE_URL}${CONVERSATION_ID}"
-S3_CODE="${S3_BASE}/code/"
-S3_LOGS="${S3_BASE}/logs/"
 
-log "Uploading results to S3 structure:"
-log "  Base: $S3_BASE"
-log "  Code: $S3_CODE"
-log "  Logs: $S3_LOGS"
+log "Uploading results to: $S3_BASE"
 
-# Upload transformed source code
+# Zip and upload transformed source code
 if [ -d "/source" ] && [ "$(ls -A /source 2>/dev/null)" ]; then
-    log "Uploading transformed source code..."
-    aws s3 sync /source/ "$S3_CODE" \
-        --exclude ".git/*" \
-        --exclude ".env*" \
-        --exclude "*.pem" \
-        --exclude "*.key" \
-        --exclude "node_modules/*" \
-        --exclude ".aws/*" \
-        --quiet || log "Warning: Code upload failed or partially failed"
-    log "Code uploaded to: $S3_CODE"
+    log "Zipping transformed source code..."
+    cd /source
+    zip -qr /tmp/transformed-code.zip . \
+        -x ".git/*" \
+        -x ".env*" \
+        -x "*.pem" \
+        -x "*.key" \
+        -x "node_modules/*" \
+        -x ".aws/*"
+    log "Uploading code zip..."
+    aws s3 cp /tmp/transformed-code.zip "${S3_BASE}/code.zip" --quiet \
+        || log "Warning: Code upload failed"
+    rm -f /tmp/transformed-code.zip
+    log "Code uploaded to: ${S3_BASE}/code.zip"
 else
     log "No source code to upload"
 fi
 
-# Upload ATX artifacts and logs (always attempt, even if code upload failed)
-if [ -d "$HOME/.aws/atx" ]; then
-    log "Uploading ATX artifacts and logs..."
-    aws s3 sync "$HOME/.aws/atx/" "$S3_LOGS" --quiet || log "Warning: Log upload failed or partially failed"
-    log "Logs uploaded to: $S3_LOGS"
-else
-    log "No ATX logs found"
+# Collect and upload all logs and artifacts for this job
+log "Collecting logs and artifacts..."
+LOGS_STAGING="/tmp/job-logs"
+rm -rf "$LOGS_STAGING"
+mkdir -p "$LOGS_STAGING"
+
+# ATX CLI debug and error logs
+cp "$HOME/.aws/atx/logs/debug"*.log "$LOGS_STAGING/" 2>/dev/null || true
+cp "$HOME/.aws/atx/logs/error.log" "$LOGS_STAGING/" 2>/dev/null || true
+
+# Conversation-specific files
+ATX_CONVERSATION_DIR="$HOME/.aws/atx/custom/$CONVERSATION_ID"
+if [ -d "$ATX_CONVERSATION_DIR" ]; then
+    # Conversation log and worklog
+    cp "$ATX_CONVERSATION_DIR"/logs/*.log "$LOGS_STAGING/" 2>/dev/null || true
+    # Plan and validation artifacts
+    cp "$ATX_CONVERSATION_DIR/plan.json" "$LOGS_STAGING/" 2>/dev/null || true
+    cp "$ATX_CONVERSATION_DIR/artifacts/validation_summary.md" "$LOGS_STAGING/" 2>/dev/null || true
 fi
+
+if [ "$(ls -A "$LOGS_STAGING" 2>/dev/null)" ]; then
+    log "Zipping logs..."
+    cd "$LOGS_STAGING"
+    zip -qr /tmp/logs.zip .
+    aws s3 cp /tmp/logs.zip "${S3_BASE}/logs.zip" --quiet \
+        || log "Warning: Log upload failed"
+    rm -f /tmp/logs.zip
+    log "Logs uploaded to: ${S3_BASE}/logs.zip"
+else
+    log "No logs found to upload"
+fi
+rm -rf "$LOGS_STAGING"
 
 log ""
 log "Results uploaded successfully!"
 log "Conversation ID: $CONVERSATION_ID"
 log "S3 Location: $S3_BASE"
-log "  - Code: $S3_CODE"
-log "  - Logs: $S3_LOGS"
+log "  Code: ${S3_BASE}/code.zip"
+log "  Logs: ${S3_BASE}/logs.zip"
