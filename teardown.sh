@@ -84,7 +84,7 @@ fi
 
 echo ""
 echo "Destroying ATX infrastructure..."
-AWS_REGION="$REGION" npx cdk destroy --all --force
+CDK_DEFAULT_ACCOUNT="$ACCOUNT_ID" AWS_REGION="$REGION" npx cdk destroy --all --force
 
 echo ""
 echo "═══════════════════════════════════════════════"
