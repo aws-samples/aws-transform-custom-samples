@@ -64,27 +64,28 @@ fi
 
 info "Found deployed stack (status: $STACK_STATUS)"
 
-# --- Ensure dependencies are installed ---
-
-if [ ! -d "node_modules" ]; then
-  echo "Installing dependencies..."
-  if [ -f "package-lock.json" ]; then
-    npm ci --silent
-  else
-    npm install --silent
-  fi
-fi
-
-if [ ! -f "lib/infrastructure-stack.js" ]; then
-  echo "Compiling TypeScript..."
-  npx tsc || fail "TypeScript compilation failed. Run 'npx tsc' to see errors."
-fi
-
 # --- Destroy ---
 
 echo ""
 echo "Destroying ATX infrastructure..."
-CDK_DEFAULT_ACCOUNT="$ACCOUNT_ID" AWS_REGION="$REGION" npx cdk destroy --all --force
+
+# Delete stacks directly via CloudFormation to avoid CDK synthesis issues
+# (VPC lookups during synthesis can fail without cached context)
+for STACK_NAME in AtxInfrastructureStack AtxContainerStack; do
+  STACK_EXISTS=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
+    --region "$REGION" --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo "NOT_FOUND")
+
+  if [ "$STACK_EXISTS" != "NOT_FOUND" ]; then
+    echo "Deleting $STACK_NAME..."
+    aws cloudformation delete-stack --stack-name "$STACK_NAME" --region "$REGION"
+    echo "Waiting for $STACK_NAME deletion to complete..."
+    aws cloudformation wait stack-delete-complete --stack-name "$STACK_NAME" --region "$REGION" \
+      || fail "$STACK_NAME deletion failed. Check CloudFormation console for details."
+    info "$STACK_NAME deleted"
+  else
+    info "$STACK_NAME not found (already deleted)"
+  fi
+done
 
 echo ""
 echo "═══════════════════════════════════════════════"
