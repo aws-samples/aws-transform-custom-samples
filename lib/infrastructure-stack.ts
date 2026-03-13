@@ -72,7 +72,7 @@ export class InfrastructureStack extends cdk.Stack {
         encryptionKey: this.encryptionKey,
         encryption: s3.BucketEncryption.KMS,
         blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
-        lifecycleRules: [{ id: 'expire-48h', expiration: cdk.Duration.days(2) }],
+        lifecycleRules: [{ id: 'expire-7d', expiration: cdk.Duration.days(7) }],
         removalPolicy: cdk.RemovalPolicy.RETAIN,
         enforceSSL: true,
       });
