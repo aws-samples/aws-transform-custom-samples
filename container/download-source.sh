@@ -54,20 +54,26 @@ if [[ "$SOURCE_TYPE" == "s3" ]]; then
         unzip -q "$ZIP_FILE" -d /source/
         rm "$ZIP_FILE"
         
-        # Find the extracted directories
+        # Find the extracted content
         EXTRACTED_DIRS=$(find /source -mindepth 1 -maxdepth 1 -type d)
+        EXTRACTED_FILES=$(find /source -mindepth 1 -maxdepth 1 -type f)
         DIR_COUNT=0
+        FILE_COUNT=0
         if [[ -n "$EXTRACTED_DIRS" ]]; then
             DIR_COUNT=$(echo "$EXTRACTED_DIRS" | wc -l)
         fi
+        if [[ -n "$EXTRACTED_FILES" ]]; then
+            FILE_COUNT=$(echo "$EXTRACTED_FILES" | wc -l)
+        fi
         
-        if [ "$DIR_COUNT" -eq 1 ]; then
-            # Single directory extracted, use it
+        if [ "$DIR_COUNT" -eq 1 ] && [ "$FILE_COUNT" -eq 0 ]; then
+            # Single directory extracted with no loose files — use it directly
+            # (e.g., GitHub release zips that wrap everything in repo-main/)
             DIR_NAME=$(basename "$EXTRACTED_DIRS")
             log "Extracted to directory: $DIR_NAME"
             echo "$DIR_NAME" > /tmp/repo_name.txt
         else
-            # Zero, multiple files/dirs — wrap everything under ZIP name
+            # Files at root level or multiple dirs — wrap under ZIP name
             log "Wrapping extracted content in '$ZIP_BASENAME' directory"
             mkdir -p "/source/$ZIP_BASENAME"
             find /source -mindepth 1 -maxdepth 1 ! -name "$ZIP_BASENAME" -exec mv {} "/source/$ZIP_BASENAME/" \;
