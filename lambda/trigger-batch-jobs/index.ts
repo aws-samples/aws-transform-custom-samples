@@ -5,7 +5,7 @@ import { jsonResponse, errorResponse, validateJobRequest, getEnvOrThrow, logger 
 
 const batch = new BatchClient({});
 const s3 = new S3Client({});
-const MAX_BATCH_SIZE = 100;
+const MAX_BATCH_SIZE = 128;
 const ALLOWED_ENV_KEYS = new Set(['JAVA_VERSION', 'PYTHON_VERSION', 'NODE_VERSION']);
 
 interface TriggerBatchJobsRequest {
