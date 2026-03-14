@@ -78,6 +78,19 @@ export class InfrastructureStack extends cdk.Stack {
       });
     }
 
+    // Suppress S3 access logging — these are short-lived transformation buckets
+    // with lifecycle rules (7d/30d). Access is already auditable via CloudTrail.
+    if (!props.existingOutputBucket) {
+      NagSuppressions.addResourceSuppressions(this.outputBucket, [
+        { id: 'AwsSolutions-S1', reason: 'Access logging not required for short-lived transformation output bucket with 30d lifecycle. Auditable via CloudTrail.' },
+      ], true);
+    }
+    if (!props.existingSourceBucket) {
+      NagSuppressions.addResourceSuppressions(this.sourceBucket, [
+        { id: 'AwsSolutions-S1', reason: 'Access logging not required for short-lived source code bucket with 7d lifecycle. Auditable via CloudTrail.' },
+      ], true);
+    }
+
     // CloudWatch Log Group
     this.logGroup = new logs.LogGroup(this, 'LogGroup', {
       logGroupName: '/aws/batch/atx-transform',
