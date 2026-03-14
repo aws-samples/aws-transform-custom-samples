@@ -63,29 +63,82 @@ for STACK_NAME in AtxInfrastructureStack AtxContainerStack; do
 
   echo "  Deleting $STACK_NAME (status: $STACK_STATUS)..."
 
-  # If stack is stuck in a failed state, try to force delete with retain
-  if [[ "$STACK_STATUS" == *FAILED* ]] || [[ "$STACK_STATUS" == *ROLLBACK* ]]; then
-    # Get all resource types to retain (let the manual phases clean them up)
+  # ROLLBACK_COMPLETE can be deleted directly.
+  # DELETE_FAILED needs --retain-resources to force past stuck resources.
+  if [[ "$STACK_STATUS" == "DELETE_FAILED" ]]; then
     RETAIN_IDS=$(aws cloudformation list-stack-resources --stack-name "$STACK_NAME" --region "$REGION" \
       --query 'StackResourceSummaries[?ResourceStatus!=`DELETE_COMPLETE`].LogicalResourceId' --output text 2>/dev/null || echo "")
     if [ -n "$RETAIN_IDS" ] && [ "$RETAIN_IDS" != "None" ]; then
+      echo "  Retaining stuck resources: $RETAIN_IDS"
       # shellcheck disable=SC2086
       aws cloudformation delete-stack --stack-name "$STACK_NAME" --region "$REGION" \
-        --retain-resources $RETAIN_IDS 2>/dev/null || true
+        --retain-resources $RETAIN_IDS 2>&1 || true
     else
-      aws cloudformation delete-stack --stack-name "$STACK_NAME" --region "$REGION" 2>/dev/null || true
+      aws cloudformation delete-stack --stack-name "$STACK_NAME" --region "$REGION" 2>&1 || true
     fi
   else
-    aws cloudformation delete-stack --stack-name "$STACK_NAME" --region "$REGION" 2>/dev/null || true
+    aws cloudformation delete-stack --stack-name "$STACK_NAME" --region "$REGION" 2>&1 || true
   fi
 
-  echo "  Waiting for $STACK_NAME deletion (up to 10 minutes)..."
+  echo "  Waiting for $STACK_NAME deletion (up to 5 minutes)..."
   if aws cloudformation wait stack-delete-complete --stack-name "$STACK_NAME" --region "$REGION" 2>/dev/null; then
     info "$STACK_NAME deleted"
   else
     warn "$STACK_NAME deletion may have failed — continuing with manual cleanup"
   fi
 done
+
+# ============================================================
+# Helper: Empty a versioned S3 bucket (deletes all objects,
+# versions, and delete markers)
+# ============================================================
+empty_versioned_bucket() {
+  local bucket="$1"
+  local region="$2"
+
+  # Delete current objects
+  aws s3 rm "s3://${bucket}" --recursive --region "$region" --quiet 2>/dev/null || true
+
+  # Delete all versions and delete markers in a loop
+  local key_marker="" version_marker=""
+  while true; do
+    local list_args=(--bucket "$bucket" --region "$region" --output json --max-keys 500)
+    [[ -n "$key_marker" ]] && list_args+=(--key-marker "$key_marker" --version-id-marker "$version_marker")
+
+    local response
+    response=$(aws s3api list-object-versions "${list_args[@]}" 2>/dev/null || echo '{}')
+
+    local payload
+    payload=$(echo "$response" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+objects = []
+for v in data.get('Versions', []):
+    objects.append({'Key': v['Key'], 'VersionId': v['VersionId']})
+for d in data.get('DeleteMarkers', []):
+    objects.append({'Key': d['Key'], 'VersionId': d['VersionId']})
+if objects:
+    print(json.dumps({'Objects': objects[:1000], 'Quiet': True}))
+" 2>/dev/null || echo "")
+
+    if [[ -z "$payload" ]]; then
+      break
+    fi
+
+    aws s3api delete-objects --bucket "$bucket" --region "$region" \
+      --delete "$payload" 2>/dev/null || true
+
+    # Check if there are more versions to process
+    local is_truncated
+    is_truncated=$(echo "$response" | python3 -c "import sys,json; print(json.load(sys.stdin).get('IsTruncated', False))" 2>/dev/null || echo "False")
+    if [[ "$is_truncated" != "True" ]]; then
+      break
+    fi
+
+    key_marker=$(echo "$response" | python3 -c "import sys,json; print(json.load(sys.stdin).get('NextKeyMarker',''))" 2>/dev/null || echo "")
+    version_marker=$(echo "$response" | python3 -c "import sys,json; print(json.load(sys.stdin).get('NextVersionIdMarker',''))" 2>/dev/null || echo "")
+  done
+}
 
 # ============================================================
 # Phase 2: S3 buckets (RETAIN policy — not deleted by CFN)
@@ -100,44 +153,12 @@ for BUCKET in "atx-source-code-${ACCOUNT_ID}" "atx-custom-output-${ACCOUNT_ID}" 
   fi
 
   echo "  Emptying s3://${BUCKET}..."
+  empty_versioned_bucket "$BUCKET" "$REGION"
 
-  # Delete all current objects
-  aws s3 rm "s3://${BUCKET}" --recursive --region "$REGION" --quiet 2>/dev/null || true
-
-  # Delete versioned objects and delete markers (required for versioned buckets)
-  while true; do
-    VERSIONS=$(aws s3api list-object-versions --bucket "$BUCKET" --region "$REGION" \
-      --max-items 1000 --output json 2>/dev/null || echo '{}')
-
-    # Build delete payload from versions
-    DELETE_PAYLOAD=$(echo "$VERSIONS" | python3 -c "
-import sys, json
-data = json.load(sys.stdin)
-objects = []
-for v in data.get('Versions', []):
-    objects.append({'Key': v['Key'], 'VersionId': v['VersionId']})
-for d in data.get('DeleteMarkers', []):
-    objects.append({'Key': d['Key'], 'VersionId': d['VersionId']})
-if objects:
-    print(json.dumps({'Objects': objects, 'Quiet': True}))
-" 2>/dev/null || echo "")
-
-    if [ -z "$DELETE_PAYLOAD" ]; then
-      break
-    fi
-
-    aws s3api delete-objects --bucket "$BUCKET" --region "$REGION" \
-      --delete "$DELETE_PAYLOAD" --quiet 2>/dev/null || true
-
-    # Check if there are more
-    echo "$VERSIONS" | grep -q '"NextToken"' || break
-  done
-
-  # Delete the bucket
-  if aws s3api delete-bucket --bucket "$BUCKET" --region "$REGION" 2>/dev/null; then
+  if aws s3api delete-bucket --bucket "$BUCKET" --region "$REGION" 2>&1; then
     info "s3://${BUCKET} deleted"
   else
-    warn "Could not delete s3://${BUCKET} — may have remaining objects"
+    warn "Could not delete s3://${BUCKET} (see error above)"
   fi
 done
 
@@ -166,21 +187,21 @@ fi
 echo ""
 echo "Phase 4: CloudWatch log groups..."
 
-ALL_LOG_GROUPS=("/aws/batch/atx-transform")
+ALL_LOG_GROUPS=("/aws/batch/atx-transform" "/aws/batch/job")
 for FN in atx-trigger-job atx-get-job-status atx-terminate-job atx-list-jobs \
            atx-trigger-batch-jobs atx-get-batch-status atx-terminate-batch-jobs \
            atx-list-batches atx-configure-mcp; do
   ALL_LOG_GROUPS+=("/aws/lambda/${FN}")
 done
 
+LOGS_FOUND=false
 for LG in "${ALL_LOG_GROUPS[@]}"; do
-  if aws logs describe-log-groups --log-group-name-prefix "$LG" --region "$REGION" \
-    --query 'logGroups[0].logGroupName' --output text 2>/dev/null | grep -q "${LG##*/}"; then
-    aws logs delete-log-group --log-group-name "$LG" --region "$REGION" 2>/dev/null \
-      && info "Log group $LG deleted" \
-      || warn "Could not delete log group $LG"
+  if aws logs delete-log-group --log-group-name "$LG" --region "$REGION" 2>/dev/null; then
+    info "Log group $LG deleted"
+    LOGS_FOUND=true
   fi
 done
+$LOGS_FOUND || skip "No ATX log groups found"
 
 # ============================================================
 # Phase 5: IAM policies
@@ -260,18 +281,20 @@ echo ""
 echo "Phase 7: ECR repositories..."
 
 # CDK asset repos follow the pattern: cdk-{qualifier}-container-assets-{account}-{region}
+ECR_FOUND=false
 for REPO in $(aws ecr describe-repositories --region "$REGION" \
   --query 'repositories[?starts_with(repositoryName, `cdk-`)].repositoryName' \
   --output text 2>/dev/null || echo ""); do
   [ "$REPO" = "None" ] && continue
   [ -z "$REPO" ] && continue
-  # Only delete repos that contain our container images (check for atx-related tags or just CDK asset repos)
   if echo "$REPO" | grep -q "container-assets"; then
+    ECR_FOUND=true
     aws ecr delete-repository --repository-name "$REPO" --region "$REGION" --force 2>/dev/null \
       && info "ECR repo $REPO deleted" \
       || warn "Could not delete ECR repo $REPO"
   fi
 done
+$ECR_FOUND || skip "No ATX ECR repositories found"
 
 # ============================================================
 # Phase 8: CDK bootstrap (our custom qualifier)
@@ -282,30 +305,12 @@ echo "Phase 8: CDK bootstrap resources..."
 CDK_BUCKET="cdk-atxinfra-assets-${ACCOUNT_ID}-${REGION}"
 if aws s3api head-bucket --bucket "$CDK_BUCKET" --region "$REGION" 2>/dev/null; then
   echo "  Emptying and deleting s3://${CDK_BUCKET}..."
-  aws s3 rm "s3://${CDK_BUCKET}" --recursive --region "$REGION" --quiet 2>/dev/null || true
-  # Delete versioned objects
-  while true; do
-    VERSIONS=$(aws s3api list-object-versions --bucket "$CDK_BUCKET" --region "$REGION" \
-      --max-items 1000 --output json 2>/dev/null || echo '{}')
-    DELETE_PAYLOAD=$(echo "$VERSIONS" | python3 -c "
-import sys, json
-data = json.load(sys.stdin)
-objects = []
-for v in data.get('Versions', []):
-    objects.append({'Key': v['Key'], 'VersionId': v['VersionId']})
-for d in data.get('DeleteMarkers', []):
-    objects.append({'Key': d['Key'], 'VersionId': d['VersionId']})
-if objects:
-    print(json.dumps({'Objects': objects, 'Quiet': True}))
-" 2>/dev/null || echo "")
-    if [ -z "$DELETE_PAYLOAD" ]; then break; fi
-    aws s3api delete-objects --bucket "$CDK_BUCKET" --region "$REGION" \
-      --delete "$DELETE_PAYLOAD" --quiet 2>/dev/null || true
-    echo "$VERSIONS" | grep -q '"NextToken"' || break
-  done
-  aws s3api delete-bucket --bucket "$CDK_BUCKET" --region "$REGION" 2>/dev/null \
-    && info "CDK bootstrap bucket deleted" \
-    || warn "Could not delete CDK bootstrap bucket"
+  empty_versioned_bucket "$CDK_BUCKET" "$REGION"
+  if aws s3api delete-bucket --bucket "$CDK_BUCKET" --region "$REGION" 2>&1; then
+    info "CDK bootstrap bucket deleted"
+  else
+    warn "Could not delete CDK bootstrap bucket (see error above)"
+  fi
 else
   skip "CDK bootstrap bucket ($CDK_BUCKET)"
 fi
@@ -348,12 +353,15 @@ fi
 echo ""
 echo "Phase 9: Local generated files..."
 
-for F in atx-runtime-policy.json atx-deployment-policy.json; do
+LOCAL_FOUND=false
+for F in atx-runtime-policy.json atx-deployment-policy.json cdk.context.json; do
   if [ -f "$SCRIPT_DIR/$F" ]; then
     rm -f "$SCRIPT_DIR/$F"
     info "Removed $F"
+    LOCAL_FOUND=true
   fi
 done
+$LOCAL_FOUND || skip "No generated files found"
 
 # ============================================================
 # Done

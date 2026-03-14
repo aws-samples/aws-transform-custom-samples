@@ -43,10 +43,28 @@ export class InfrastructureStack extends cdk.Stack {
     // KMS key for S3 encryption
     this.encryptionKey = new kms.Key(this, 'AtxEncryptionKey', {
       alias: 'atx-encryption-key',
-      description: 'KMS key for ATX S3 bucket encryption',
+      description: 'KMS key for ATX S3 and CloudWatch Logs encryption',
       enableKeyRotation: true,
       removalPolicy: cdk.RemovalPolicy.RETAIN,
     });
+
+    // CloudWatch Logs requires an explicit key policy to use KMS encryption
+    this.encryptionKey.addToResourcePolicy(new iam.PolicyStatement({
+      actions: [
+        'kms:Encrypt',
+        'kms:Decrypt',
+        'kms:ReEncrypt*',
+        'kms:GenerateDataKey*',
+        'kms:DescribeKey',
+      ],
+      principals: [new iam.ServicePrincipal(`logs.${this.region}.amazonaws.com`)],
+      resources: ['*'],
+      conditions: {
+        ArnLike: {
+          'kms:EncryptionContext:aws:logs:arn': `arn:aws:logs:${this.region}:${accountId}:log-group:*`,
+        },
+      },
+    }));
 
     // S3 Buckets - Use existing or create new
     if (props.existingOutputBucket) {
@@ -289,6 +307,10 @@ export class InfrastructureStack extends cdk.Stack {
         `arn:aws:batch:${this.region}:${this.account}:job-definition/${this.jobDefinition.jobDefinitionName}*`,
         `arn:aws:batch:${this.region}:${this.account}:job-queue/${this.jobQueue.jobQueueName}`,
       ],
+    }));
+    submitRole.addToPolicy(new iam.PolicyStatement({
+      actions: ['batch:TagResource'],
+      resources: ['*'],
     }));
     this.outputBucket.grantReadWrite(submitRole);
     this.encryptionKey.grantEncryptDecrypt(submitRole);
