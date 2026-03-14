@@ -98,7 +98,7 @@ info "CDK CLI $($CDK --version 2>&1 | head -1)"
 # --- Bootstrap CDK (idempotent) ---
 
 echo "Bootstrapping CDK (if needed)..."
-$CDK bootstrap "aws://${ACCOUNT_ID}/${REGION}" 2>&1 | grep -E "✅|already|Bootstrapping" || true
+$CDK bootstrap "aws://${ACCOUNT_ID}/${REGION}" --qualifier atxinfra 2>&1 | grep -E "✅|already|Bootstrapping" || true
 info "CDK bootstrapped"
 
 # --- Deploy ---

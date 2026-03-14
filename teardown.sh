@@ -274,10 +274,79 @@ for REPO in $(aws ecr describe-repositories --region "$REGION" \
 done
 
 # ============================================================
-# Phase 8: Local generated files
+# Phase 8: CDK bootstrap (our custom qualifier)
 # ============================================================
 echo ""
-echo "Phase 8: Local generated files..."
+echo "Phase 8: CDK bootstrap resources..."
+
+CDK_BUCKET="cdk-atxinfra-assets-${ACCOUNT_ID}-${REGION}"
+if aws s3api head-bucket --bucket "$CDK_BUCKET" --region "$REGION" 2>/dev/null; then
+  echo "  Emptying and deleting s3://${CDK_BUCKET}..."
+  aws s3 rm "s3://${CDK_BUCKET}" --recursive --region "$REGION" --quiet 2>/dev/null || true
+  # Delete versioned objects
+  while true; do
+    VERSIONS=$(aws s3api list-object-versions --bucket "$CDK_BUCKET" --region "$REGION" \
+      --max-items 1000 --output json 2>/dev/null || echo '{}')
+    DELETE_PAYLOAD=$(echo "$VERSIONS" | python3 -c "
+import sys, json
+data = json.load(sys.stdin)
+objects = []
+for v in data.get('Versions', []):
+    objects.append({'Key': v['Key'], 'VersionId': v['VersionId']})
+for d in data.get('DeleteMarkers', []):
+    objects.append({'Key': d['Key'], 'VersionId': d['VersionId']})
+if objects:
+    print(json.dumps({'Objects': objects, 'Quiet': True}))
+" 2>/dev/null || echo "")
+    if [ -z "$DELETE_PAYLOAD" ]; then break; fi
+    aws s3api delete-objects --bucket "$CDK_BUCKET" --region "$REGION" \
+      --delete "$DELETE_PAYLOAD" --quiet 2>/dev/null || true
+    echo "$VERSIONS" | grep -q '"NextToken"' || break
+  done
+  aws s3api delete-bucket --bucket "$CDK_BUCKET" --region "$REGION" 2>/dev/null \
+    && info "CDK bootstrap bucket deleted" \
+    || warn "Could not delete CDK bootstrap bucket"
+else
+  skip "CDK bootstrap bucket ($CDK_BUCKET)"
+fi
+
+# Delete the CDK bootstrap stack (uses our custom qualifier)
+CDK_STACK_STATUS=$(aws cloudformation describe-stacks --stack-name CDKToolkit-atxinfra \
+  --region "$REGION" --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo "NOT_FOUND")
+if [ "$CDK_STACK_STATUS" != "NOT_FOUND" ]; then
+  echo "  Deleting CDKToolkit-atxinfra stack..."
+  aws cloudformation delete-stack --stack-name CDKToolkit-atxinfra --region "$REGION" 2>/dev/null || true
+  aws cloudformation wait stack-delete-complete --stack-name CDKToolkit-atxinfra --region "$REGION" 2>/dev/null \
+    && info "CDK bootstrap stack deleted" \
+    || warn "Could not delete CDK bootstrap stack"
+else
+  # Try default name too (CDKToolkit) — but only if it has our qualifier
+  CDK_DEFAULT_STATUS=$(aws cloudformation describe-stacks --stack-name CDKToolkit \
+    --region "$REGION" --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo "NOT_FOUND")
+  if [ "$CDK_DEFAULT_STATUS" != "NOT_FOUND" ]; then
+    # Check if this bootstrap uses our qualifier
+    HAS_OUR_QUALIFIER=$(aws cloudformation describe-stacks --stack-name CDKToolkit \
+      --region "$REGION" --query "Stacks[0].Parameters[?ParameterKey=='Qualifier'].ParameterValue" \
+      --output text 2>/dev/null || echo "")
+    if [ "$HAS_OUR_QUALIFIER" = "atxinfra" ]; then
+      echo "  Deleting CDKToolkit stack (qualifier: atxinfra)..."
+      aws cloudformation delete-stack --stack-name CDKToolkit --region "$REGION" 2>/dev/null || true
+      aws cloudformation wait stack-delete-complete --stack-name CDKToolkit --region "$REGION" 2>/dev/null \
+        && info "CDK bootstrap stack deleted" \
+        || warn "Could not delete CDK bootstrap stack"
+    else
+      skip "CDKToolkit stack (different qualifier: ${HAS_OUR_QUALIFIER:-default})"
+    fi
+  else
+    skip "CDK bootstrap stack"
+  fi
+fi
+
+# ============================================================
+# Phase 9: Local generated files
+# ============================================================
+echo ""
+echo "Phase 9: Local generated files..."
 
 for F in atx-runtime-policy.json atx-deployment-policy.json; do
   if [ -f "$SCRIPT_DIR/$F" ]; then

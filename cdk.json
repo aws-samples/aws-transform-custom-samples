@@ -1,5 +1,6 @@
 {
   "app": "node bin/cdk.js",
+  "@aws-cdk/core:bootstrapQualifier": "atxinfra",
   "watch": {
     "include": [
       "**"
