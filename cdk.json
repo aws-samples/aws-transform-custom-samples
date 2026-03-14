@@ -1,6 +1,5 @@
 {
   "app": "node bin/cdk.js",
-  "@aws-cdk/core:bootstrapQualifier": "atxinfra",
   "watch": {
     "include": [
       "**"
@@ -18,6 +17,7 @@
     ]
   },
   "context": {
+    "@aws-cdk/core:bootstrapQualifier": "atxinfra",
     "@aws-cdk/aws-lambda:recognizeLayerVersion": true,
     "@aws-cdk/core:checkSecretUsage": true,
     "@aws-cdk/core:target-partitions": [
