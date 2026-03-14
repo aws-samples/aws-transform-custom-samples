@@ -6,8 +6,8 @@ export function errorResponse(statusCode: number, message: string) {
   return { statusCode, error: message };
 }
 
-const DANGEROUS_PATTERNS = ['&&', '||', ';', '|', '`', '$(', '${', '\n', '\r', '>', '<', '>>', '<<'];
-const SAFE_CHARS = /^[a-zA-Z0-9\s\-_./=:,"'@[\]~+()#{}]+$/;
+const DANGEROUS_PATTERNS = ['&&', '||', ';', '|', '`', '$(', '${', '\n', '\r', '>', '<', '>>', '<<', '{', '}'];
+const SAFE_CHARS = /^[a-zA-Z0-9\s\-_./=:,"'@[\]~+]+$/;
 
 export function validateCommand(command: string): void {
   const trimmed = command.trim();

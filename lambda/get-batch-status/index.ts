@@ -51,7 +51,7 @@ export async function handler(event: GetBatchStatusRequest) {
     let status = 'PROCESSING';
     if (completedJobs + submissionFailures === total) status = 'COMPLETED';
     else if (statusCounts['RUNNING'] || statusCounts['STARTING']) status = 'RUNNING';
-    else if (statusCounts['RUNNABLE'] || statusCounts['PENDING']) status = 'PENDING';
+    else if (statusCounts['RUNNABLE'] || statusCounts['PENDING'] || statusCounts['SUBMITTED']) status = 'PENDING';
 
     const failedJobs = batchData.jobs
       .filter((j: any) => statusMap[j.batchJobId] === 'FAILED' || (!j.batchJobId && j.status === 'FAILED'))

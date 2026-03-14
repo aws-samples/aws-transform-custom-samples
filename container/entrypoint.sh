@@ -183,13 +183,19 @@ refresh_credentials() {
         log "Refreshing temporary credentials from IAM role..."
         
         if TEMP_CREDS=$(aws configure export-credentials --format env 2>/dev/null) && [[ -n "$TEMP_CREDS" ]]; then
-            # Source the credentials directly to export them
-            eval "$TEMP_CREDS"
+            # Parse credentials safely without eval
+            export AWS_ACCESS_KEY_ID=$(echo "$TEMP_CREDS" | grep '^export AWS_ACCESS_KEY_ID=' | sed 's/^export AWS_ACCESS_KEY_ID=//')
+            export AWS_SECRET_ACCESS_KEY=$(echo "$TEMP_CREDS" | grep '^export AWS_SECRET_ACCESS_KEY=' | sed 's/^export AWS_SECRET_ACCESS_KEY=//')
+            local session_token
+            session_token=$(echo "$TEMP_CREDS" | grep '^export AWS_SESSION_TOKEN=' | sed 's/^export AWS_SESSION_TOKEN=//')
+            if [[ -n "$session_token" ]]; then
+                export AWS_SESSION_TOKEN="$session_token"
+            fi
             
             # Also configure AWS CLI with these credentials
             aws configure set aws_access_key_id "$AWS_ACCESS_KEY_ID"
             aws configure set aws_secret_access_key "$AWS_SECRET_ACCESS_KEY"
-            if [[ -n "$AWS_SESSION_TOKEN" ]]; then
+            if [[ -n "${AWS_SESSION_TOKEN:-}" ]]; then
                 aws configure set aws_session_token "$AWS_SESSION_TOKEN"
             fi
             
@@ -290,8 +296,13 @@ else
     # Use AWS CLI to export credentials from the credential chain
     # The aws configure export-credentials command outputs in env format
     if TEMP_CREDS=$(aws configure export-credentials --format env 2>/dev/null) && [[ -n "$TEMP_CREDS" ]]; then
-        # Source the credentials directly to export them
-        eval "$TEMP_CREDS"
+        # Parse credentials safely without eval
+        export AWS_ACCESS_KEY_ID=$(echo "$TEMP_CREDS" | grep '^export AWS_ACCESS_KEY_ID=' | sed 's/^export AWS_ACCESS_KEY_ID=//')
+        export AWS_SECRET_ACCESS_KEY=$(echo "$TEMP_CREDS" | grep '^export AWS_SECRET_ACCESS_KEY=' | sed 's/^export AWS_SECRET_ACCESS_KEY=//')
+        SESSION_TOKEN=$(echo "$TEMP_CREDS" | grep '^export AWS_SESSION_TOKEN=' | sed 's/^export AWS_SESSION_TOKEN=//')
+        if [[ -n "$SESSION_TOKEN" ]]; then
+            export AWS_SESSION_TOKEN="$SESSION_TOKEN"
+        fi
         
         # Verify credentials were exported
         if [[ -z "$AWS_ACCESS_KEY_ID" || -z "$AWS_SECRET_ACCESS_KEY" ]]; then
@@ -361,14 +372,16 @@ fetch_private_credentials() {
         echo "$SSH_KEY" > /home/atxuser/.ssh/id_rsa
         chmod 0600 /home/atxuser/.ssh/id_rsa
         chown -R atxuser:atxuser /home/atxuser/.ssh
-        # Disable strict host key checking for non-interactive cloning
+        # Populate known_hosts with major git hosting providers
+        ssh-keyscan -t ed25519,rsa github.com gitlab.com bitbucket.org \
+            >> /home/atxuser/.ssh/known_hosts 2>/dev/null || true
         cat > /home/atxuser/.ssh/config <<'EOF'
 Host *
-    StrictHostKeyChecking no
-    UserKnownHostsFile /dev/null
+    StrictHostKeyChecking yes
+    UserKnownHostsFile /home/atxuser/.ssh/known_hosts
     LogLevel ERROR
 EOF
-        chmod 0600 /home/atxuser/.ssh/config
+        chmod 0600 /home/atxuser/.ssh/config /home/atxuser/.ssh/known_hosts
         log "✓ SSH key configured for private repository access"
     fi
 
@@ -391,11 +404,19 @@ EOF
         echo "$CREDS_JSON" | python3 -c "
 import sys, json, os, stat
 
+ALLOWED_PREFIXES = ['/home/atxuser/']
+
 entries = json.load(sys.stdin)
 for entry in entries:
-    fpath = entry['path']
+    fpath = os.path.realpath(entry['path'])
     content = entry['content']
     mode = int(entry.get('mode', '0644'), 8)
+
+    # Validate path is under allowed prefixes
+    if not any(fpath.startswith(p) for p in ALLOWED_PREFIXES):
+        print(f'SKIPPED (path not allowed): {fpath}', file=sys.stderr)
+        continue
+
     os.makedirs(os.path.dirname(fpath), exist_ok=True)
     with open(fpath, 'w') as f:
         f.write(content)
@@ -467,6 +488,22 @@ fi
 
 # Download source code if provided
 if [[ -n "$SOURCE" ]]; then
+    # If source is an SSH URL, ensure the host is in known_hosts
+    if [[ "$SOURCE" == git@* ]] || [[ "$SOURCE" == ssh://* ]]; then
+        SSH_HOST=""
+        if [[ "$SOURCE" == git@* ]]; then
+            SSH_HOST=$(echo "$SOURCE" | sed 's/^git@//' | cut -d: -f1)
+        elif [[ "$SOURCE" == ssh://* ]]; then
+            SSH_HOST=$(echo "$SOURCE" | sed 's|^ssh://[^@]*@||' | cut -d/ -f1 | cut -d: -f1)
+        fi
+        if [[ -n "$SSH_HOST" ]] && [[ -f /home/atxuser/.ssh/known_hosts ]]; then
+            if ! grep -q "^$SSH_HOST " /home/atxuser/.ssh/known_hosts 2>/dev/null; then
+                log "Adding SSH host key for $SSH_HOST..."
+                ssh-keyscan -t ed25519,rsa "$SSH_HOST" >> /home/atxuser/.ssh/known_hosts 2>/dev/null || true
+            fi
+        fi
+    fi
+
     log "Downloading source code..."
     retry /app/download-source.sh "$SOURCE"
     

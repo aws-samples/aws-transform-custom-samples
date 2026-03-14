@@ -80,6 +80,7 @@ interface Statement {
   Effect: 'Allow';
   Action: string | string[];
   Resource: string | string[];
+  Condition?: Record<string, Record<string, string | string[]>>;
 }
 
 interface PolicyDocument {
@@ -119,7 +120,12 @@ const runtimePolicy: PolicyDocument = {
       Sid: 'KMSEncryptDecrypt',
       Effect: 'Allow',
       Action: ['kms:Encrypt', 'kms:Decrypt', 'kms:GenerateDataKey'],
-      Resource: arn('kms', `alias/${resources.kmsAlias}`),
+      Resource: arn('kms', 'key/*'),
+      Condition: {
+        'ForAnyValue:StringEquals': {
+          'kms:ResourceAliases': `alias/${resources.kmsAlias}`,
+        },
+      },
     },
     {
       Sid: 'SecretsManagerATXCredentials',
@@ -219,7 +225,10 @@ const deploymentPolicy: PolicyDocument = {
       Resource: [
         `arn:aws:iam::${accountId}:role/ATXBatchJobRole`,
         `arn:aws:iam::${accountId}:role/ATXBatchExecutionRole`,
-        `arn:aws:iam::${accountId}:role/ATXLambdaRole`,
+        `arn:aws:iam::${accountId}:role/ATXLambdaSubmitRole`,
+        `arn:aws:iam::${accountId}:role/ATXLambdaStatusRole`,
+        `arn:aws:iam::${accountId}:role/ATXLambdaTerminateRole`,
+        `arn:aws:iam::${accountId}:role/ATXLambdaConfigureRole`,
         `arn:aws:iam::${accountId}:role/cdk-*`,
       ],
     },

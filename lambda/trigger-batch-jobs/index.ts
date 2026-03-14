@@ -35,7 +35,18 @@ export async function handler(event: TriggerBatchJobsRequest) {
     const batchName = event.batchName || batchId;
     const jobQueue = getEnvOrThrow('JOB_QUEUE');
     const jobDefinition = getEnvOrThrow('JOB_DEFINITION');
-    const results = [];
+    const outputBucket = getEnvOrThrow('OUTPUT_BUCKET');
+    const manifestKey = `batch-jobs/${batchId}-output.json`;
+    const results: Array<Record<string, unknown>> = [];
+
+    const writeManifest = async () => {
+      await s3.send(new PutObjectCommand({
+        Bucket: outputBucket,
+        Key: manifestKey,
+        Body: JSON.stringify({ batchId, batchName, submittedAt: new Date().toISOString(), jobs: results }, null, 2),
+        ContentType: 'application/json',
+      }));
+    };
 
     for (const job of event.jobs) {
       const output = `transformations/${batchId}/job-${randomUUID()}/`;
@@ -68,12 +79,17 @@ export async function handler(event: TriggerBatchJobsRequest) {
       }
     }
 
-    await s3.send(new PutObjectCommand({
-      Bucket: getEnvOrThrow('OUTPUT_BUCKET'),
-      Key: `batch-jobs/${batchId}-output.json`,
-      Body: JSON.stringify({ batchId, batchName, submittedAt: new Date().toISOString(), jobs: results }, null, 2),
-      ContentType: 'application/json',
-    }));
+    // Write manifest — if this fails, log the results so they aren't completely lost
+    try {
+      await writeManifest();
+    } catch (e) {
+      logger.error('Failed to write batch manifest to S3', {
+        batchId,
+        submittedJobIds: results.filter(r => r.batchJobId).map(r => r.batchJobId),
+        error: (e as Error).message,
+      });
+      return errorResponse(500, `Jobs were submitted but manifest write failed. Batch ID: ${batchId}. Submitted job IDs: ${results.filter(r => r.batchJobId).map(r => r.batchJobId).join(', ')}`);
+    }
 
     return jsonResponse(200, {
       batchId, batchName,

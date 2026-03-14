@@ -258,45 +258,95 @@ export class InfrastructureStack extends cdk.Stack {
     // ============================================================
     const lambdaDir = path.join(__dirname, '..', 'lambda');
 
-    const lambdaRole = new iam.Role(this, 'LambdaRole', {
-      roleName: 'ATXLambdaRole',
+    const baseLambdaProps = {
       assumedBy: new iam.ServicePrincipal('lambda.amazonaws.com'),
       managedPolicies: [
         iam.ManagedPolicy.fromAwsManagedPolicyName('service-role/AWSLambdaBasicExecutionRole'),
       ],
-    });
+    };
 
-    lambdaRole.addToPolicy(new iam.PolicyStatement({
+    // --- Submit role (trigger-job, trigger-batch-jobs) ---
+    const submitRole = new iam.Role(this, 'LambdaSubmitRole', {
+      roleName: 'ATXLambdaSubmitRole',
+      ...baseLambdaProps,
+    });
+    submitRole.addToPolicy(new iam.PolicyStatement({
       actions: ['batch:SubmitJob'],
       resources: [
         `arn:aws:batch:${this.region}:${this.account}:job-definition/${this.jobDefinition.jobDefinitionName}*`,
         `arn:aws:batch:${this.region}:${this.account}:job-queue/${this.jobQueue.jobQueueName}`,
       ],
     }));
-    lambdaRole.addToPolicy(new iam.PolicyStatement({
-      actions: ['batch:DescribeJobs', 'batch:ListJobs', 'batch:TerminateJob', 'batch:TagResource'],
+    this.outputBucket.grantReadWrite(submitRole);
+    this.encryptionKey.grantEncryptDecrypt(submitRole);
+
+    // --- Read-only status role (get-job-status, get-batch-status, list-jobs, list-batches) ---
+    const statusRole = new iam.Role(this, 'LambdaStatusRole', {
+      roleName: 'ATXLambdaStatusRole',
+      ...baseLambdaProps,
+    });
+    statusRole.addToPolicy(new iam.PolicyStatement({
+      actions: ['batch:DescribeJobs', 'batch:ListJobs'],
       resources: ['*'],
     }));
-    lambdaRole.addToPolicy(new iam.PolicyStatement({
-      actions: ['logs:GetLogEvents', 'logs:FilterLogEvents'],
-      resources: [this.logGroup.logGroupArn],
+    this.outputBucket.grantRead(statusRole);
+    this.encryptionKey.grantDecrypt(statusRole);
+
+    // --- Terminate role (terminate-job, terminate-batch-jobs) ---
+    const terminateRole = new iam.Role(this, 'LambdaTerminateRole', {
+      roleName: 'ATXLambdaTerminateRole',
+      ...baseLambdaProps,
+    });
+    terminateRole.addToPolicy(new iam.PolicyStatement({
+      actions: ['batch:DescribeJobs', 'batch:TerminateJob'],
+      resources: ['*'],
     }));
+    this.outputBucket.grantRead(terminateRole);
+    this.encryptionKey.grantDecrypt(terminateRole);
 
-    this.outputBucket.grantReadWrite(lambdaRole);
-    this.sourceBucket.grantReadWrite(lambdaRole);
-    this.encryptionKey.grantEncryptDecrypt(lambdaRole);
+    // --- Configure role (configure-mcp) ---
+    const configureRole = new iam.Role(this, 'LambdaConfigureRole', {
+      roleName: 'ATXLambdaConfigureRole',
+      ...baseLambdaProps,
+    });
+    this.sourceBucket.grantWrite(configureRole);
+    this.encryptionKey.grantEncrypt(configureRole);
 
-    NagSuppressions.addResourceSuppressions(lambdaRole, [
-      {
-        id: 'AwsSolutions-IAM4',
-        reason: 'AWSLambdaBasicExecutionRole is the standard AWS-managed policy for Lambda CloudWatch Logs access.',
-        appliesTo: ['Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'],
-      },
+    // Suppress cdk-nag findings for all Lambda roles
+    for (const role of [submitRole, statusRole, terminateRole, configureRole]) {
+      NagSuppressions.addResourceSuppressions(role, [
+        {
+          id: 'AwsSolutions-IAM4',
+          reason: 'AWSLambdaBasicExecutionRole is the standard AWS-managed policy for Lambda CloudWatch Logs access.',
+          appliesTo: ['Policy::arn:<AWS::Partition>:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole'],
+        },
+      ], true);
+    }
+    for (const role of [submitRole, statusRole, terminateRole]) {
+      NagSuppressions.addResourceSuppressions(role, [
+        {
+          id: 'AwsSolutions-IAM5',
+          reason: 'Batch DescribeJobs/ListJobs require wildcard resources. S3 and KMS wildcards are standard CDK grant patterns scoped to specific buckets/keys.',
+          appliesTo: [
+            'Resource::*',
+            'Action::s3:Abort*',
+            'Action::s3:DeleteObject*',
+            'Action::s3:GetBucket*',
+            'Action::s3:GetObject*',
+            'Action::s3:List*',
+            'Action::kms:GenerateDataKey*',
+            'Action::kms:ReEncrypt*',
+            'Resource::<OutputBucket7114EB27.Arn>/*',
+            `Resource::arn:aws:batch:${this.region}:${this.account}:job-definition/${this.jobDefinition.jobDefinitionName}*`,
+          ],
+        },
+      ], true);
+    }
+    NagSuppressions.addResourceSuppressions(configureRole, [
       {
         id: 'AwsSolutions-IAM5',
-        reason: 'Wildcard permissions required: Batch API needs wildcard for DescribeJobs/ListJobs, S3 wildcards for dynamic paths, KMS GenerateDataKey*/ReEncrypt* are standard CDK grant patterns scoped to a single key.',
+        reason: 'S3 and KMS wildcards are standard CDK grant patterns scoped to specific buckets/keys.',
         appliesTo: [
-          'Resource::*',
           'Action::s3:Abort*',
           'Action::s3:DeleteObject*',
           'Action::s3:GetBucket*',
@@ -304,9 +354,7 @@ export class InfrastructureStack extends cdk.Stack {
           'Action::s3:List*',
           'Action::kms:GenerateDataKey*',
           'Action::kms:ReEncrypt*',
-          'Resource::<OutputBucket7114EB27.Arn>/*',
           'Resource::<SourceBucketDDD2130A.Arn>/*',
-          `Resource::arn:aws:batch:${this.region}:${this.account}:job-definition/${this.jobDefinition.jobDefinitionName}*`,
         ],
       },
     ], true);
@@ -320,31 +368,31 @@ export class InfrastructureStack extends cdk.Stack {
 
     const defaultFnProps: Partial<lambdaNode.NodejsFunctionProps> = {
       runtime: lambda.Runtime.NODEJS_24_X,
-      role: lambdaRole,
       environment: lambdaEnv,
       timeout: cdk.Duration.seconds(30),
       bundling: { minify: true, sourceMap: true },
     };
 
-    const makeFn = (id: string, name: string, entry: string, overrides?: Partial<lambdaNode.NodejsFunctionProps>) =>
+    const makeFn = (id: string, name: string, entry: string, role: iam.IRole, overrides?: Partial<lambdaNode.NodejsFunctionProps>) =>
       new lambdaNode.NodejsFunction(this, id, {
         ...defaultFnProps,
+        role,
         functionName: name,
         entry: path.join(lambdaDir, entry, 'index.ts'),
         ...overrides,
       });
 
-    makeFn('TriggerJobFunction', 'atx-trigger-job', 'trigger-job');
-    makeFn('GetJobStatusFunction', 'atx-get-job-status', 'get-job-status');
-    makeFn('TerminateJobFunction', 'atx-terminate-job', 'terminate-job');
-    makeFn('ListJobsFunction', 'atx-list-jobs', 'list-jobs');
-    makeFn('TriggerBatchJobsFunction', 'atx-trigger-batch-jobs', 'trigger-batch-jobs', {
+    makeFn('TriggerJobFunction', 'atx-trigger-job', 'trigger-job', submitRole);
+    makeFn('GetJobStatusFunction', 'atx-get-job-status', 'get-job-status', statusRole);
+    makeFn('TerminateJobFunction', 'atx-terminate-job', 'terminate-job', terminateRole);
+    makeFn('ListJobsFunction', 'atx-list-jobs', 'list-jobs', statusRole);
+    makeFn('TriggerBatchJobsFunction', 'atx-trigger-batch-jobs', 'trigger-batch-jobs', submitRole, {
       timeout: cdk.Duration.minutes(15),
     });
-    makeFn('GetBatchStatusFunction', 'atx-get-batch-status', 'get-batch-status');
-    makeFn('TerminateBatchJobsFunction', 'atx-terminate-batch-jobs', 'terminate-batch-jobs');
-    makeFn('ListBatchesFunction', 'atx-list-batches', 'list-batches');
-    makeFn('ConfigureMcpFunction', 'atx-configure-mcp', 'configure-mcp');
+    makeFn('GetBatchStatusFunction', 'atx-get-batch-status', 'get-batch-status', statusRole);
+    makeFn('TerminateBatchJobsFunction', 'atx-terminate-batch-jobs', 'terminate-batch-jobs', terminateRole);
+    makeFn('ListBatchesFunction', 'atx-list-batches', 'list-batches', statusRole);
+    makeFn('ConfigureMcpFunction', 'atx-configure-mcp', 'configure-mcp', configureRole);
 
     // CloudWatch Dashboard
     const dashboard = new cloudwatch.Dashboard(this, 'Dashboard', {
