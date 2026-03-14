@@ -66,6 +66,9 @@ $is_supported || fail "Region '$REGION' is not supported by AWS Transform Custom
 
 info "AWS Account: $ACCOUNT_ID | Region: $REGION"
 
+# Export region so CDK picks it up
+export AWS_DEFAULT_REGION="$REGION"
+
 echo ""
 
 # --- Install dependencies ---
@@ -87,15 +90,15 @@ info "TypeScript compiled"
 # --- Install CDK CLI if needed ---
 
 if ! command -v cdk >/dev/null 2>&1; then
-  warn "CDK CLI not found globally, installing..."
-  npm install -g aws-cdk 2>&1 | tail -1
+  warn "CDK CLI not found globally, using local npx cdk..."
 fi
-info "CDK CLI $(cdk --version 2>&1 | head -1)"
+CDK="npx cdk"
+info "CDK CLI $($CDK --version 2>&1 | head -1)"
 
 # --- Bootstrap CDK (idempotent) ---
 
 echo "Bootstrapping CDK (if needed)..."
-cdk bootstrap "aws://${ACCOUNT_ID}/${REGION}" 2>&1 | grep -E "✅|already|Bootstrapping" || true
+$CDK bootstrap "aws://${ACCOUNT_ID}/${REGION}" 2>&1 | grep -E "✅|already|Bootstrapping" || true
 info "CDK bootstrapped"
 
 # --- Deploy ---
@@ -104,7 +107,7 @@ echo ""
 echo "Deploying ATX infrastructure (this may take 5-10 minutes on first deploy)..."
 echo "Building container image locally and pushing to ECR..."
 echo ""
-cdk deploy --all --require-approval never
+$CDK deploy --all --require-approval never
 
 echo ""
 echo "═══════════════════════════════════════════════"

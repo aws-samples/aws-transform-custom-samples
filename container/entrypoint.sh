@@ -143,7 +143,6 @@ export -f use-java use-python use-node show-versions switch_java_version switch_
 # Cleanup function
 cleanup() {
     rm -f /tmp/repo_name.txt
-    # Kill background credential refresh if running
     if [[ -n "${REFRESH_PID:-}" ]]; then
         kill "$REFRESH_PID" 2>/dev/null || true
     fi
@@ -174,36 +173,6 @@ retry() {
 
     log "Command failed after $max_attempts attempts."
     return $exitCode
-}
-
-# Function to refresh IAM role credentials (for long-running jobs)
-refresh_credentials() {
-    # Only refresh if we're using IAM role (not explicit credentials)
-    if [[ -z "${USING_EXPLICIT_CREDS:-}" ]]; then
-        log "Refreshing temporary credentials from IAM role..."
-        
-        if TEMP_CREDS=$(aws configure export-credentials --format env 2>/dev/null) && [[ -n "$TEMP_CREDS" ]]; then
-            # Parse credentials safely without eval
-            export AWS_ACCESS_KEY_ID=$(echo "$TEMP_CREDS" | grep '^export AWS_ACCESS_KEY_ID=' | sed 's/^export AWS_ACCESS_KEY_ID=//')
-            export AWS_SECRET_ACCESS_KEY=$(echo "$TEMP_CREDS" | grep '^export AWS_SECRET_ACCESS_KEY=' | sed 's/^export AWS_SECRET_ACCESS_KEY=//')
-            local session_token
-            session_token=$(echo "$TEMP_CREDS" | grep '^export AWS_SESSION_TOKEN=' | sed 's/^export AWS_SESSION_TOKEN=//')
-            if [[ -n "$session_token" ]]; then
-                export AWS_SESSION_TOKEN="$session_token"
-            fi
-            
-            # Also configure AWS CLI with these credentials
-            aws configure set aws_access_key_id "$AWS_ACCESS_KEY_ID"
-            aws configure set aws_secret_access_key "$AWS_SECRET_ACCESS_KEY"
-            if [[ -n "${AWS_SESSION_TOKEN:-}" ]]; then
-                aws configure set aws_session_token "$AWS_SESSION_TOKEN"
-            fi
-            
-            log "Credentials refreshed successfully"
-        else
-            log "Warning: Failed to refresh credentials, continuing with existing credentials"
-        fi
-    fi
 }
 
 # Parse arguments
@@ -290,13 +259,11 @@ else
         exit 1
     fi
     
-    # Retrieve temporary credentials from IAM role (EC2 instance profile, ECS task role, or Batch job role)
+    # Export credentials for tools that only read env vars (e.g., ATX CLI)
+    # Also write to ~/.aws/credentials for tools that read the credentials file
     log "Retrieving temporary credentials from IAM role..."
     
-    # Use AWS CLI to export credentials from the credential chain
-    # The aws configure export-credentials command outputs in env format
     if TEMP_CREDS=$(aws configure export-credentials --format env 2>/dev/null) && [[ -n "$TEMP_CREDS" ]]; then
-        # Parse credentials safely without eval
         export AWS_ACCESS_KEY_ID=$(echo "$TEMP_CREDS" | grep '^export AWS_ACCESS_KEY_ID=' | sed 's/^export AWS_ACCESS_KEY_ID=//')
         export AWS_SECRET_ACCESS_KEY=$(echo "$TEMP_CREDS" | grep '^export AWS_SECRET_ACCESS_KEY=' | sed 's/^export AWS_SECRET_ACCESS_KEY=//')
         SESSION_TOKEN=$(echo "$TEMP_CREDS" | grep '^export AWS_SESSION_TOKEN=' | sed 's/^export AWS_SESSION_TOKEN=//')
@@ -304,23 +271,19 @@ else
             export AWS_SESSION_TOKEN="$SESSION_TOKEN"
         fi
         
-        # Verify credentials were exported
         if [[ -z "$AWS_ACCESS_KEY_ID" || -z "$AWS_SECRET_ACCESS_KEY" ]]; then
             log "Error: Failed to export credentials from IAM role"
             exit 1
         fi
         
-        # Also configure AWS CLI with these credentials for consistency
         aws configure set aws_access_key_id "$AWS_ACCESS_KEY_ID"
         aws configure set aws_secret_access_key "$AWS_SECRET_ACCESS_KEY"
         aws configure set region "${AWS_DEFAULT_REGION:-us-east-1}"
-        if [[ -n "$AWS_SESSION_TOKEN" ]]; then
+        if [[ -n "${AWS_SESSION_TOKEN:-}" ]]; then
             aws configure set aws_session_token "$AWS_SESSION_TOKEN"
         fi
         
         log "Successfully retrieved and exported temporary credentials from IAM role"
-        
-        # Log the role ARN for debugging (without exposing credentials)
         ROLE_ARN=$(aws sts get-caller-identity --query 'Arn' --output text 2>/dev/null || echo "Unable to retrieve role ARN")
         log "Using IAM role: $ROLE_ARN"
     else
@@ -457,18 +420,37 @@ else
     log "No MCP configuration found in S3, using default ATX settings"
 fi
 
-# Start background credential refresh for long-running jobs (every 45 minutes)
-# Only if using IAM role credentials (not explicit credentials)
+# Background credential refresh for long-running jobs (every 45 minutes)
+# Writes to ~/.aws/credentials so subsequent aws CLI calls pick up fresh creds.
+# Note: env vars exported here do NOT propagate to the parent process — that's OK
+# because the initial env vars are set above and most tools also check the creds file.
 if [[ -z "${USING_EXPLICIT_CREDS:-}" ]]; then
-    log "Starting background credential refresh (every 45 minutes) for long-running transformations..."
+    log "Starting background credential refresh (every 45 minutes)..."
     (
+        # Unset inherited credential env vars so export-credentials falls through
+        # to the ECS credential provider for fresh credentials.
+        unset AWS_ACCESS_KEY_ID AWS_SECRET_ACCESS_KEY AWS_SESSION_TOKEN
         while true; do
             sleep 2700  # 45 minutes
-            refresh_credentials
+            # Use /dev/null as credentials file for the fetch so it skips stale creds
+            # and reaches the ECS provider. Then write fresh creds to the real file.
+            if TEMP_CREDS=$(AWS_SHARED_CREDENTIALS_FILE=/dev/null aws configure export-credentials --format env 2>/dev/null) && [[ -n "$TEMP_CREDS" ]]; then
+                REFRESH_KEY=$(echo "$TEMP_CREDS" | grep '^export AWS_ACCESS_KEY_ID=' | sed 's/^export AWS_ACCESS_KEY_ID=//')
+                REFRESH_SECRET=$(echo "$TEMP_CREDS" | grep '^export AWS_SECRET_ACCESS_KEY=' | sed 's/^export AWS_SECRET_ACCESS_KEY=//')
+                REFRESH_TOKEN=$(echo "$TEMP_CREDS" | grep '^export AWS_SESSION_TOKEN=' | sed 's/^export AWS_SESSION_TOKEN=//')
+                if [[ -n "$REFRESH_KEY" && -n "$REFRESH_SECRET" ]]; then
+                    aws configure set aws_access_key_id "$REFRESH_KEY"
+                    aws configure set aws_secret_access_key "$REFRESH_SECRET"
+                    [[ -n "$REFRESH_TOKEN" ]] && aws configure set aws_session_token "$REFRESH_TOKEN"
+                    echo "[$(date -u +"%Y-%m-%dT%H:%M:%SZ")] Credentials refreshed in ~/.aws/credentials"
+                fi
+            else
+                echo "[$(date -u +"%Y-%m-%dT%H:%M:%SZ")] Warning: credential refresh failed, continuing with existing"
+            fi
         done
     ) &
     REFRESH_PID=$!
-    log "Credential refresh background process started (PID: $REFRESH_PID)"
+    log "Credential refresh started (PID: $REFRESH_PID)"
 fi
 
 # ============================================================================
