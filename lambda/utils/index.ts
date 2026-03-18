@@ -21,6 +21,7 @@ export function validateCommand(command: string): void {
 export function validateJobRequest(body: { command?: string; source?: string; jobName?: string }): string | null {
   if (!body.jobName) return 'Missing required field: jobName';
   if (body.jobName.length > 128) return 'jobName must not exceed 128 characters';
+  if (!/^[a-zA-Z0-9][a-zA-Z0-9_-]*$/.test(body.jobName)) return 'jobName must start with a letter or number and contain only letters, numbers, hyphens, and underscores';
   if (!body.command) return 'Missing required field: command';
   try { validateCommand(body.command); } catch (e) { return `Invalid command: ${(e as Error).message}`; }
   if (body.source && !body.source.startsWith('s3://') && !body.source.startsWith('https://') && !body.source.startsWith('ssh://') && !body.source.startsWith('git@')) {
