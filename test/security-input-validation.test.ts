@@ -68,6 +68,7 @@ describe('validateCommand — injection prevention', () => {
   test('trims whitespace before validation', () => {
     expect(() => validateCommand('  atx transform --td my-td  ')).not.toThrow();
   });
+
 });
 
 // ─── Job Request Validation ──────────────────────────────────────────

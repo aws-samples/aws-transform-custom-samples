@@ -454,6 +454,38 @@ if [[ -z "${USING_EXPLICIT_CREDS:-}" ]]; then
 fi
 
 # ============================================================================
+# COMMAND VALIDATION (Defense-in-depth)
+# ============================================================================
+# Mirrors the Lambda-layer validateCommand() logic. This ensures that even if
+# a Batch job is submitted directly (bypassing Lambda), the container rejects
+# dangerous commands.
+validate_command() {
+    local cmd="$1"
+    local trimmed
+    trimmed="$(echo "$cmd" | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')"
+
+    if [[ "$trimmed" != atx* ]]; then
+        log "SECURITY: Command rejected — must start with 'atx'. Got: ${trimmed:0:40}..."
+        exit 1
+    fi
+
+    local dangerous_patterns=('&&' '||' ';' '|' '`' '$(' '${' '>>' '<<' '>' '<')
+    for pattern in "${dangerous_patterns[@]}"; do
+        if [[ "$trimmed" == *"$pattern"* ]]; then
+            log "SECURITY: Command rejected — contains dangerous pattern: $pattern"
+            exit 1
+        fi
+    done
+
+    if ! echo "$trimmed" | grep -qP '^[a-zA-Z0-9\\s\\-_./=:,"\'@\\[\\]~+]+$'; then
+        log "SECURITY: Command rejected — contains invalid characters"
+        exit 1
+    fi
+
+    log "Command validation passed"
+}
+
+# ============================================================================
 # CUSTOM INITIALIZATION (Optional)
 # ============================================================================
 # If you've extended this container with custom configurations, they're already
@@ -517,9 +549,8 @@ if [[ -n "$SOURCE" ]]; then
         log "No -p flag in command, ATX will use current directory"
     fi
     
-    # Execute the ATX command
-    # Note: Using eval here is intentional to support complex commands with pipes/redirects
-    # COMMAND should only come from trusted sources (AWS Batch job definition)
+    # Validate command before execution (defense-in-depth — mirrors Lambda validation)
+    validate_command "$COMMAND"
     log "Executing command: $COMMAND"
     ATX_EXIT=0
     eval "$COMMAND" || ATX_EXIT=$?
@@ -527,9 +558,8 @@ if [[ -n "$SOURCE" ]]; then
         log "Warning: ATX command exited with code $ATX_EXIT"
     fi
 else
-    # Execute command without source (e.g., atx custom def list)
-    # Note: Using eval here is intentional to support complex commands with pipes/redirects
-    # COMMAND should only come from trusted sources (AWS Batch job definition)
+    # Validate command before execution (defense-in-depth — mirrors Lambda validation)
+    validate_command "$COMMAND"
     log "Executing command (no source code): $COMMAND"
     mkdir -p /source
     cd /source
