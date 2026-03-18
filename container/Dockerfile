@@ -139,9 +139,17 @@ RUN . $NVM_DIR/nvm.sh && \
 # ============================================================================
 # Add additional languages, compilers, or tools here. Insert
 # new RUN commands in this section when the user needs a language not included
-# by default. Examples:
+# by default.
 #
-#   RUN dnf install -y cmake clang libstdc++-devel && dnf clean all
+# IMPORTANT: Do NOT use dnf in this section — pyenv overrides the system
+# python3 that dnf depends on, causing "No module named 'dnf'" errors.
+# Use language-specific version managers instead (SDKMAN, nvm, pyenv, rbenv).
+#
+# Examples:
+#   USER atxuser
+#   RUN bash -c "source /home/atxuser/.sdkman/bin/sdkman-init.sh && sdk install java 23.0.2-amzn"
+#   USER root
+#
 #   RUN curl -fsSL https://go.dev/dl/go1.22.0.linux-amd64.tar.gz | tar -C /usr/local -xz
 #
 # After editing, redeploy with: ./setup.sh
