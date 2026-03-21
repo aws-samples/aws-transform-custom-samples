@@ -17,4 +17,4 @@ cd aws-transform-custom-samples
 
 ## License
 
-See LICENSE file for details.
+See the LICENSE file for details.
