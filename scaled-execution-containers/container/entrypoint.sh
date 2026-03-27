@@ -307,6 +307,14 @@ fi
 # ============================================================================
 
 
+# Update ATX CLI to latest version
+log "Updating AWS Transform CLI to latest version..."
+if retry atx update; then
+    log "ATX CLI updated successfully"
+else
+    log "Warning: ATX CLI update failed, continuing with installed version"
+fi
+
 # Download source code if provided
 if [[ -n "$SOURCE" ]]; then
     log "Downloading source code..."
