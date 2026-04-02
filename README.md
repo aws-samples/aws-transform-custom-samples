@@ -6,7 +6,6 @@ This repository contains the following components:
 - **aws-managed-definitions/** - AWS-Managed Transformations that can be leveraged for your project transformations
 - **scaled-execution-bash/** - Running bulk transformations using bash scripts
 - **scaled-execution-containers/** - Scalable, production-ready infrastructure for [AWS Transform custom](https://docs.aws.amazon.com/transform/latest/userguide/custom.html) - Run AI-driven code transformations on 1000s of repositories in parallel using AWS Batch and Fargate.
-- **skills/transform-custom/** - (Public Preview) An AWS Transform custom [Agent Skill](https://github.com/vercel-labs/skills/tree/main?tab=readme-ov-file#what-are-agent-skills)
 
 ## Getting Started
 
