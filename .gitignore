@@ -1,2 +1,3 @@
 # Ignore the `build/` directory in the package root.
 /build
+node_modules

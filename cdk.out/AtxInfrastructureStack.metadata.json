@@ -1,0 +1,1644 @@
+{
+  "/AtxInfrastructureStack/AtxEncryptionKey": [
+    {
+      "type": "aws:cdk:analytics:construct",
+      "data": {
+        "alias": "*",
+        "description": "*",
+        "enableKeyRotation": true,
+        "removalPolicy": "retain"
+      }
+    }
+  ],
+  "/AtxInfrastructureStack/OutputBucket": [
+    {
+      "type": "aws:cdk:analytics:construct",
+      "data": {
+        "bucketName": "*",
+        "versioned": true,
+        "encryptionKey": "*",
+        "encryption": "KMS",
+        "blockPublicAccess": "*",
+        "removalPolicy": "retain",
+        "enforceSSL": true,
+        "lifecycleRules": [
+          {
+            "id": "*"
+          }
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "addLifecycleRule": [
+          {
+            "id": "*"
+          },
+          "*",
+          "*"
+        ]
+      }
+    }
+  ],
+  "/AtxInfrastructureStack/SourceBucket": [
+    {
+      "type": "aws:cdk:analytics:construct",
+      "data": {
+        "bucketName": "*",
+        "encryptionKey": "*",
+        "encryption": "KMS",
+        "blockPublicAccess": "*",
+        "lifecycleRules": [
+          {
+            "id": "*"
+          }
+        ],
+        "removalPolicy": "retain",
+        "enforceSSL": true
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "addLifecycleRule": [
+          {
+            "id": "*"
+          },
+          "*",
+          "*"
+        ]
+      }
+    }
+  ],
+  "/AtxInfrastructureStack/LogGroup": [
+    {
+      "type": "aws:cdk:analytics:construct",
+      "data": {
+        "logGroupName": "*",
+        "retention": 30,
+        "removalPolicy": "retain",
+        "encryptionKey": "*"
+      }
+    }
+  ],
+  "/AtxInfrastructureStack/BatchJobRole": [
+    {
+      "type": "aws:cdk:analytics:construct",
+      "data": {
+        "roleName": "*",
+        "assumedBy": {
+          "principalAccount": "*",
+          "assumeRoleAction": "*"
+        },
+        "managedPolicies": [
+          {
+            "managedPolicyArn": "*"
+          }
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "addToPrincipalPolicy": [
+          {}
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "attachInlinePolicy": [
+          "*"
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "attachInlinePolicy": [
+          "*"
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "addToPrincipalPolicy": [
+          {}
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "addToPrincipalPolicy": [
+          {}
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "addToPrincipalPolicy": [
+          {}
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "addToPrincipalPolicy": [
+          {}
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "addToPolicy": [
+          {}
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "addToPrincipalPolicy": [
+          {}
+        ]
+      }
+    }
+  ],
+  "/AtxInfrastructureStack/BatchExecutionRole": [
+    {
+      "type": "aws:cdk:analytics:construct",
+      "data": {
+        "roleName": "*",
+        "assumedBy": {
+          "principalAccount": "*",
+          "assumeRoleAction": "*"
+        },
+        "managedPolicies": [
+          {
+            "managedPolicyArn": "*"
+          }
+        ]
+      }
+    }
+  ],
+  "/AtxInfrastructureStack/DefaultVpc": [
+    {
+      "type": "aws:cdk:analytics:construct",
+      "data": "*"
+    }
+  ],
+  "/AtxInfrastructureStack/BatchSecurityGroup": [
+    {
+      "type": "aws:cdk:analytics:construct",
+      "data": {
+        "vpc": "*",
+        "description": "*",
+        "allowAllOutbound": true
+      }
+    }
+  ],
+  "/AtxInfrastructureStack/ComputeEnvironment": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "ComputeEnvironment"
+    }
+  ],
+  "/AtxInfrastructureStack/JobQueue": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "JobQueue"
+    }
+  ],
+  "/AtxInfrastructureStack/JobDefinition": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "JobDefinition"
+    }
+  ],
+  "/AtxInfrastructureStack/LambdaSubmitRole": [
+    {
+      "type": "aws:cdk:analytics:construct",
+      "data": {
+        "roleName": "*",
+        "assumedBy": {
+          "principalAccount": "*",
+          "assumeRoleAction": "*"
+        },
+        "managedPolicies": [
+          {
+            "managedPolicyArn": "*"
+          }
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "addToPolicy": [
+          {}
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "addToPrincipalPolicy": [
+          {}
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "attachInlinePolicy": [
+          "*"
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "attachInlinePolicy": [
+          "*"
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "addToPolicy": [
+          {}
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "addToPrincipalPolicy": [
+          {}
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "addToPrincipalPolicy": [
+          {}
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "addToPrincipalPolicy": [
+          {}
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "addToPrincipalPolicy": [
+          {}
+        ]
+      }
+    }
+  ],
+  "/AtxInfrastructureStack/LambdaStatusRole": [
+    {
+      "type": "aws:cdk:analytics:construct",
+      "data": {
+        "roleName": "*",
+        "assumedBy": {
+          "principalAccount": "*",
+          "assumeRoleAction": "*"
+        },
+        "managedPolicies": [
+          {
+            "managedPolicyArn": "*"
+          }
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "addToPolicy": [
+          {}
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "addToPrincipalPolicy": [
+          {}
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "attachInlinePolicy": [
+          "*"
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "attachInlinePolicy": [
+          "*"
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "addToPrincipalPolicy": [
+          {}
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "addToPrincipalPolicy": [
+          {}
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "addToPrincipalPolicy": [
+          {}
+        ]
+      }
+    }
+  ],
+  "/AtxInfrastructureStack/LambdaTerminateRole": [
+    {
+      "type": "aws:cdk:analytics:construct",
+      "data": {
+        "roleName": "*",
+        "assumedBy": {
+          "principalAccount": "*",
+          "assumeRoleAction": "*"
+        },
+        "managedPolicies": [
+          {
+            "managedPolicyArn": "*"
+          }
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "addToPolicy": [
+          {}
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "addToPrincipalPolicy": [
+          {}
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "attachInlinePolicy": [
+          "*"
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "attachInlinePolicy": [
+          "*"
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "addToPrincipalPolicy": [
+          {}
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "addToPrincipalPolicy": [
+          {}
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "addToPrincipalPolicy": [
+          {}
+        ]
+      }
+    }
+  ],
+  "/AtxInfrastructureStack/LambdaConfigureRole": [
+    {
+      "type": "aws:cdk:analytics:construct",
+      "data": {
+        "roleName": "*",
+        "assumedBy": {
+          "principalAccount": "*",
+          "assumeRoleAction": "*"
+        },
+        "managedPolicies": [
+          {
+            "managedPolicyArn": "*"
+          }
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "addToPrincipalPolicy": [
+          {}
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "attachInlinePolicy": [
+          "*"
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "attachInlinePolicy": [
+          "*"
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "addToPrincipalPolicy": [
+          {}
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "addToPrincipalPolicy": [
+          {}
+        ]
+      }
+    }
+  ],
+  "/AtxInfrastructureStack/TriggerJobFunction": [
+    {
+      "type": "aws:cdk:analytics:construct",
+      "data": {
+        "runtime": "*",
+        "environment": "*",
+        "timeout": "*",
+        "bundling": {
+          "minify": true,
+          "sourceMap": true
+        },
+        "role": "*",
+        "functionName": "*",
+        "entry": "*",
+        "code": "*",
+        "handler": "*"
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {}
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {}
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {}
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {}
+    },
+    {
+      "type": "aws:cdk:analytics:construct",
+      "data": {
+        "runtime": "*",
+        "environment": "*",
+        "timeout": "*",
+        "bundling": {
+          "minify": true,
+          "sourceMap": true
+        },
+        "role": "*",
+        "functionName": "*",
+        "entry": "*"
+      }
+    }
+  ],
+  "/AtxInfrastructureStack/GetJobStatusFunction": [
+    {
+      "type": "aws:cdk:analytics:construct",
+      "data": {
+        "runtime": "*",
+        "environment": "*",
+        "timeout": "*",
+        "bundling": {
+          "minify": true,
+          "sourceMap": true
+        },
+        "role": "*",
+        "functionName": "*",
+        "entry": "*",
+        "code": "*",
+        "handler": "*"
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {}
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {}
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {}
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {}
+    },
+    {
+      "type": "aws:cdk:analytics:construct",
+      "data": {
+        "runtime": "*",
+        "environment": "*",
+        "timeout": "*",
+        "bundling": {
+          "minify": true,
+          "sourceMap": true
+        },
+        "role": "*",
+        "functionName": "*",
+        "entry": "*"
+      }
+    }
+  ],
+  "/AtxInfrastructureStack/TerminateJobFunction": [
+    {
+      "type": "aws:cdk:analytics:construct",
+      "data": {
+        "runtime": "*",
+        "environment": "*",
+        "timeout": "*",
+        "bundling": {
+          "minify": true,
+          "sourceMap": true
+        },
+        "role": "*",
+        "functionName": "*",
+        "entry": "*",
+        "code": "*",
+        "handler": "*"
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {}
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {}
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {}
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {}
+    },
+    {
+      "type": "aws:cdk:analytics:construct",
+      "data": {
+        "runtime": "*",
+        "environment": "*",
+        "timeout": "*",
+        "bundling": {
+          "minify": true,
+          "sourceMap": true
+        },
+        "role": "*",
+        "functionName": "*",
+        "entry": "*"
+      }
+    }
+  ],
+  "/AtxInfrastructureStack/ListJobsFunction": [
+    {
+      "type": "aws:cdk:analytics:construct",
+      "data": {
+        "runtime": "*",
+        "environment": "*",
+        "timeout": "*",
+        "bundling": {
+          "minify": true,
+          "sourceMap": true
+        },
+        "role": "*",
+        "functionName": "*",
+        "entry": "*",
+        "code": "*",
+        "handler": "*"
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {}
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {}
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {}
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {}
+    },
+    {
+      "type": "aws:cdk:analytics:construct",
+      "data": {
+        "runtime": "*",
+        "environment": "*",
+        "timeout": "*",
+        "bundling": {
+          "minify": true,
+          "sourceMap": true
+        },
+        "role": "*",
+        "functionName": "*",
+        "entry": "*"
+      }
+    }
+  ],
+  "/AtxInfrastructureStack/TriggerBatchJobsFunction": [
+    {
+      "type": "aws:cdk:analytics:construct",
+      "data": {
+        "runtime": "*",
+        "environment": "*",
+        "timeout": "*",
+        "bundling": {
+          "minify": true,
+          "sourceMap": true
+        },
+        "role": "*",
+        "functionName": "*",
+        "entry": "*",
+        "code": "*",
+        "handler": "*"
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {}
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {}
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {}
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {}
+    },
+    {
+      "type": "aws:cdk:analytics:construct",
+      "data": {
+        "runtime": "*",
+        "environment": "*",
+        "timeout": "*",
+        "bundling": {
+          "minify": true,
+          "sourceMap": true
+        },
+        "role": "*",
+        "functionName": "*",
+        "entry": "*"
+      }
+    }
+  ],
+  "/AtxInfrastructureStack/GetBatchStatusFunction": [
+    {
+      "type": "aws:cdk:analytics:construct",
+      "data": {
+        "runtime": "*",
+        "environment": "*",
+        "timeout": "*",
+        "bundling": {
+          "minify": true,
+          "sourceMap": true
+        },
+        "role": "*",
+        "functionName": "*",
+        "entry": "*",
+        "code": "*",
+        "handler": "*"
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {}
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {}
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {}
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {}
+    },
+    {
+      "type": "aws:cdk:analytics:construct",
+      "data": {
+        "runtime": "*",
+        "environment": "*",
+        "timeout": "*",
+        "bundling": {
+          "minify": true,
+          "sourceMap": true
+        },
+        "role": "*",
+        "functionName": "*",
+        "entry": "*"
+      }
+    }
+  ],
+  "/AtxInfrastructureStack/TerminateBatchJobsFunction": [
+    {
+      "type": "aws:cdk:analytics:construct",
+      "data": {
+        "runtime": "*",
+        "environment": "*",
+        "timeout": "*",
+        "bundling": {
+          "minify": true,
+          "sourceMap": true
+        },
+        "role": "*",
+        "functionName": "*",
+        "entry": "*",
+        "code": "*",
+        "handler": "*"
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {}
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {}
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {}
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {}
+    },
+    {
+      "type": "aws:cdk:analytics:construct",
+      "data": {
+        "runtime": "*",
+        "environment": "*",
+        "timeout": "*",
+        "bundling": {
+          "minify": true,
+          "sourceMap": true
+        },
+        "role": "*",
+        "functionName": "*",
+        "entry": "*"
+      }
+    }
+  ],
+  "/AtxInfrastructureStack/ListBatchesFunction": [
+    {
+      "type": "aws:cdk:analytics:construct",
+      "data": {
+        "runtime": "*",
+        "environment": "*",
+        "timeout": "*",
+        "bundling": {
+          "minify": true,
+          "sourceMap": true
+        },
+        "role": "*",
+        "functionName": "*",
+        "entry": "*",
+        "code": "*",
+        "handler": "*"
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {}
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {}
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {}
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {}
+    },
+    {
+      "type": "aws:cdk:analytics:construct",
+      "data": {
+        "runtime": "*",
+        "environment": "*",
+        "timeout": "*",
+        "bundling": {
+          "minify": true,
+          "sourceMap": true
+        },
+        "role": "*",
+        "functionName": "*",
+        "entry": "*"
+      }
+    }
+  ],
+  "/AtxInfrastructureStack/ConfigureMcpFunction": [
+    {
+      "type": "aws:cdk:analytics:construct",
+      "data": {
+        "runtime": "*",
+        "environment": "*",
+        "timeout": "*",
+        "bundling": {
+          "minify": true,
+          "sourceMap": true
+        },
+        "role": "*",
+        "functionName": "*",
+        "entry": "*",
+        "code": "*",
+        "handler": "*"
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {}
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {}
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {}
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {}
+    },
+    {
+      "type": "aws:cdk:analytics:construct",
+      "data": {
+        "runtime": "*",
+        "environment": "*",
+        "timeout": "*",
+        "bundling": {
+          "minify": true,
+          "sourceMap": true
+        },
+        "role": "*",
+        "functionName": "*",
+        "entry": "*"
+      }
+    }
+  ],
+  "/AtxInfrastructureStack/Dashboard": [
+    {
+      "type": "aws:cdk:analytics:construct",
+      "data": {
+        "dashboardName": "*"
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "addWidgets": [
+          {
+            "width": "*",
+            "height": "*",
+            "warnings": "*",
+            "warningsV2": "*"
+          }
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "addWidgets": [
+          {
+            "width": "*",
+            "height": "*",
+            "warnings": "*",
+            "warningsV2": "*"
+          }
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "addWidgets": [
+          {
+            "width": "*",
+            "height": "*",
+            "warnings": "*",
+            "warningsV2": "*"
+          },
+          "*"
+        ]
+      }
+    }
+  ],
+  "/AtxInfrastructureStack/OutputBucketName": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "OutputBucketName"
+    }
+  ],
+  "/AtxInfrastructureStack/SourceBucketName": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "SourceBucketName"
+    }
+  ],
+  "/AtxInfrastructureStack/JobQueueArn": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "JobQueueArn"
+    }
+  ],
+  "/AtxInfrastructureStack/JobDefinitionArn": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "JobDefinitionArn"
+    }
+  ],
+  "/AtxInfrastructureStack/LogGroupName": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "LogGroupName"
+    }
+  ],
+  "/AtxInfrastructureStack/KmsKeyArn": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "KmsKeyArn"
+    }
+  ],
+  "/AtxInfrastructureStack/BootstrapVersion": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "BootstrapVersion"
+    }
+  ],
+  "/AtxInfrastructureStack/CheckBootstrapVersion": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "CheckBootstrapVersion"
+    }
+  ],
+  "/AtxInfrastructureStack/AtxEncryptionKey/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "AtxEncryptionKeyB9E7F62D"
+    }
+  ],
+  "/AtxInfrastructureStack/AtxEncryptionKey/Alias": [
+    {
+      "type": "aws:cdk:analytics:construct",
+      "data": {
+        "aliasName": "*",
+        "targetKey": "*"
+      }
+    }
+  ],
+  "/AtxInfrastructureStack/OutputBucket/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "OutputBucket7114EB27"
+    }
+  ],
+  "/AtxInfrastructureStack/OutputBucket/Policy": [
+    {
+      "type": "aws:cdk:analytics:construct",
+      "data": {
+        "bucket": "*"
+      }
+    }
+  ],
+  "/AtxInfrastructureStack/SourceBucket/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "SourceBucketDDD2130A"
+    }
+  ],
+  "/AtxInfrastructureStack/SourceBucket/Policy": [
+    {
+      "type": "aws:cdk:analytics:construct",
+      "data": {
+        "bucket": "*"
+      }
+    }
+  ],
+  "/AtxInfrastructureStack/LogGroup/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "LogGroupF5B46931"
+    }
+  ],
+  "/AtxInfrastructureStack/BatchJobRole/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "BatchJobRole37A83758"
+    }
+  ],
+  "/AtxInfrastructureStack/BatchJobRole/DefaultPolicy": [
+    {
+      "type": "aws:cdk:analytics:construct",
+      "data": "*"
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "attachToRole": [
+          "*"
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "attachToRole": [
+          "*"
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "addStatements": [
+          {}
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "addStatements": [
+          {}
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "addStatements": [
+          {}
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "addStatements": [
+          {}
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "addStatements": [
+          {}
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "addStatements": [
+          {}
+        ]
+      }
+    }
+  ],
+  "/AtxInfrastructureStack/BatchExecutionRole/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "BatchExecutionRole3527F47B"
+    }
+  ],
+  "/AtxInfrastructureStack/DefaultVpc/PublicSubnet1": [
+    {
+      "type": "aws:cdk:analytics:construct",
+      "data": "*"
+    }
+  ],
+  "/AtxInfrastructureStack/DefaultVpc/PublicSubnet2": [
+    {
+      "type": "aws:cdk:analytics:construct",
+      "data": "*"
+    }
+  ],
+  "/AtxInfrastructureStack/DefaultVpc/PublicSubnet3": [
+    {
+      "type": "aws:cdk:analytics:construct",
+      "data": "*"
+    }
+  ],
+  "/AtxInfrastructureStack/DefaultVpc/PublicSubnet4": [
+    {
+      "type": "aws:cdk:analytics:construct",
+      "data": "*"
+    }
+  ],
+  "/AtxInfrastructureStack/DefaultVpc/PublicSubnet5": [
+    {
+      "type": "aws:cdk:analytics:construct",
+      "data": "*"
+    }
+  ],
+  "/AtxInfrastructureStack/DefaultVpc/PublicSubnet6": [
+    {
+      "type": "aws:cdk:analytics:construct",
+      "data": "*"
+    }
+  ],
+  "/AtxInfrastructureStack/BatchSecurityGroup/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "BatchSecurityGroup77EC865F"
+    }
+  ],
+  "/AtxInfrastructureStack/LambdaSubmitRole/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "LambdaSubmitRoleE7C5D7C1"
+    }
+  ],
+  "/AtxInfrastructureStack/LambdaSubmitRole/DefaultPolicy": [
+    {
+      "type": "aws:cdk:analytics:construct",
+      "data": "*"
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "attachToRole": [
+          "*"
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "attachToRole": [
+          "*"
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "addStatements": [
+          {}
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "addStatements": [
+          {}
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "addStatements": [
+          {}
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "addStatements": [
+          {}
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "addStatements": [
+          {}
+        ]
+      }
+    }
+  ],
+  "/AtxInfrastructureStack/LambdaStatusRole/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "LambdaStatusRole64626712"
+    }
+  ],
+  "/AtxInfrastructureStack/LambdaStatusRole/DefaultPolicy": [
+    {
+      "type": "aws:cdk:analytics:construct",
+      "data": "*"
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "attachToRole": [
+          "*"
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "attachToRole": [
+          "*"
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "addStatements": [
+          {}
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "addStatements": [
+          {}
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "addStatements": [
+          {}
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "addStatements": [
+          {}
+        ]
+      }
+    }
+  ],
+  "/AtxInfrastructureStack/LambdaTerminateRole/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "LambdaTerminateRole25E5BDD4"
+    }
+  ],
+  "/AtxInfrastructureStack/LambdaTerminateRole/DefaultPolicy": [
+    {
+      "type": "aws:cdk:analytics:construct",
+      "data": "*"
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "attachToRole": [
+          "*"
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "attachToRole": [
+          "*"
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "addStatements": [
+          {}
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "addStatements": [
+          {}
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "addStatements": [
+          {}
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "addStatements": [
+          {}
+        ]
+      }
+    }
+  ],
+  "/AtxInfrastructureStack/LambdaConfigureRole/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "LambdaConfigureRole7623DA4C"
+    }
+  ],
+  "/AtxInfrastructureStack/LambdaConfigureRole/DefaultPolicy": [
+    {
+      "type": "aws:cdk:analytics:construct",
+      "data": "*"
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "attachToRole": [
+          "*"
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "attachToRole": [
+          "*"
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "addStatements": [
+          {}
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "addStatements": [
+          {}
+        ]
+      }
+    },
+    {
+      "type": "aws:cdk:analytics:method",
+      "data": {
+        "addStatements": [
+          {}
+        ]
+      }
+    }
+  ],
+  "/AtxInfrastructureStack/TriggerJobFunction/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "TriggerJobFunctionC0899AD9"
+    }
+  ],
+  "/AtxInfrastructureStack/GetJobStatusFunction/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "GetJobStatusFunction12A25F07"
+    }
+  ],
+  "/AtxInfrastructureStack/TerminateJobFunction/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "TerminateJobFunction01316786"
+    }
+  ],
+  "/AtxInfrastructureStack/ListJobsFunction/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "ListJobsFunctionE2D73F98"
+    }
+  ],
+  "/AtxInfrastructureStack/TriggerBatchJobsFunction/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "TriggerBatchJobsFunctionCA6E6EAF"
+    }
+  ],
+  "/AtxInfrastructureStack/GetBatchStatusFunction/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "GetBatchStatusFunctionE3640996"
+    }
+  ],
+  "/AtxInfrastructureStack/TerminateBatchJobsFunction/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "TerminateBatchJobsFunction57E10EDE"
+    }
+  ],
+  "/AtxInfrastructureStack/ListBatchesFunction/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "ListBatchesFunction868A7649"
+    }
+  ],
+  "/AtxInfrastructureStack/ConfigureMcpFunction/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "ConfigureMcpFunctionAB8AD364"
+    }
+  ],
+  "/AtxInfrastructureStack/Dashboard/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "Dashboard9E4231ED"
+    }
+  ],
+  "/AtxInfrastructureStack/CDKMetadata/Default": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "CDKMetadata"
+    }
+  ],
+  "/AtxInfrastructureStack/AtxEncryptionKey/Alias/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "AtxEncryptionKeyAlias2C4E03E7"
+    }
+  ],
+  "/AtxInfrastructureStack/OutputBucket/Policy/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "OutputBucketPolicyAE009DDC"
+    }
+  ],
+  "/AtxInfrastructureStack/SourceBucket/Policy/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "SourceBucketPolicy703DFBF9"
+    }
+  ],
+  "/AtxInfrastructureStack/BatchJobRole/DefaultPolicy/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "BatchJobRoleDefaultPolicy72C1097B"
+    }
+  ],
+  "/AtxInfrastructureStack/LambdaSubmitRole/DefaultPolicy/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "LambdaSubmitRoleDefaultPolicy294BBAC8"
+    }
+  ],
+  "/AtxInfrastructureStack/LambdaStatusRole/DefaultPolicy/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "LambdaStatusRoleDefaultPolicy6F5469C2"
+    }
+  ],
+  "/AtxInfrastructureStack/LambdaTerminateRole/DefaultPolicy/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "LambdaTerminateRoleDefaultPolicyE96E20AC"
+    }
+  ],
+  "/AtxInfrastructureStack/LambdaConfigureRole/DefaultPolicy/Resource": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "LambdaConfigureRoleDefaultPolicy2F977324"
+    }
+  ],
+  "/AtxInfrastructureStack/TriggerJobFunction/Code/AssetBucket": [
+    {
+      "type": "aws:cdk:analytics:construct",
+      "data": "*"
+    }
+  ],
+  "/AtxInfrastructureStack/GetJobStatusFunction/Code/AssetBucket": [
+    {
+      "type": "aws:cdk:analytics:construct",
+      "data": "*"
+    }
+  ],
+  "/AtxInfrastructureStack/TerminateJobFunction/Code/AssetBucket": [
+    {
+      "type": "aws:cdk:analytics:construct",
+      "data": "*"
+    }
+  ],
+  "/AtxInfrastructureStack/ListJobsFunction/Code/AssetBucket": [
+    {
+      "type": "aws:cdk:analytics:construct",
+      "data": "*"
+    }
+  ],
+  "/AtxInfrastructureStack/TriggerBatchJobsFunction/Code/AssetBucket": [
+    {
+      "type": "aws:cdk:analytics:construct",
+      "data": "*"
+    }
+  ],
+  "/AtxInfrastructureStack/GetBatchStatusFunction/Code/AssetBucket": [
+    {
+      "type": "aws:cdk:analytics:construct",
+      "data": "*"
+    }
+  ],
+  "/AtxInfrastructureStack/TerminateBatchJobsFunction/Code/AssetBucket": [
+    {
+      "type": "aws:cdk:analytics:construct",
+      "data": "*"
+    }
+  ],
+  "/AtxInfrastructureStack/ListBatchesFunction/Code/AssetBucket": [
+    {
+      "type": "aws:cdk:analytics:construct",
+      "data": "*"
+    }
+  ],
+  "/AtxInfrastructureStack/ConfigureMcpFunction/Code/AssetBucket": [
+    {
+      "type": "aws:cdk:analytics:construct",
+      "data": "*"
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "/AtxContainerStack/ImageUri": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "ImageUri"
+    }
+  ],
+  "/AtxContainerStack/BootstrapVersion": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "BootstrapVersion"
+    }
+  ],
+  "/AtxContainerStack/CheckBootstrapVersion": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "CheckBootstrapVersion"
+    }
+  ],
+  "/AtxContainerStack/CDKMetadata/Default": [
+    {
+      "type": "aws:cdk:logicalId",
+      "data": "CDKMetadata"
+    }
+  ]
+}

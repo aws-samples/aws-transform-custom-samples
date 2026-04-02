@@ -1,0 +1,156 @@
+{
+  "version": "52.0.0",
+  "files": {
+    "a2f29f40a2e60d1235f37a90816aeeb8c19c0869467230db2dcdace0128b44c0": {
+      "displayName": "TriggerJobFunction/Code",
+      "source": {
+        "path": "asset.a2f29f40a2e60d1235f37a90816aeeb8c19c0869467230db2dcdace0128b44c0",
+        "packaging": "zip"
+      },
+      "destinations": {
+        "841162671581-us-east-1-78ae443d": {
+          "bucketName": "cdk-atxinfra-assets-841162671581-us-east-1",
+          "objectKey": "a2f29f40a2e60d1235f37a90816aeeb8c19c0869467230db2dcdace0128b44c0.zip",
+          "region": "us-east-1",
+          "assumeRoleArn": "arn:${AWS::Partition}:iam::841162671581:role/cdk-atxinfra-file-publishing-role-841162671581-us-east-1"
+        }
+      }
+    },
+    "8cdebf4cdf8c395f869cd6397026117eb6efd3a72826ed95725a6e29b9e489b8": {
+      "displayName": "GetJobStatusFunction/Code",
+      "source": {
+        "path": "asset.8cdebf4cdf8c395f869cd6397026117eb6efd3a72826ed95725a6e29b9e489b8",
+        "packaging": "zip"
+      },
+      "destinations": {
+        "841162671581-us-east-1-e62f20ca": {
+          "bucketName": "cdk-atxinfra-assets-841162671581-us-east-1",
+          "objectKey": "8cdebf4cdf8c395f869cd6397026117eb6efd3a72826ed95725a6e29b9e489b8.zip",
+          "region": "us-east-1",
+          "assumeRoleArn": "arn:${AWS::Partition}:iam::841162671581:role/cdk-atxinfra-file-publishing-role-841162671581-us-east-1"
+        }
+      }
+    },
+    "6d12335267cebb50e31ab0dec5a661095d15d327bd440acca422f78ef87ed8b7": {
+      "displayName": "TerminateJobFunction/Code",
+      "source": {
+        "path": "asset.6d12335267cebb50e31ab0dec5a661095d15d327bd440acca422f78ef87ed8b7",
+        "packaging": "zip"
+      },
+      "destinations": {
+        "841162671581-us-east-1-02952450": {
+          "bucketName": "cdk-atxinfra-assets-841162671581-us-east-1",
+          "objectKey": "6d12335267cebb50e31ab0dec5a661095d15d327bd440acca422f78ef87ed8b7.zip",
+          "region": "us-east-1",
+          "assumeRoleArn": "arn:${AWS::Partition}:iam::841162671581:role/cdk-atxinfra-file-publishing-role-841162671581-us-east-1"
+        }
+      }
+    },
+    "7d0b8f52c24064a0821fcef1e11879a5db8d8f244e41366d396e4968bd0e9066": {
+      "displayName": "ListJobsFunction/Code",
+      "source": {
+        "path": "asset.7d0b8f52c24064a0821fcef1e11879a5db8d8f244e41366d396e4968bd0e9066",
+        "packaging": "zip"
+      },
+      "destinations": {
+        "841162671581-us-east-1-76fbe59a": {
+          "bucketName": "cdk-atxinfra-assets-841162671581-us-east-1",
+          "objectKey": "7d0b8f52c24064a0821fcef1e11879a5db8d8f244e41366d396e4968bd0e9066.zip",
+          "region": "us-east-1",
+          "assumeRoleArn": "arn:${AWS::Partition}:iam::841162671581:role/cdk-atxinfra-file-publishing-role-841162671581-us-east-1"
+        }
+      }
+    },
+    "b6d8835dbb0c276ca71f4aed97b1296ee4850d3d41a423cc0ff642a9bd7499ea": {
+      "displayName": "TriggerBatchJobsFunction/Code",
+      "source": {
+        "path": "asset.b6d8835dbb0c276ca71f4aed97b1296ee4850d3d41a423cc0ff642a9bd7499ea",
+        "packaging": "zip"
+      },
+      "destinations": {
+        "841162671581-us-east-1-561677e3": {
+          "bucketName": "cdk-atxinfra-assets-841162671581-us-east-1",
+          "objectKey": "b6d8835dbb0c276ca71f4aed97b1296ee4850d3d41a423cc0ff642a9bd7499ea.zip",
+          "region": "us-east-1",
+          "assumeRoleArn": "arn:${AWS::Partition}:iam::841162671581:role/cdk-atxinfra-file-publishing-role-841162671581-us-east-1"
+        }
+      }
+    },
+    "134bf0f7ab15117578f6f66a4bb387c610c537de57b4b5678550d3c72a304721": {
+      "displayName": "GetBatchStatusFunction/Code",
+      "source": {
+        "path": "asset.134bf0f7ab15117578f6f66a4bb387c610c537de57b4b5678550d3c72a304721",
+        "packaging": "zip"
+      },
+      "destinations": {
+        "841162671581-us-east-1-c4490b34": {
+          "bucketName": "cdk-atxinfra-assets-841162671581-us-east-1",
+          "objectKey": "134bf0f7ab15117578f6f66a4bb387c610c537de57b4b5678550d3c72a304721.zip",
+          "region": "us-east-1",
+          "assumeRoleArn": "arn:${AWS::Partition}:iam::841162671581:role/cdk-atxinfra-file-publishing-role-841162671581-us-east-1"
+        }
+      }
+    },
+    "fc827322c00724c4429fe2b72ee1ef36265d9466049e8a891a4f775d6ac63149": {
+      "displayName": "TerminateBatchJobsFunction/Code",
+      "source": {
+        "path": "asset.fc827322c00724c4429fe2b72ee1ef36265d9466049e8a891a4f775d6ac63149",
+        "packaging": "zip"
+      },
+      "destinations": {
+        "841162671581-us-east-1-a1c265d2": {
+          "bucketName": "cdk-atxinfra-assets-841162671581-us-east-1",
+          "objectKey": "fc827322c00724c4429fe2b72ee1ef36265d9466049e8a891a4f775d6ac63149.zip",
+          "region": "us-east-1",
+          "assumeRoleArn": "arn:${AWS::Partition}:iam::841162671581:role/cdk-atxinfra-file-publishing-role-841162671581-us-east-1"
+        }
+      }
+    },
+    "efb98c318c5fd3e055c8208d525431d14901fc150ac1ef14b778e13d4fd25974": {
+      "displayName": "ListBatchesFunction/Code",
+      "source": {
+        "path": "asset.efb98c318c5fd3e055c8208d525431d14901fc150ac1ef14b778e13d4fd25974",
+        "packaging": "zip"
+      },
+      "destinations": {
+        "841162671581-us-east-1-3d06580a": {
+          "bucketName": "cdk-atxinfra-assets-841162671581-us-east-1",
+          "objectKey": "efb98c318c5fd3e055c8208d525431d14901fc150ac1ef14b778e13d4fd25974.zip",
+          "region": "us-east-1",
+          "assumeRoleArn": "arn:${AWS::Partition}:iam::841162671581:role/cdk-atxinfra-file-publishing-role-841162671581-us-east-1"
+        }
+      }
+    },
+    "9961b1bbb8be1a5cfe98104eec9a5d00bb190ddfc4f49ba407ed6b2376acb96b": {
+      "displayName": "ConfigureMcpFunction/Code",
+      "source": {
+        "path": "asset.9961b1bbb8be1a5cfe98104eec9a5d00bb190ddfc4f49ba407ed6b2376acb96b",
+        "packaging": "zip"
+      },
+      "destinations": {
+        "841162671581-us-east-1-b3e98363": {
+          "bucketName": "cdk-atxinfra-assets-841162671581-us-east-1",
+          "objectKey": "9961b1bbb8be1a5cfe98104eec9a5d00bb190ddfc4f49ba407ed6b2376acb96b.zip",
+          "region": "us-east-1",
+          "assumeRoleArn": "arn:${AWS::Partition}:iam::841162671581:role/cdk-atxinfra-file-publishing-role-841162671581-us-east-1"
+        }
+      }
+    },
+    "fde666a61584843816b2a432ac42349f7e03293244da898097f41a0ff366c8ed": {
+      "displayName": "AtxInfrastructureStack Template",
+      "source": {
+        "path": "AtxInfrastructureStack.template.json",
+        "packaging": "file"
+      },
+      "destinations": {
+        "841162671581-us-east-1-0324c662": {
+          "bucketName": "cdk-atxinfra-assets-841162671581-us-east-1",
+          "objectKey": "fde666a61584843816b2a432ac42349f7e03293244da898097f41a0ff366c8ed.json",
+          "region": "us-east-1",
+          "assumeRoleArn": "arn:${AWS::Partition}:iam::841162671581:role/cdk-atxinfra-file-publishing-role-841162671581-us-east-1"
+        }
+      }
+    }
+  },
+  "dockerImages": {}
+}

@@ -1,0 +1,59 @@
+{
+ "Description": "AWS Transform CLI - Container Image",
+ "Outputs": {
+  "ImageUri": {
+   "Description": "Container image URI",
+   "Value": {
+    "Fn::Sub": "841162671581.dkr.ecr.us-east-1.${AWS::URLSuffix}/cdk-atxinfra-container-assets-841162671581-us-east-1:e12db4d9adcb54550fca54a4508854b60ab2cd4aa64fc9c602518b63d1e4e862"
+   },
+   "Export": {
+    "Name": "AtxContainerImageUri"
+   }
+  }
+ },
+ "Resources": {
+  "CDKMetadata": {
+   "Type": "AWS::CDK::Metadata",
+   "Properties": {
+    "Analytics": "v2:deflate64:H4sIAAAAAAAA/yWLWwrCMBBF19L/ZCzRDfj48UuoCygxHcM0NimZiSKlezcqXDhwDteA2W2hbeyLtRuCftANlqtYF1RV/YIu95YZheGUXMB8nqzH/deo2qDDOTFJyu+DZVzVr9S/p+jV8R4vReYiq4ppQBh58zQG6tpmZCKdSxSaELo/P8dJnrqNAAAA"
+   },
+   "Metadata": {
+    "aws:cdk:path": "AtxContainerStack/CDKMetadata/Default"
+   }
+  }
+ },
+ "Parameters": {
+  "BootstrapVersion": {
+   "Type": "AWS::SSM::Parameter::Value<String>",
+   "Default": "/cdk-bootstrap/atxinfra/version",
+   "Description": "Version of the CDK Bootstrap resources in this environment, automatically retrieved from SSM Parameter Store. [cdk:skip]"
+  }
+ },
+ "Rules": {
+  "CheckBootstrapVersion": {
+   "Assertions": [
+    {
+     "Assert": {
+      "Fn::Not": [
+       {
+        "Fn::Contains": [
+         [
+          "1",
+          "2",
+          "3",
+          "4",
+          "5"
+         ],
+         {
+          "Ref": "BootstrapVersion"
+         }
+        ]
+       }
+      ]
+     },
+     "AssertDescription": "CDK bootstrap stack version 6 required. Please run 'cdk bootstrap' with a recent version of the CDK CLI."
+    }
+   ]
+  }
+ }
+}
