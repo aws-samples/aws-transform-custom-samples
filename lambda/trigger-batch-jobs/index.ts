@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import { BatchClient, SubmitJobCommand } from '@aws-sdk/client-batch';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
-import { jsonResponse, errorResponse, validateJobRequest, getEnvOrThrow, logger } from '../utils';
+import { jsonResponse, errorResponse, validateJobRequest, validateEnvironment, getEnvOrThrow, logger } from '../utils';
 
 const batch = new BatchClient({});
 const s3 = new S3Client({});
@@ -29,6 +29,10 @@ export async function handler(event: TriggerBatchJobsRequest) {
     for (let i = 0; i < event.jobs.length; i++) {
       const error = validateJobRequest(event.jobs[i]);
       if (error) return errorResponse(400, `Job ${i}: ${error}`);
+      if (event.jobs[i].environment) {
+        const envError = validateEnvironment(event.jobs[i].environment!);
+        if (envError) return errorResponse(400, `Job ${i}: ${envError}`);
+      }
     }
 
     const batchId = `batch-${randomUUID()}`;

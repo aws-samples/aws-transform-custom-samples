@@ -66,8 +66,10 @@ $is_supported || fail "Region '$REGION' is not supported by AWS Transform Custom
 
 info "AWS Account: $ACCOUNT_ID | Region: $REGION"
 
-# Export region so CDK picks it up
+# region and account exports
 export AWS_DEFAULT_REGION="$REGION"
+export CDK_DEFAULT_REGION="$REGION"
+export CDK_DEFAULT_ACCOUNT="$ACCOUNT_ID"
 
 echo ""
 
@@ -87,12 +89,7 @@ echo "Compiling TypeScript..."
 npx tsc
 info "TypeScript compiled"
 
-# --- Install CDK CLI if needed ---
-
-if ! command -v cdk >/dev/null 2>&1; then
-  warn "CDK CLI not found globally, using local npx cdk..."
-fi
-CDK="npx cdk"
+CDK="cdk"
 info "CDK CLI $($CDK --version 2>&1 | head -1)"
 
 # --- Bootstrap CDK (idempotent) ---

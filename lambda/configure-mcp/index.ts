@@ -1,5 +1,5 @@
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
-import { jsonResponse, errorResponse, getEnvOrThrow, logger } from '../utils';
+import { jsonResponse, errorResponse, validateMcpConfig, getEnvOrThrow, logger } from '../utils';
 
 const s3 = new S3Client({});
 
@@ -12,6 +12,9 @@ export async function handler(event: ConfigureMcpRequest) {
     if (!event.mcpConfig || typeof event.mcpConfig !== 'object') {
       return errorResponse(400, 'Request must contain mcpConfig object');
     }
+
+    const validationError = validateMcpConfig(event.mcpConfig);
+    if (validationError) return errorResponse(400, validationError);
 
     const sourceBucket = getEnvOrThrow('SOURCE_BUCKET');
     const s3Key = 'mcp-config/mcp.json';

@@ -274,7 +274,7 @@ export class InfrastructureStack extends cdk.Stack {
           },
         },
         networkConfiguration: {
-          assignPublicIp: 'ENABLED',
+          assignPublicIp: props.existingSubnetIds && props.existingSubnetIds.length > 0 ? 'DISABLED' : 'ENABLED',
         },
         environment: [
           { name: 'S3_BUCKET', value: this.outputBucket.bucketName },

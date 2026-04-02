@@ -283,16 +283,14 @@ echo "Phase 7: ECR repositories..."
 # CDK asset repos follow the pattern: cdk-{qualifier}-container-assets-{account}-{region}
 ECR_FOUND=false
 for REPO in $(aws ecr describe-repositories --region "$REGION" \
-  --query 'repositories[?starts_with(repositoryName, `cdk-`)].repositoryName' \
+  --query 'repositories[?starts_with(repositoryName, `cdk-atxinfra-container-assets-`)].repositoryName' \
   --output text 2>/dev/null || echo ""); do
   [ "$REPO" = "None" ] && continue
   [ -z "$REPO" ] && continue
-  if echo "$REPO" | grep -q "container-assets"; then
-    ECR_FOUND=true
-    aws ecr delete-repository --repository-name "$REPO" --region "$REGION" --force 2>/dev/null \
-      && info "ECR repo $REPO deleted" \
-      || warn "Could not delete ECR repo $REPO"
-  fi
+  ECR_FOUND=true
+  aws ecr delete-repository --repository-name "$REPO" --region "$REGION" --force 2>/dev/null \
+    && info "ECR repo $REPO deleted" \
+    || warn "Could not delete ECR repo $REPO"
 done
 $ECR_FOUND || skip "No ATX ECR repositories found"
 

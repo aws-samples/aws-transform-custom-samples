@@ -469,18 +469,13 @@ validate_command() {
         exit 1
     fi
 
-    local dangerous_patterns=('&&' '||' ';' '|' '`' '$(' '${' '>>' '<<' '>' '<')
+    local dangerous_patterns=('`' '$(' '${')
     for pattern in "${dangerous_patterns[@]}"; do
         if [[ "$trimmed" == *"$pattern"* ]]; then
             log "SECURITY: Command rejected — contains dangerous pattern: $pattern"
             exit 1
         fi
     done
-
-    if ! echo "$trimmed" | grep -qP '^[a-zA-Z0-9\\s\\-_./=:,"\'@\\[\\]~+]+$'; then
-        log "SECURITY: Command rejected — contains invalid characters"
-        exit 1
-    fi
 
     log "Command validation passed"
 }
@@ -538,10 +533,10 @@ if [[ -n "$SOURCE" ]]; then
     
     # Smart -p flag handling
     # Only replace -p if it exists in the original command
-    if [[ "$COMMAND" == *" -p "* ]] || [[ "$COMMAND" == *" --project-path "* ]]; then
+    if [[ "$COMMAND" == *" -p "* ]] || [[ "$COMMAND" == *" --code-repository-path "* ]]; then
         log "Detected -p flag in command, replacing with container path"
-        # Remove existing -p/--project-path and its value (anchored to flag boundaries)
-        COMMAND=$(echo "$COMMAND" | sed -E 's/(^| )(-p|--project-path) [^ ]+/ /g' | sed 's/  */ /g' | sed 's/^ //;s/ $//')
+        # Remove existing -p/--code-repository-path and its value (anchored to flag boundaries)
+        COMMAND=$(echo "$COMMAND" | sed -E 's/(^| )(-p|--code-repository-path) [^ ]+/ /g' | sed 's/  */ /g' | sed 's/^ //;s/ $//')
         # Add correct -p flag with container path
         COMMAND="$COMMAND -p $PROJECT_PATH"
         log "Replaced with: -p $PROJECT_PATH"

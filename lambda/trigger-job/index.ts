@@ -1,6 +1,6 @@
 import { randomUUID } from 'crypto';
 import { BatchClient, SubmitJobCommand } from '@aws-sdk/client-batch';
-import { jsonResponse, errorResponse, validateJobRequest, getEnvOrThrow, logger } from '../utils';
+import { jsonResponse, errorResponse, validateJobRequest, validateEnvironment, getEnvOrThrow, logger } from '../utils';
 
 const batch = new BatchClient({});
 
@@ -19,6 +19,11 @@ export async function handler(event: TriggerJobRequest) {
   try {
     const validationError = validateJobRequest(event);
     if (validationError) return errorResponse(400, validationError);
+
+    if (event.environment) {
+      const envError = validateEnvironment(event.environment);
+      if (envError) return errorResponse(400, envError);
+    }
 
     const jobName = event.jobName!;
     const output = event.output || `transformations/job-${randomUUID()}/`;

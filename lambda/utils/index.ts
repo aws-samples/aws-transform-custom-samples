@@ -6,16 +6,48 @@ export function errorResponse(statusCode: number, message: string) {
   return { statusCode, error: message };
 }
 
-const DANGEROUS_PATTERNS = ['&&', '||', ';', '|', '`', '$(', '${', '\n', '\r', '>', '<', '>>', '<<', '{', '}'];
-const SAFE_CHARS = /^[a-zA-Z0-9\s\-_./=:,"'@[\]~+]+$/;
+const DANGEROUS_PATTERNS = ['`', '$(', '${'];
+const SAFE_CHARS = /^[a-zA-Z0-9 \t\-_./=:,"'@[\]~+&><;|]+$/;
+const ALLOWED_COMMAND_PREFIXES = ['atx custom def exec', 'atx custom def list', 'atx custom def get'];
+const DENIED_BUILD_COMMANDS = new Set([
+  'curl', 'wget', 'nc', 'ncat', 'dig', 'nslookup',
+  'whoami', 'id', 'printenv', 'base64',
+  'dd', 'mount', 'ss', 'netstat', 'ifconfig',
+]);
+
+function extractBuildCommands(command: string): string[] {
+  const results: string[] = [];
+  // Match -c <value> or --build-command <value>
+  const flagPattern = /(?:^|\s)(?:-c|--build-command)\s+(\S+)/g;
+  let match;
+  while ((match = flagPattern.exec(command)) !== null) {
+    results.push(match[1]);
+  }
+  // Match buildCommand=<value> inside --configuration
+  const configPattern = /buildcommand=(\S+)/gi;
+  while ((match = configPattern.exec(command)) !== null) {
+    results.push(match[1]);
+  }
+  return results;
+}
 
 export function validateCommand(command: string): void {
-  const trimmed = command.trim();
+  const trimmed = command.trim().toLowerCase();
   if (!trimmed.startsWith('atx')) throw new Error("Command must start with 'atx'");
+  if (!ALLOWED_COMMAND_PREFIXES.some(prefix => trimmed.startsWith(prefix))) {
+    throw new Error(`Command not allowed. Permitted: ${ALLOWED_COMMAND_PREFIXES.join(', ')}`);
+  }
   for (const pattern of DANGEROUS_PATTERNS) {
     if (trimmed.includes(pattern)) throw new Error(`Command contains dangerous pattern: ${pattern}`);
   }
   if (!SAFE_CHARS.test(trimmed)) throw new Error('Command contains invalid characters');
+
+  for (const buildCmd of extractBuildCommands(trimmed)) {
+    const executable = buildCmd.replace(/^['"]|['"]$/g, '').split(/[\s/]/)[0];
+    if (DENIED_BUILD_COMMANDS.has(executable)) {
+      throw new Error(`Build command "${executable}" is not allowed`);
+    }
+  }
 }
 
 export function validateJobRequest(body: { command?: string; source?: string; jobName?: string }): string | null {
@@ -50,3 +82,36 @@ export const logger = {
   error: (message: string, data?: Record<string, unknown>) =>
     console.error(JSON.stringify({ level: 'ERROR', message, ...data })),
 };
+
+const ALLOWED_MCP_COMMANDS = new Set(['npx', 'uvx', 'node', 'python', 'python3']);
+
+export function validateMcpConfig(config: Record<string, unknown>): string | null {
+  const servers = config.mcpServers;
+  if (!servers || typeof servers !== 'object') return 'mcpConfig must contain mcpServers object';
+
+  for (const [name, server] of Object.entries(servers as Record<string, any>)) {
+    if (!server || typeof server !== 'object') return `Server "${name}": must be an object`;
+    if (!server.command || typeof server.command !== 'string') return `Server "${name}": missing or invalid command`;
+    if (server.command.includes('/')) return `Server "${name}": command must not contain paths`;
+    if (!ALLOWED_MCP_COMMANDS.has(server.command)) {
+      return `Server "${name}": command "${server.command}" not allowed. Permitted: ${[...ALLOWED_MCP_COMMANDS].join(', ')}`;
+    }
+  }
+  return null;
+}
+
+const ALLOWED_ENV_VALUES: Record<string, RegExp> = {
+  JAVA_VERSION: /^\d{1,2}$/,
+  PYTHON_VERSION: /^(3\.)?\d{1,2}$/,
+  NODE_VERSION: /^\d{1,2}$/,
+};
+
+export function validateEnvironment(env: Record<string, string>): string | null {
+  for (const [key, value] of Object.entries(env)) {
+    if (!ALLOWED_ENV_VALUES[key]) continue;
+    if (!ALLOWED_ENV_VALUES[key].test(value)) {
+      return `Invalid ${key} value: "${value}"`;
+    }
+  }
+  return null;
+}
