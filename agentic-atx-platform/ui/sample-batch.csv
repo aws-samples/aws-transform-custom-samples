@@ -1,0 +1,6 @@
+source,transformation,validationCommands,additionalPlanContext
+https://github.com/venuvasu/todoapilambda,AWS/python-version-upgrade,pytest,Target Python 3.13
+https://github.com/aws-samples/aws-appconfig-java-sample,AWS/java-version-upgrade,./gradlew clean build test,Target Java 21
+https://github.com/venuvasu/toapilambdanode16,AWS/nodejs-version-upgrade,,Target Node.js 22
+https://github.com/spring-projects/spring-petclinic,AWS/early-access-comprehensive-codebase-analysis,,
+https://github.com/venuvasu/todoapilambda,AWS/early-access-comprehensive-codebase-analysis,,

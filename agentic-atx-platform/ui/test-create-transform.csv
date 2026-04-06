@@ -1,0 +1,3 @@
+source,requirements
+https://github.com/venuvasu/todoapilambda,Add comprehensive observability to this application. Instrument what makes sense based on the actual code.
+https://github.com/aws-samples/aws-appconfig-java-sample,Add structured logging and health check endpoints to this Java application based on the actual code patterns.
