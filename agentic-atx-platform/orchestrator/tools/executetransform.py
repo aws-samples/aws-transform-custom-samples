@@ -34,7 +34,7 @@ def _extract_repo_name(source: str) -> str:
     try:
         from urllib.parse import urlparse
         parsed = urlparse(source)
-        if parsed.hostname and parsed.hostname.endswith('github.com'):
+        if parsed.hostname and (parsed.hostname == 'github.com' or parsed.hostname.endswith('.github.com')):
             return parsed.path.rstrip('/').rstrip('.git').split('/')[-1] or 'unknown'
     except Exception:
         pass
