@@ -31,8 +31,13 @@ def _get_output_bucket() -> str:
 def _extract_repo_name(source: str) -> str:
     if not source:
         return 'unknown'
-    if 'github.com' in source:
-        return source.rstrip('/').rstrip('.git').split('/')[-1]
+    try:
+        from urllib.parse import urlparse
+        parsed = urlparse(source)
+        if parsed.hostname and parsed.hostname.endswith('github.com'):
+            return parsed.path.rstrip('/').rstrip('.git').split('/')[-1] or 'unknown'
+    except Exception:
+        pass
     if source.startswith('s3://'):
         return source.split('/')[-1].replace('.zip', '').replace('.tar.gz', '')
     return 'unknown'
