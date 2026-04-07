@@ -83,18 +83,17 @@ export const logger = {
     console.error(JSON.stringify({ level: 'ERROR', message, ...data })),
 };
 
-const ALLOWED_MCP_COMMANDS = new Set(['npx', 'uvx', 'node', 'python', 'python3']);
+const DENIED_MCP_COMMANDS = new Set(['bash', 'sh', 'zsh', 'dash', 'csh', 'ksh', 'fish', 'env']);
 
 export function validateMcpConfig(config: Record<string, unknown>): string | null {
-  const servers = config.mcpServers;
-  if (!servers || typeof servers !== 'object') return 'mcpConfig must contain mcpServers object';
-
-  for (const [name, server] of Object.entries(servers as Record<string, any>)) {
-    if (!server || typeof server !== 'object') return `Server "${name}": must be an object`;
-    if (!server.command || typeof server.command !== 'string') return `Server "${name}": missing or invalid command`;
-    if (server.command.includes('/')) return `Server "${name}": command must not contain paths`;
-    if (!ALLOWED_MCP_COMMANDS.has(server.command)) {
-      return `Server "${name}": command "${server.command}" not allowed. Permitted: ${[...ALLOWED_MCP_COMMANDS].join(', ')}`;
+  const entries = Object.entries(config.mcpServers as Record<string, any> ?? {});
+  for (const [name, server] of entries) {
+    if (!server || typeof server !== 'object') continue;
+    if (server.command && typeof server.command === 'string') {
+      const executable = server.command.split('/').pop()!;
+      if (DENIED_MCP_COMMANDS.has(executable)) {
+        return `Server "${name}": shell interpreter "${executable}" not allowed as MCP command`;
+      }
     }
   }
   return null;
