@@ -1,5 +1,5 @@
 import { BatchClient, DescribeJobsCommand, TerminateJobCommand } from '@aws-sdk/client-batch';
-import { jsonResponse, errorResponse, logger } from '../utils';
+import { jsonResponse, errorResponse, assertJobQueue, JobQueueMismatchError, logger } from '../utils';
 
 const batch = new BatchClient({});
 
@@ -13,6 +13,8 @@ export async function handler(event: TerminateJobRequest) {
 
     const { jobs } = await batch.send(new DescribeJobsCommand({ jobs: [event.jobId] }));
     if (!jobs?.length) return errorResponse(404, `Job not found: ${event.jobId}`);
+
+    assertJobQueue(jobs[0].jobQueue);
 
     const previousStatus = jobs[0].status!;
     if (previousStatus === 'SUCCEEDED' || previousStatus === 'FAILED') {
@@ -29,6 +31,7 @@ export async function handler(event: TerminateJobRequest) {
       terminatedAt: new Date().toISOString(),
     });
   } catch (e) {
+    if (e instanceof JobQueueMismatchError) return errorResponse(403, 'Access denied: job does not belong to ATX queue');
     logger.error('Failed to terminate job', { error: (e as Error).message });
     return errorResponse(500, (e as Error).message);
   }

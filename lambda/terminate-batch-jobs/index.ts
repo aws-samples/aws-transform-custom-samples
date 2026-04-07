@@ -1,6 +1,6 @@
 import { BatchClient, DescribeJobsCommand, TerminateJobCommand } from '@aws-sdk/client-batch';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
-import { jsonResponse, errorResponse, getEnvOrThrow, logger } from '../utils';
+import { jsonResponse, errorResponse, getEnvOrThrow, assertJobQueue, JobQueueMismatchError, logger } from '../utils';
 
 const batch = new BatchClient({});
 const s3 = new S3Client({});
@@ -33,6 +33,7 @@ export async function handler(event: TerminateBatchJobsRequest) {
     for (let i = 0; i < jobIds.length; i += 100) {
       const { jobs } = await batch.send(new DescribeJobsCommand({ jobs: jobIds.slice(i, i + 100) }));
       for (const job of jobs || []) {
+        try { assertJobQueue(job.jobQueue); } catch { continue; }
         if (TERMINAL_STATUSES.has(job.status!)) alreadyComplete++;
         else activeJobIds.push(job.jobId!);
       }

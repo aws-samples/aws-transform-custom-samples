@@ -1,5 +1,5 @@
 import { BatchClient, DescribeJobsCommand } from '@aws-sdk/client-batch';
-import { jsonResponse, errorResponse, formatTimestamp, calculateDuration, getEnvOrThrow, logger } from '../utils';
+import { jsonResponse, errorResponse, formatTimestamp, calculateDuration, getEnvOrThrow, assertJobQueue, JobQueueMismatchError, logger } from '../utils';
 
 const batch = new BatchClient({});
 
@@ -15,6 +15,7 @@ export async function handler(event: GetJobStatusRequest) {
     if (!jobs?.length) return errorResponse(404, `Job not found: ${event.jobId}`);
 
     const job = jobs[0];
+    assertJobQueue(job.jobQueue);
     const outputPath = job.tags?.outputPath;
 
     const result: Record<string, unknown> = {
@@ -41,6 +42,7 @@ export async function handler(event: GetJobStatusRequest) {
 
     return jsonResponse(200, result);
   } catch (e) {
+    if (e instanceof JobQueueMismatchError) return errorResponse(403, 'Access denied: job does not belong to ATX queue');
     logger.error('Failed to get job status', { error: (e as Error).message });
     return errorResponse(500, (e as Error).message);
   }

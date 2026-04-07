@@ -99,6 +99,24 @@ export function validateMcpConfig(config: Record<string, unknown>): string | nul
   return null;
 }
 
+/**
+ * Verify a job belongs to the expected ATX job queue.
+ * jobQueue is an immutable ARN set at submission time — cannot be spoofed.
+ */
+export function assertJobQueue(jobQueueArn: string | undefined): void {
+  const expectedQueue = getEnvOrThrow('JOB_QUEUE');
+  if (!jobQueueArn || !jobQueueArn.endsWith(`/${expectedQueue}`)) {
+    throw new JobQueueMismatchError(jobQueueArn);
+  }
+}
+
+export class JobQueueMismatchError extends Error {
+  constructor(actualQueue?: string) {
+    super(`Job does not belong to the ATX job queue`);
+    this.name = 'JobQueueMismatchError';
+  }
+}
+
 const ALLOWED_ENV_VALUES: Record<string, RegExp> = {
   JAVA_VERSION: /^\d{1,2}$/,
   PYTHON_VERSION: /^(3\.)?\d{1,2}$/,
