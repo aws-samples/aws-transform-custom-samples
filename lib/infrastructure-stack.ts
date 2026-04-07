@@ -183,8 +183,9 @@ export class InfrastructureStack extends cdk.Stack {
       },
     ], true);
 
-    // Get VPC - Use existing or default
+    // Get VPC - Use existing or create new with private subnets
     let vpc: ec2.IVpc;
+    let usePrivateSubnets = false;
     if (props.existingVpcId) {
       // Use fromVpcAttributes to avoid lookup
       const subnetIds = props.existingSubnetIds && props.existingSubnetIds.length > 0
@@ -197,8 +198,17 @@ export class InfrastructureStack extends cdk.Stack {
         publicSubnetIds: subnetIds.length > 0 ? subnetIds : undefined,
       });
     } else {
-      // Lookup default VPC
-      vpc = ec2.Vpc.fromLookup(this, 'DefaultVpc', { isDefault: true });
+      // Create a new VPC with private subnets and NAT gateway.
+      // This avoids assigning public IPs to Fargate tasks.
+      vpc = new ec2.Vpc(this, 'AtxVpc', {
+        maxAzs: 2,
+        natGateways: 1,
+        subnetConfiguration: [
+          { cidrMask: 24, name: 'Public', subnetType: ec2.SubnetType.PUBLIC },
+          { cidrMask: 24, name: 'Private', subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
+        ],
+      });
+      usePrivateSubnets = true;
     }
 
     // Security Group - Use existing or create new
@@ -213,10 +223,12 @@ export class InfrastructureStack extends cdk.Stack {
       });
     }
 
-    // Get subnets - Use existing or VPC public subnets
+    // Get subnets - Use existing, or private subnets from the new VPC
     const subnetIds = props.existingSubnetIds && props.existingSubnetIds.length > 0
       ? props.existingSubnetIds
-      : vpc.publicSubnets.map(subnet => subnet.subnetId);
+      : usePrivateSubnets
+        ? vpc.privateSubnets.map(subnet => subnet.subnetId)
+        : vpc.publicSubnets.map(subnet => subnet.subnetId);
 
     // Batch Compute Environment
     const computeEnvironment = new batch.CfnComputeEnvironment(this, 'ComputeEnvironment', {
@@ -274,7 +286,7 @@ export class InfrastructureStack extends cdk.Stack {
           },
         },
         networkConfiguration: {
-          assignPublicIp: props.existingSubnetIds && props.existingSubnetIds.length > 0 ? 'DISABLED' : 'ENABLED',
+          assignPublicIp: 'DISABLED',
         },
         environment: [
           { name: 'S3_BUCKET', value: this.outputBucket.bucketName },
