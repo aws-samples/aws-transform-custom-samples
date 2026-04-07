@@ -108,6 +108,23 @@ echo "Building container image locally and pushing to ECR..."
 echo ""
 $CDK deploy --all --require-approval never
 
+# --- Verify deployment ---
+
+echo ""
+echo "Verifying deployment..."
+for STACK_NAME in AtxContainerStack AtxInfrastructureStack; do
+  STACK_STATUS=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
+    --region "$REGION" --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo "NOT_FOUND")
+  case "$STACK_STATUS" in
+    CREATE_COMPLETE|UPDATE_COMPLETE)
+      info "$STACK_NAME: $STACK_STATUS"
+      ;;
+    *)
+      fail "$STACK_NAME deployment failed (status: $STACK_STATUS). Run 'cdk deploy --all' to retry."
+      ;;
+  esac
+done
+
 echo ""
 echo "═══════════════════════════════════════════════"
 echo -e " ${GREEN}Setup complete!${NC}"
