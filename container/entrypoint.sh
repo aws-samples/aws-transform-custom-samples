@@ -12,9 +12,7 @@ if command -v pyenv &>/dev/null; then
     eval "$(pyenv init -)"
 fi
 
-# Initialize SDKMAN for Gradle/Java tooling
-export SDKMAN_DIR="/home/atxuser/.sdkman"
-[ -s "$SDKMAN_DIR/bin/sdkman-init.sh" ] && \. "$SDKMAN_DIR/bin/sdkman-init.sh"
+# Gradle is installed directly at /opt/gradle — no runtime init needed
 
 # Logging function with timestamps (defined early — used by version switching below)
 log() {

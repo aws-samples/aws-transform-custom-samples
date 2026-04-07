@@ -59,20 +59,19 @@ ENV MAVEN_HOME=/usr/share/maven
 ENV PATH="$JAVA_HOME/bin:$MAVEN_HOME/bin:$PATH"
 
 # ============================================================================
-# GRADLE - via SDKMAN
+# GRADLE - direct install with checksum verification
 # ============================================================================
-USER atxuser
-ENV SDKMAN_DIR=/home/atxuser/.sdkman
+ENV GRADLE_VERSION=9.4.1
+ENV GRADLE_HOME=/opt/gradle/gradle-${GRADLE_VERSION}
+ENV GRADLE_SHA256=2ab2958f2a1e51120c326cad6f385153bb11ee93b3c216c5fccebfdfbb7ec6cb
 
-# Install SDKMAN
-RUN curl -s "https://get.sdkman.io" | bash
+RUN curl -fsSL "https://services.gradle.org/distributions/gradle-${GRADLE_VERSION}-bin.zip" -o /tmp/gradle.zip \
+    && echo "${GRADLE_SHA256}  /tmp/gradle.zip" | sha256sum -c - \
+    && mkdir -p /opt/gradle \
+    && unzip -q /tmp/gradle.zip -d /opt/gradle \
+    && rm /tmp/gradle.zip
 
-# Install Gradle
-RUN bash -c "source $SDKMAN_DIR/bin/sdkman-init.sh && sdk install gradle 8.5"
-
-ENV PATH="$SDKMAN_DIR/candidates/gradle/current/bin:$PATH"
-
-USER root
+ENV PATH="${GRADLE_HOME}/bin:$PATH"
 
 # ============================================================================
 # PYTHON - dnf (3.11, 3.12, 3.13) + pyenv (3.8, 3.9, 3.10, 3.14)
@@ -143,11 +142,11 @@ RUN . $NVM_DIR/nvm.sh && \
 #
 # IMPORTANT: Do NOT use dnf in this section — pyenv overrides the system
 # python3 that dnf depends on, causing "No module named 'dnf'" errors.
-# Use language-specific version managers instead (SDKMAN, nvm, pyenv, rbenv).
+# Use language-specific version managers instead (nvm, pyenv, rbenv).
 #
 # Examples:
 #   USER atxuser
-#   RUN bash -c "source /home/atxuser/.sdkman/bin/sdkman-init.sh && sdk install java 23.0.2-amzn"
+#   RUN bash -c "source /home/atxuser/.nvm/nvm.sh && nvm install 23"
 #   USER root
 #
 #   RUN curl -fsSL https://go.dev/dl/go1.22.0.linux-amd64.tar.gz | tar -C /usr/local -xz
