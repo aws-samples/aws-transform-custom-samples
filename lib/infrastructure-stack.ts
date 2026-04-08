@@ -325,6 +325,7 @@ export class InfrastructureStack extends cdk.Stack {
       resources: ['*'],
     }));
     this.outputBucket.grantReadWrite(submitRole);
+    this.sourceBucket.grantWrite(submitRole);
     this.encryptionKey.grantEncryptDecrypt(submitRole);
 
     // --- Read-only status role (get-job-status, get-batch-status, list-jobs, list-batches) ---
@@ -351,16 +352,8 @@ export class InfrastructureStack extends cdk.Stack {
     this.outputBucket.grantRead(terminateRole);
     this.encryptionKey.grantDecrypt(terminateRole);
 
-    // --- Configure role (configure-mcp) ---
-    const configureRole = new iam.Role(this, 'LambdaConfigureRole', {
-      roleName: 'ATXLambdaConfigureRole',
-      ...baseLambdaProps,
-    });
-    this.sourceBucket.grantWrite(configureRole);
-    this.encryptionKey.grantEncrypt(configureRole);
-
     // Suppress cdk-nag findings for all Lambda roles
-    for (const role of [submitRole, statusRole, terminateRole, configureRole]) {
+    for (const role of [submitRole, statusRole, terminateRole]) {
       NagSuppressions.addResourceSuppressions(role, [
         {
           id: 'AwsSolutions-IAM4',
@@ -384,27 +377,12 @@ export class InfrastructureStack extends cdk.Stack {
             'Action::kms:GenerateDataKey*',
             'Action::kms:ReEncrypt*',
             'Resource::<OutputBucket7114EB27.Arn>/*',
+            'Resource::<SourceBucketDDD2130A.Arn>/*',
             `Resource::arn:aws:batch:${this.region}:${this.account}:job-definition/${this.jobDefinition.jobDefinitionName}*`,
           ],
         },
       ], true);
     }
-    NagSuppressions.addResourceSuppressions(configureRole, [
-      {
-        id: 'AwsSolutions-IAM5',
-        reason: 'S3 and KMS wildcards are standard CDK grant patterns scoped to specific buckets/keys.',
-        appliesTo: [
-          'Action::s3:Abort*',
-          'Action::s3:DeleteObject*',
-          'Action::s3:GetBucket*',
-          'Action::s3:GetObject*',
-          'Action::s3:List*',
-          'Action::kms:GenerateDataKey*',
-          'Action::kms:ReEncrypt*',
-          'Resource::<SourceBucketDDD2130A.Arn>/*',
-        ],
-      },
-    ], true);
 
     const lambdaEnv = {
       JOB_QUEUE: 'atx-job-queue',
@@ -439,7 +417,6 @@ export class InfrastructureStack extends cdk.Stack {
     makeFn('GetBatchStatusFunction', 'atx-get-batch-status', 'get-batch-status', statusRole);
     makeFn('TerminateBatchJobsFunction', 'atx-terminate-batch-jobs', 'terminate-batch-jobs', terminateRole);
     makeFn('ListBatchesFunction', 'atx-list-batches', 'list-batches', statusRole);
-    makeFn('ConfigureMcpFunction', 'atx-configure-mcp', 'configure-mcp', configureRole);
 
     // CloudWatch Dashboard
     const dashboard = new cloudwatch.Dashboard(this, 'Dashboard', {

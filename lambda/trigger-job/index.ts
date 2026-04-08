@@ -1,14 +1,17 @@
 import { randomUUID } from 'crypto';
 import { BatchClient, SubmitJobCommand } from '@aws-sdk/client-batch';
-import { jsonResponse, errorResponse, validateJobRequest, validateEnvironment, getEnvOrThrow, logger } from '../utils';
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
+import { jsonResponse, errorResponse, validateJobRequest, validateEnvironment, validateMcpConfig, getEnvOrThrow, logger } from '../utils';
 
 const batch = new BatchClient({});
+const s3 = new S3Client({});
 
 interface TriggerJobRequest {
   source?: string;
   command: string;
   jobName?: string;
   output?: string;
+  mcpConfig?: Record<string, unknown>;
   tags?: Record<string, string>;
   environment?: Record<string, string>;
 }
@@ -31,6 +34,23 @@ export async function handler(event: TriggerJobRequest) {
 
     const containerCommand = ['--output', output];
     if (event.source) containerCommand.push('--source', event.source);
+
+    // If MCP config provided inline, validate, write to job-specific S3 key, and pass to container
+    if (event.mcpConfig) {
+      const mcpError = validateMcpConfig(event.mcpConfig);
+      if (mcpError) return errorResponse(400, `Invalid mcpConfig: ${mcpError}`);
+
+      const sourceBucket = getEnvOrThrow('SOURCE_BUCKET');
+      const mcpKey = `mcp-config/${jobName}-${randomUUID()}/mcp.json`;
+      await s3.send(new PutObjectCommand({
+        Bucket: sourceBucket,
+        Key: mcpKey,
+        Body: JSON.stringify(event.mcpConfig, null, 2),
+        ContentType: 'application/json',
+      }));
+      containerCommand.push('--mcp-config', `s3://${sourceBucket}/${mcpKey}`);
+    }
+
     containerCommand.push('--command', event.command);
 
     // Build environment overrides for version switching

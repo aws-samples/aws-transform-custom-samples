@@ -190,7 +190,7 @@ echo "Phase 4: CloudWatch log groups..."
 ALL_LOG_GROUPS=("/aws/batch/atx-transform" "/aws/batch/job")
 for FN in atx-trigger-job atx-get-job-status atx-terminate-job atx-list-jobs \
            atx-trigger-batch-jobs atx-get-batch-status atx-terminate-batch-jobs \
-           atx-list-batches atx-configure-mcp; do
+           atx-list-batches; do
   ALL_LOG_GROUPS+=("/aws/lambda/${FN}")
 done
 

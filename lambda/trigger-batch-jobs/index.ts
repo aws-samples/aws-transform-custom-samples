@@ -1,7 +1,7 @@
 import { randomUUID } from 'crypto';
 import { BatchClient, SubmitJobCommand } from '@aws-sdk/client-batch';
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
-import { jsonResponse, errorResponse, validateJobRequest, validateEnvironment, getEnvOrThrow, logger } from '../utils';
+import { jsonResponse, errorResponse, validateJobRequest, validateEnvironment, validateMcpConfig, getEnvOrThrow, logger } from '../utils';
 
 const batch = new BatchClient({});
 const s3 = new S3Client({});
@@ -10,6 +10,7 @@ const ALLOWED_ENV_KEYS = new Set(['JAVA_VERSION', 'PYTHON_VERSION', 'NODE_VERSIO
 
 interface TriggerBatchJobsRequest {
   batchName?: string;
+  mcpConfig?: Record<string, unknown>;
   jobs: Array<{
     source?: string;
     command: string;
@@ -40,8 +41,25 @@ export async function handler(event: TriggerBatchJobsRequest) {
     const jobQueue = getEnvOrThrow('JOB_QUEUE');
     const jobDefinition = getEnvOrThrow('JOB_DEFINITION');
     const outputBucket = getEnvOrThrow('OUTPUT_BUCKET');
+    const sourceBucket = getEnvOrThrow('SOURCE_BUCKET');
     const manifestKey = `batch-jobs/${batchId}-output.json`;
     const results: Array<Record<string, unknown>> = [];
+
+    // If MCP config provided, validate and write once for the whole batch
+    let mcpS3Path: string | undefined;
+    if (event.mcpConfig) {
+      const mcpError = validateMcpConfig(event.mcpConfig);
+      if (mcpError) return errorResponse(400, `Invalid mcpConfig: ${mcpError}`);
+
+      const mcpKey = `mcp-config/${batchId}/mcp.json`;
+      await s3.send(new PutObjectCommand({
+        Bucket: sourceBucket,
+        Key: mcpKey,
+        Body: JSON.stringify(event.mcpConfig, null, 2),
+        ContentType: 'application/json',
+      }));
+      mcpS3Path = `s3://${sourceBucket}/${mcpKey}`;
+    }
 
     const writeManifest = async () => {
       await s3.send(new PutObjectCommand({
@@ -57,6 +75,7 @@ export async function handler(event: TriggerBatchJobsRequest) {
       try {
         const containerCommand = ['--output', output];
         if (job.source) containerCommand.push('--source', job.source);
+        if (mcpS3Path) containerCommand.push('--mcp-config', mcpS3Path);
         containerCommand.push('--command', job.command);
 
         // Build environment overrides for version switching

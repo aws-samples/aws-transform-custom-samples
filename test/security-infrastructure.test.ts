@@ -250,29 +250,6 @@ describe('IAM role separation (least privilege)', () => {
     }
   });
 
-  test('configure role has no Batch permissions', () => {
-    // The configure role should only have S3 + KMS, no Batch actions
-    const roles = template.findResources('AWS::IAM::Role', {
-      Properties: { RoleName: 'ATXLambdaConfigureRole' },
-    });
-    const configureRoleLogical = Object.keys(roles)[0];
-    expect(configureRoleLogical).toBeDefined();
-
-    const policies = template.findResources('AWS::IAM::Policy');
-    for (const [, resource] of Object.entries(policies)) {
-      const attachedRoles = resource.Properties?.Roles as Array<Record<string, unknown>> | undefined;
-      if (!attachedRoles) continue;
-
-      const isConfigurePolicy = JSON.stringify(attachedRoles).includes(configureRoleLogical);
-      if (isConfigurePolicy) {
-        const statements = resource.Properties?.PolicyDocument?.Statement as Array<Record<string, unknown>>;
-        for (const stmt of statements) {
-          expect(JSON.stringify(stmt.Action)).not.toContain('batch:');
-        }
-      }
-    }
-  });
-
   test('batch job role Secrets Manager access is scoped to atx/* prefix', () => {
     const policies = template.findResources('AWS::IAM::Policy');
     for (const [, resource] of Object.entries(policies)) {

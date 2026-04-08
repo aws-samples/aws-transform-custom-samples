@@ -71,7 +71,7 @@ const arn = (service: string, resource: string) =>
 const lambdaFunctions = [
   'atx-trigger-job', 'atx-get-job-status', 'atx-terminate-job', 'atx-list-jobs',
   'atx-trigger-batch-jobs', 'atx-get-batch-status', 'atx-terminate-batch-jobs',
-  'atx-list-batches', 'atx-configure-mcp',
+  'atx-list-batches',
 ];
 
 // -- Policy types -------------------------------------------------------------
@@ -228,7 +228,6 @@ const deploymentPolicy: PolicyDocument = {
         `arn:aws:iam::${accountId}:role/ATXLambdaSubmitRole`,
         `arn:aws:iam::${accountId}:role/ATXLambdaStatusRole`,
         `arn:aws:iam::${accountId}:role/ATXLambdaTerminateRole`,
-        `arn:aws:iam::${accountId}:role/ATXLambdaConfigureRole`,
         `arn:aws:iam::${accountId}:role/cdk-*`,
       ],
     },

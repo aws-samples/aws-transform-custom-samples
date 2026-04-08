@@ -177,6 +177,7 @@ retry() {
 SOURCE=""
 OUTPUT=""
 COMMAND=""
+MCP_CONFIG=""
 
 while [[ $# -gt 0 ]]; do
     case $1 in
@@ -192,9 +193,13 @@ while [[ $# -gt 0 ]]; do
             COMMAND="$2"
             shift 2
             ;;
+        --mcp-config)
+            MCP_CONFIG="$2"
+            shift 2
+            ;;
         *)
             echo "Unknown argument: $1"
-            echo "Usage: [--source <git-url|s3-url>] --output <s3-bucket-url> --command <atx-command>"
+            echo "Usage: [--source <git-url|s3-url>] [--mcp-config <s3-path>] --output <s3-bucket-url> --command <atx-command>"
             exit 1
             ;;
     esac
@@ -393,29 +398,22 @@ for entry in entries:
 fetch_private_credentials
 # ============================================================================
 
-# Download MCP configuration from S3 if available
-log "Checking for MCP configuration..."
-MCP_CONFIG_KEY="mcp-config/mcp.json"
+# Download MCP configuration only if explicitly provided via --mcp-config
 MCP_CONFIG_PATH="/home/atxuser/.aws/atx/mcp.json"
 
-# SOURCE_BUCKET is set as environment variable in job definition
-if [ -n "$SOURCE_BUCKET" ] && aws s3 ls "s3://$SOURCE_BUCKET/$MCP_CONFIG_KEY" &>/dev/null; then
-    log "MCP configuration found in S3, downloading..."
-    
-    # Create directory if it doesn't exist
+if [[ -n "$MCP_CONFIG" ]]; then
+    log "MCP configuration provided: $MCP_CONFIG"
     mkdir -p "$(dirname "$MCP_CONFIG_PATH")"
-    
-    # Download MCP config
-    if aws s3 cp "s3://$SOURCE_BUCKET/$MCP_CONFIG_KEY" "$MCP_CONFIG_PATH" --quiet; then
-        # Set proper ownership
+
+    if aws s3 cp "$MCP_CONFIG" "$MCP_CONFIG_PATH" --quiet; then
         chown atxuser:atxuser "$MCP_CONFIG_PATH"
         chmod 644 "$MCP_CONFIG_PATH"
-        log "MCP configuration downloaded successfully to $MCP_CONFIG_PATH"
+        log "MCP configuration downloaded successfully"
     else
-        log "Warning: Failed to download MCP configuration, continuing without it"
+        log "Warning: Failed to download MCP configuration from $MCP_CONFIG, continuing without it"
     fi
 else
-    log "No MCP configuration found in S3, using default ATX settings"
+    log "No MCP configuration provided, using default ATX settings"
 fi
 
 # Background credential refresh for long-running jobs (every 45 minutes)
