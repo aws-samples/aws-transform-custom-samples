@@ -9,27 +9,12 @@ export function errorResponse(statusCode: number, message: string) {
 const DANGEROUS_PATTERNS = ['`', '$(', '${'];
 const SAFE_CHARS = /^[a-zA-Z0-9 \t\-_./=:,"'@[\]~+&><;|]+$/;
 const ALLOWED_COMMAND_PREFIXES = ['atx custom def exec', 'atx custom def list', 'atx custom def get'];
-const DENIED_BUILD_COMMANDS = new Set([
-  'curl', 'wget', 'nc', 'ncat', 'dig', 'nslookup',
-  'whoami', 'id', 'printenv', 'base64',
-  'dd', 'mount', 'ss', 'netstat', 'ifconfig',
-]);
 
-function extractBuildCommands(command: string): string[] {
-  const results: string[] = [];
-  // Match -c <value> or --build-command <value>
-  const flagPattern = /(?:^|\s)(?:-c|--build-command)\s+(\S+)/g;
-  let match;
-  while ((match = flagPattern.exec(command)) !== null) {
-    results.push(match[1]);
-  }
-  // Match buildCommand=<value> inside --configuration
-  const configPattern = /buildcommand=(\S+)/gi;
-  while ((match = configPattern.exec(command)) !== null) {
-    results.push(match[1]);
-  }
-  return results;
-}
+// Build command flags are rejected entirely — ATX auto-detects the build command.
+const BUILD_COMMAND_PATTERNS = [
+  /(?:^|\s)(?:-c|--build-command)\s/i,
+  /buildcommand=/i,
+];
 
 export function validateCommand(command: string): void {
   const trimmed = command.trim().toLowerCase();
@@ -42,10 +27,10 @@ export function validateCommand(command: string): void {
   }
   if (!SAFE_CHARS.test(trimmed)) throw new Error('Command contains invalid characters');
 
-  for (const buildCmd of extractBuildCommands(trimmed)) {
-    const executable = buildCmd.replace(/^['"]|['"]$/g, '').split(/[\s/]/)[0];
-    if (DENIED_BUILD_COMMANDS.has(executable)) {
-      throw new Error(`Build command "${executable}" is not allowed`);
+  // Reject build command flags — ATX auto-detects the build command
+  for (const pattern of BUILD_COMMAND_PATTERNS) {
+    if (pattern.test(trimmed)) {
+      throw new Error('Custom build commands (-c / --build-command / buildCommand=) are not allowed. ATX auto-detects the build command.');
     }
   }
 }

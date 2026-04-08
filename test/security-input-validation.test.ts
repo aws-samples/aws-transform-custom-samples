@@ -31,8 +31,8 @@ describe('validateCommand — injection prevention', () => {
     }
   });
 
-  test('allows shell operators that are valid in build commands', () => {
-    expect(() => validateCommand('atx custom def exec -n td -c "mvn clean test" -x -t')).not.toThrow();
+  test('rejects build commands via -c flag', () => {
+    expect(() => validateCommand('atx custom def exec -n td -c "mvn clean test" -x -t')).toThrow(/not allowed/i);
   });
 
   test('rejects command substitution via curly braces', () => {
@@ -266,12 +266,12 @@ describe('validateEnvironment — version value validation', () => {
 
 // ─── Build Command Deny List ─────────────────────────────────────────
 
-describe('validateCommand — build command deny list', () => {
-  test('accepts valid build commands via -c', () => {
-    expect(() => validateCommand('atx custom def exec -n td -p /source/repo -c mvn -x -t')).not.toThrow();
-    expect(() => validateCommand('atx custom def exec -n td -c gradle -x -t')).not.toThrow();
-    expect(() => validateCommand('atx custom def exec -n td -c npm -x -t')).not.toThrow();
-    expect(() => validateCommand('atx custom def exec -n td --build-command make -x -t')).not.toThrow();
+describe('validateCommand — build command rejection', () => {
+  test('rejects all build commands via -c', () => {
+    expect(() => validateCommand('atx custom def exec -n td -p /source/repo -c mvn -x -t')).toThrow(/not allowed/i);
+    expect(() => validateCommand('atx custom def exec -n td -c gradle -x -t')).toThrow(/not allowed/i);
+    expect(() => validateCommand('atx custom def exec -n td -c npm -x -t')).toThrow(/not allowed/i);
+    expect(() => validateCommand('atx custom def exec -n td --build-command make -x -t')).toThrow(/not allowed/i);
   });
 
   test('rejects denied commands via -c', () => {
@@ -298,8 +298,8 @@ describe('validateCommand — build command deny list', () => {
     expect(() => validateCommand("atx custom def exec -n td --configuration buildcommand=whoami -x -t")).toThrow(/not allowed/i);
   });
 
-  test('accepts valid build commands via --configuration buildCommand=', () => {
-    expect(() => validateCommand("atx custom def exec -n td --configuration buildcommand=mvn -x -t")).not.toThrow();
+  test('rejects build commands via --configuration buildCommand=', () => {
+    expect(() => validateCommand("atx custom def exec -n td --configuration buildcommand=mvn -x -t")).toThrow(/not allowed/i);
   });
 
   test('allows commands without -c flag', () => {
