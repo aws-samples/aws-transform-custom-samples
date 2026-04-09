@@ -207,6 +207,9 @@ export class InfrastructureStack extends cdk.Stack {
           { cidrMask: 24, name: 'Public', subnetType: ec2.SubnetType.PUBLIC },
           { cidrMask: 24, name: 'Private', subnetType: ec2.SubnetType.PRIVATE_WITH_EGRESS },
         ],
+        flowLogs: {
+          default: { destination: ec2.FlowLogDestination.toCloudWatchLogs() },
+        },
       });
       usePrivateSubnets = true;
     }
