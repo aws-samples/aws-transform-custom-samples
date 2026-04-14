@@ -182,6 +182,38 @@ def list_job_results(job_id: str) -> Dict[str, Any]:
 
 
 @tool
+def read_result_file(job_id: str, file_key: str) -> Dict[str, Any]:
+    """
+    Read the content of a specific file from a transformation job's results.
+    Use list_job_results first to get available file keys.
+
+    Args:
+        job_id: The job ID the file belongs to
+        file_key: The full S3 key of the file (from list_job_results)
+
+    Returns:
+        Dictionary with file content (truncated to 50KB)
+    """
+    try:
+        bucket = _get_output_bucket()
+        obj = s3_client.get_object(Bucket=bucket, Key=file_key)
+        content = obj['Body'].read().decode('utf-8', errors='replace')
+        truncated = False
+        if len(content) > 50000:
+            content = content[:50000]
+            truncated = True
+        return {
+            "status": "success",
+            "key": file_key,
+            "content": content,
+            "size": obj['ContentLength'],
+            "truncated": truncated,
+        }
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+
+@tool
 def execute_transform_agent(query: str) -> Dict[str, Any]:
     """
     Handles transformation execution, job status checks, and result retrieval.
@@ -205,11 +237,12 @@ def execute_transform_agent(query: str) -> Dict[str, Any]:
 Request: {query}
 
 Return JSON with these fields:
-- "action": one of "execute", "status", "results" (default: "execute")
+- "action": one of "execute", "status", "results", "read_file" (default: "execute")
 - "transformation": transformation name (e.g., "AWS/python-version-upgrade" or "add-logging")
 - "source": repository URL or S3 path
 - "configuration": comma-separated config string (e.g., "validationCommands=pytest,additionalPlanContext=Target Python 3.13")
 - "job_id": job ID if checking status or results
+- "file_key": full S3 key of a result file (for read_file action)
 
 Example: {{"action": "execute", "transformation": "AWS/python-version-upgrade", "source": "https://github.com/user/repo", "configuration": "validationCommands=pytest", "job_id": ""}}"""
 
@@ -237,6 +270,13 @@ Example: {{"action": "execute", "transformation": "AWS/python-version-upgrade", 
 
         if action == 'results' and job_id:
             result = list_job_results(job_id=job_id)
+            return {"status": "success", "result": json.dumps(result)}
+
+        if action == 'read_file' and job_id:
+            file_key = params.get('file_key', '')
+            if not file_key:
+                return {"status": "error", "error": "Missing file_key. Use list_job_results first to get file keys."}
+            result = read_result_file(job_id=job_id, file_key=file_key)
             return {"status": "success", "result": json.dumps(result)}
 
         # Execute transformation
