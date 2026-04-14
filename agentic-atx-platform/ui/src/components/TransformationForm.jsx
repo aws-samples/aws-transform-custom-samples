@@ -105,7 +105,7 @@ export default function TransformationForm({ orchestrate, onJobCreated }) {
           </div>
           <div className="form-group">
             <label htmlFor="source">Source Repository (GitHub URL or S3 path)</label>
-            <input id="source" type="text" placeholder="https://github.com/user/repo" value={source} onChange={e => setSource(e.target.value)} required />
+            <input id="source" type="text" placeholder="https://github.com/user/repo or s3://bucket/path/to/source" value={source} onChange={e => setSource(e.target.value)} required />
           </div>
           <div className="flex gap-16">
             <div className="form-group" style={{ flex: 1 }}>
