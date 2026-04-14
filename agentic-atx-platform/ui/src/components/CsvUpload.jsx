@@ -88,6 +88,21 @@ export default function CsvUpload({ orchestrate, onJobsCreated }) {
 
   const hasSource = headers.includes('source')
 
+  function downloadTemplate() {
+    const template = `source,transformation,validationCommands,additionalPlanContext
+https://github.com/user/repo1,AWS/python-version-upgrade,pytest,Target Python 3.13
+https://github.com/user/repo2,AWS/java-version-upgrade,mvn clean test,Target Java 21
+https://github.com/user/repo3,AWS/nodejs-version-upgrade,,Target Node.js 22`
+    const blob = new Blob([template], { type: 'text/csv' })
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = 'batch-template.csv'
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+    URL.revokeObjectURL(a.href)
+  }
+
   return (
     <div>
       <h2 style={{ fontSize: 18, marginBottom: 16 }}>CSV Batch Upload</h2>
@@ -111,6 +126,14 @@ export default function CsvUpload({ orchestrate, onJobsCreated }) {
           <p>Drop a CSV file here or click to browse</p>
           <p style={{ fontSize: 12, marginTop: 8, color: '#484f58' }}>
             Required: source | Optional: transformation, language, requirements, validationCommands, additionalPlanContext
+          </p>
+          <p style={{ fontSize: 12, marginTop: 8 }}>
+            <span style={{ color: '#58a6ff', cursor: 'pointer', textDecoration: 'underline' }}
+              onClick={e => { e.stopPropagation(); downloadTemplate() }}
+              role="button" tabIndex={0}
+              onKeyDown={e => { if (e.key === 'Enter') { e.stopPropagation(); downloadTemplate() } }}>
+              ⬇ Download CSV template
+            </span>
           </p>
           <input ref={fileRef} type="file" accept=".csv" style={{ display: 'none' }} onChange={e => handleFile(e.target.files[0])} />
         </div>
