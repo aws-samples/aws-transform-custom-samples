@@ -90,9 +90,7 @@ export default function CsvUpload({ orchestrate, onJobsCreated }) {
 
   function downloadTemplate() {
     const template = `source,transformation,validationCommands,additionalPlanContext
-https://github.com/user/repo1,AWS/python-version-upgrade,pytest,Target Python 3.13
-https://github.com/user/repo2,AWS/java-version-upgrade,mvn clean test,Target Java 21
-https://github.com/user/repo3,AWS/nodejs-version-upgrade,,Target Node.js 22`
+(required) GitHub or S3 URL of the repository,(optional) e.g. AWS/python-version-upgrade or custom name,(optional) e.g. pytest or mvn clean test,(optional) e.g. Target Python 3.13`
     const blob = new Blob([template], { type: 'text/csv' })
     const a = document.createElement('a')
     a.href = URL.createObjectURL(blob)
