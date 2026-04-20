@@ -18,15 +18,10 @@ Common issues customers may encounter and how to resolve them.
    ```
 
 2. **Insufficient IAM permissions**
-   - Need permissions for: ECR, S3, IAM, Batch, EC2, CloudWatch Logs
+   - Need permissions for: ECR, S3, IAM, Batch, EC2, CloudWatch Logs, Lambda, API Gateway, CloudFront, Bedrock AgentCore
    - Check error message for specific missing permission
-   
-   **Solution:** Generate least-privilege policy:
-   ```bash
-   cd deployment
-   ./generate-custom-policy.sh
-   # Follow instructions to create and attach the policy
-   ```
+
+   **Solution:** Attach a policy with the permissions listed above to your IAM user or role, or use an admin role for initial deployment. CDK will then create service-specific least-privilege roles for the runtime resources (Batch job role, Lambda execution role, AgentCore execution role).
 
 3. **VPC/Subnet not found**
    ```bash
@@ -311,8 +306,9 @@ aws logs filter-log-events \
 
 **Solution:**
 ```bash
-# Update the IAM role policy to include S3 permissions
-# See deployment/README.md for IAM policy configuration
+# Update the IAM role policy to include S3 permissions.
+# IAM roles are managed by the CDK infrastructure stack (cdk/lib/infrastructure-stack.ts).
+# Redeploy the stack after changes: cd cdk && cdk deploy AtxInfrastructureStack
 ```
 
 This ensures ATXBatchJobRole has correct permissions for:

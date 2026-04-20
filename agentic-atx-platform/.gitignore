@@ -33,7 +33,6 @@ orchestrator/.bedrock_agentcore.yaml
 .env
 *.env.local
 deployment/config.env
-deployment/iam-custom-policy.json
 
 # Logs
 *.log

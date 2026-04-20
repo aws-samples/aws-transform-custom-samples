@@ -178,7 +178,7 @@ Rows without transformation: orchestrator follows find → create → execute ch
 │   ├── template.yaml
 │   ├── deploy_agentcore.py
 │   └── deploy.sh
-├── deployment/                 # Infrastructure scripts + config (agentic-specific)
+├── deployment/                 # Configuration template (config.env.template) consumed by sam/cdk/orchestrator
 └── docs/                       # Security + troubleshooting
 
 # Shared with scaled-execution-containers/

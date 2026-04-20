@@ -64,7 +64,6 @@ echo "   ✅ Orchestrator container pushed: ${ORCH_ECR_URI}:latest"
 echo ""
 
 echo "4. Building SAM application..."
-export PATH="$PATH:/Users/batchus/Library/Python/3.9/bin:$HOME/.local/bin"
 SAM_CLI_CONTAINER_TOOL=docker sam build 2>&1
 echo ""
 

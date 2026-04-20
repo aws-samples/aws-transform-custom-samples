@@ -48,13 +48,18 @@ VITE_API_ENDPOINT=$API_URL npx vite build
 ./deploy-aws.sh
 ```
 
-## Deploy (Option A: CLI-Based)
+## Deploy (Option A: CDK + SAM)
 
-For Option A, only `AtxContainerStack` and `AtxInfrastructureStack` are used:
+For Option A, CDK deploys `AtxContainerStack` and `AtxInfrastructureStack` only;
+the AgentCore + API layer is deployed separately via `../sam/deploy.sh`. See the
+top-level [README.md](../README.md) for the full Option A walkthrough.
+
 ```bash
-cd deployment
-./1-build-and-push.sh
-./2-deploy-infrastructure.sh
+# Deploy container + infrastructure only
+cd cdk
+npm install
+npx tsc
+cdk deploy AtxContainerStack AtxInfrastructureStack AtxUiStack --require-approval never
 ```
 
 ## Destroy

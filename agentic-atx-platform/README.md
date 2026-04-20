@@ -280,7 +280,7 @@ Create via the "Create Custom" tab. Published to the ATX registry via `atx custo
 │       ├── infrastructure-stack.ts # Batch, S3, VPC, IAM
 │       ├── agentcore-stack.ts      # AgentCore + Lambda + API (Option B, experimental)
 │       └── ui-stack.ts             # S3 + CloudFront
-├── deployment/                 # Infrastructure deployment scripts (agentic-specific)
+├── deployment/                 # Configuration template (config.env.template)
 ├── docs/                       # Security + troubleshooting
 ├── ARCHITECTURE.md
 └── README.md
