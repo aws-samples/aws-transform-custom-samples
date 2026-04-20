@@ -103,6 +103,8 @@ CDK_DEFAULT_ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
 > cdk deploy AtxContainerStack AtxInfrastructureStack AtxUiStack --require-approval never \
 >   -c existingVpcId=vpc-xxx -c existingSubnetIds=subnet-aaa,subnet-bbb -c existingSecurityGroupId=sg-ccc
 > ```
+> Subnets must be public (auto-assign public IP) or private with a NAT gateway so
+> Fargate tasks can reach ECR, S3, and git.
 
 #### Step 3: Deploy AgentCore + API via SAM
 
@@ -186,6 +188,14 @@ CDK_DEFAULT_ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
 ```
 
 > **Note:** Use the global `cdk` CLI (`npm install -g aws-cdk`) rather than `npx cdk` to avoid version conflicts with the alpha package.
+
+> For accounts without a default VPC, pass VPC context (same pattern as Option A):
+> ```bash
+> cdk deploy --all --require-approval never \
+>   -c existingVpcId=vpc-xxx -c existingSubnetIds=subnet-aaa,subnet-bbb -c existingSecurityGroupId=sg-ccc
+> ```
+> Subnets must be public (auto-assign public IP) or private with a NAT gateway so
+> Fargate tasks can reach ECR, S3, and git.
 
 This deploys 4 stacks in order:
 1. `AtxContainerStack` — ECR + Docker image
