@@ -140,7 +140,7 @@ Rows without transformation: orchestrator follows find → create → execute ch
 | UI | `ui/src/` | React app (5 tabs) |
 | Infrastructure | `cdk/` | Batch, S3, VPC, CloudFront, AgentCore |
 | SAM Layer | `sam/` | AgentCore deploy Lambda + API (Option A) |
-| Container | `container/` | ATX CLI Docker image |
+| Container | `../scaled-execution-containers/container/` | ATX CLI Docker image (shared) |
 
 ## AWS Services
 
@@ -170,7 +170,7 @@ Rows without transformation: orchestrator follows find → create → execute ch
 │   └── src/components/         # TransformationList, Form, CreateCustom, CsvUpload, JobTracker
 ├── cdk/                        # CDK stacks (Container, Infrastructure, AgentCore, UI)
 │   └── lib/
-│       ├── container-stack.ts      # ECR + Docker image
+│       ├── container-stack.ts      # ECR + Docker image (builds from ../../../scaled-execution-containers/container/)
 │       ├── infrastructure-stack.ts # Batch, S3, VPC, IAM
 │       ├── agentcore-stack.ts      # AgentCore + Lambda + API (Option B, experimental)
 │       └── ui-stack.ts             # S3 + CloudFront
@@ -178,7 +178,9 @@ Rows without transformation: orchestrator follows find → create → execute ch
 │   ├── template.yaml
 │   ├── deploy_agentcore.py
 │   └── deploy.sh
-├── container/                  # ATX CLI Docker image
-├── deployment/                 # Infrastructure scripts + config
+├── deployment/                 # Infrastructure scripts + config (agentic-specific)
 └── docs/                       # Security + troubleshooting
+
+# Shared with scaled-execution-containers/
+# - container/  (ATX CLI Dockerfile and helper scripts)
 ```

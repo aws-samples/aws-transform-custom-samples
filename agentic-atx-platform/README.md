@@ -276,15 +276,17 @@ Create via the "Create Custom" tab. Published to the ATX registry via `atx custo
 │   └── src/components/
 ├── cdk/                        # CDK stacks
 │   └── lib/
-│       ├── container-stack.ts      # ECR + Docker image
+│       ├── container-stack.ts      # ECR + Docker image (builds from ../../../scaled-execution-containers/container/)
 │       ├── infrastructure-stack.ts # Batch, S3, VPC, IAM
 │       ├── agentcore-stack.ts      # AgentCore + Lambda + API (Option B, experimental)
 │       └── ui-stack.ts             # S3 + CloudFront
-├── container/                  # ATX CLI Docker image
-├── deployment/                 # Infrastructure deployment scripts
+├── deployment/                 # Infrastructure deployment scripts (agentic-specific)
 ├── docs/                       # Security + troubleshooting
 ├── ARCHITECTURE.md
 └── README.md
+
+# Shared with scaled-execution-containers/
+# - container/ (ATX CLI Dockerfile and helper scripts — referenced by container-stack.ts)
 ```
 
 ---

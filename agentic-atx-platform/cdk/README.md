@@ -6,10 +6,15 @@ AWS CDK stacks for the ATX Transform Platform.
 
 | Stack | Resources |
 |-------|-----------|
-| `AtxContainerStack` | ECR repository + Docker image build |
+| `AtxContainerStack` | ECR repository + Docker image build (shared Dockerfile from `../../scaled-execution-containers/container/`) |
 | `AtxInfrastructureStack` | VPC, S3 buckets, AWS Batch (Fargate), IAM roles, CloudWatch |
 | `AtxAgentCoreStack` | AgentCore Runtime + async Lambda + HTTP API (experimental) |
 | `AtxUiStack` | S3 bucket + CloudFront distribution for UI hosting |
+
+> **Note:** `AtxContainerStack` reuses the container image defined in
+> `scaled-execution-containers/container/` rather than duplicating the
+> Dockerfile. Customizing the ATX CLI container for the agentic platform
+> means editing that shared Dockerfile.
 
 ## Deploy (Option B: CDK-Only)
 

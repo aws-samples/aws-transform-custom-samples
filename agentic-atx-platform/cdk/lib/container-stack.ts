@@ -28,9 +28,11 @@ export class ContainerStack extends cdk.Stack {
       ],
     });
 
-    // Build and push Docker image from Dockerfile
+    // Build and push Docker image from the shared container definition in
+    // scaled-execution-containers/container. The agentic platform reuses the
+    // same ATX CLI image to avoid duplicating the Dockerfile across projects.
     const dockerImage = new ecrAssets.DockerImageAsset(this, 'DockerImage', {
-      directory: path.join(__dirname, '../../container'),
+      directory: path.join(__dirname, '../../../scaled-execution-containers/container'),
       platform: ecrAssets.Platform.LINUX_AMD64,
     });
 
