@@ -16,7 +16,7 @@ beforeAll(() => {
     env: { account: '123456789012', region: 'us-east-1' },
     imageUri: 'test-image:latest',
     fargateVcpu: 2,
-    fargateMemory: 4096,
+    fargateMemory: 8192,
     jobTimeout: 43200,
     maxVcpus: 256,
     existingVpcId: 'vpc-12345',

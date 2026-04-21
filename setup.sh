@@ -6,7 +6,9 @@ set -euo pipefail
 #
 # Handles everything needed to deploy ATX remote transformation
 # infrastructure to your AWS account:
-#   1. Checks prerequisites (Node.js, npm, Docker, AWS CLI, credentials)
+#   1. Checks prerequisites (Node.js, npm, Docker*, AWS CLI, credentials)
+#      *Docker is only required when building a custom container image
+#       (i.e., when prebuiltImageUri is empty in cdk.json)
 #   2. Installs npm dependencies
 #   3. Compiles TypeScript
 #   4. Bootstraps CDK (if needed)
@@ -43,9 +45,15 @@ info "Node.js $(node -v)"
 command -v npm >/dev/null 2>&1 || fail "npm is not installed"
 info "npm $(npm -v)"
 
-command -v docker >/dev/null 2>&1 || fail "Docker is not installed. Install: https://docs.docker.com/get-docker/"
-docker info >/dev/null 2>&1 || fail "Docker is not running. Please start Docker Desktop and try again."
-info "Docker is running"
+# Check if using a pre-built image (Docker not required)
+PREBUILT_IMAGE_URI=$(node -e "console.log(require('./cdk.json').context.prebuiltImageUri || '')" 2>/dev/null || echo "")
+if [ -z "$PREBUILT_IMAGE_URI" ]; then
+  command -v docker >/dev/null 2>&1 || fail "Docker is not installed. Install: https://docs.docker.com/get-docker/"
+  docker info >/dev/null 2>&1 || fail "Docker is not running. Please start Docker Desktop and try again."
+  info "Docker is running"
+else
+  info "Using pre-built image (Docker not required)"
+fi
 
 command -v aws >/dev/null 2>&1 || fail "AWS CLI is not installed. Install: brew install awscli (macOS)"
 info "AWS CLI $(aws --version 2>&1 | head -1)"
@@ -103,8 +111,13 @@ info "CDK bootstrapped"
 # --- Deploy ---
 
 echo ""
-echo "Deploying ATX infrastructure (this may take 5-10 minutes on first deploy)..."
-echo "Building container image locally and pushing to ECR..."
+echo "Deploying ATX infrastructure..."
+if [ -z "$PREBUILT_IMAGE_URI" ]; then
+  echo "Building container image locally and pushing to ECR..."
+  echo "This may take 5-10 minutes on first deploy."
+else
+  echo "Using pre-built container image. This may take 3-5 minutes on first deploy."
+fi
 echo ""
 $CDK deploy --all --require-approval never
 
@@ -112,7 +125,11 @@ $CDK deploy --all --require-approval never
 
 echo ""
 echo "Verifying deployment..."
-for STACK_NAME in AtxContainerStack AtxInfrastructureStack; do
+STACKS_TO_VERIFY="AtxInfrastructureStack"
+if [ -z "$PREBUILT_IMAGE_URI" ]; then
+  STACKS_TO_VERIFY="AtxContainerStack AtxInfrastructureStack"
+fi
+for STACK_NAME in $STACKS_TO_VERIFY; do
   STACK_STATUS=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
     --region "$REGION" --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo "NOT_FOUND")
   case "$STACK_STATUS" in

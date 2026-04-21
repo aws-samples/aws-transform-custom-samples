@@ -10,7 +10,7 @@ const app = new cdk.App();
 Aspects.of(app).add(new AwsSolutionsChecks({ verbose: true }));
 
 const fargateVcpu = app.node.tryGetContext('fargateVcpu') || 2;
-const fargateMemory = app.node.tryGetContext('fargateMemory') || 4096;
+const fargateMemory = app.node.tryGetContext('fargateMemory') || 8192;
 const jobTimeout = app.node.tryGetContext('jobTimeout') || 43200;
 const maxVcpus = app.node.tryGetContext('maxVcpus') || 256;
 
@@ -19,6 +19,7 @@ const existingSourceBucket = app.node.tryGetContext('existingSourceBucket') || '
 const existingVpcId = app.node.tryGetContext('existingVpcId') || '';
 const existingSubnetIds = app.node.tryGetContext('existingSubnetIds') || [];
 const existingSecurityGroupId = app.node.tryGetContext('existingSecurityGroupId') || '';
+const prebuiltImageUri = app.node.tryGetContext('prebuiltImageUri') || '';
 
 // Region resolution: match ATX CLI precedence, then CDK default, then us-east-1
 const SUPPORTED_REGIONS = ['us-east-1', 'eu-central-1'];
@@ -42,16 +43,24 @@ const env = {
   region: resolvedRegion,
 };
 
-// Stack 1: Container (ECR + Docker Image)
-const containerStack = new ContainerStack(app, 'AtxContainerStack', {
-  env,
-  description: 'AWS Transform CLI - Container Image',
-});
+// Stack 1: Container (ECR + Docker Image) — skipped when using a pre-built image
+let imageUri: string;
+let containerStack: ContainerStack | undefined;
+
+if (prebuiltImageUri) {
+  imageUri = prebuiltImageUri;
+} else {
+  containerStack = new ContainerStack(app, 'AtxContainerStack', {
+    env,
+    description: 'AWS Transform CLI - Container Image',
+  });
+  imageUri = containerStack.imageUri;
+}
 
 // Stack 2: Infrastructure (Batch, S3, IAM, Lambda, CloudWatch)
 const infrastructureStack = new InfrastructureStack(app, 'AtxInfrastructureStack', {
   env,
-  imageUri: containerStack.imageUri,
+  imageUri,
   fargateVcpu,
   fargateMemory,
   jobTimeout,
@@ -63,4 +72,6 @@ const infrastructureStack = new InfrastructureStack(app, 'AtxInfrastructureStack
   existingSecurityGroupId,
   description: 'AWS Transform CLI - Batch Infrastructure and Lambda Functions',
 });
-infrastructureStack.addDependency(containerStack);
+if (containerStack) {
+  infrastructureStack.addDependency(containerStack);
+}

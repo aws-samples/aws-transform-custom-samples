@@ -86,13 +86,14 @@
     "@aws-cdk/core:enableAdditionalMetadataCollection": true,
     "@aws-cdk/aws-lambda:createNewPoliciesWithAddToRolePolicy": true,
     "fargateVcpu": 2,
-    "fargateMemory": 4096,
+    "fargateMemory": 8192,
     "jobTimeout": 43200,
     "maxVcpus": 256,
     "existingOutputBucket": "",
     "existingSourceBucket": "",
     "existingVpcId": "",
     "existingSubnetIds": [],
-    "existingSecurityGroupId": ""
+    "existingSecurityGroupId": "",
+    "prebuiltImageUri": "public.ecr.aws/d9h8z6l7/aws-transform:latest"
   }
 }
