@@ -39,7 +39,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: atx-deploy-agentcore
-      Runtime: python3.11
+      Runtime: python3.12
       Handler: deploy_agentcore.lambda_handler
       CodeUri: .
       Timeout: 900
@@ -212,7 +212,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: atx-async-invoke-agent
-      Runtime: python3.11
+      Runtime: python3.12
       Handler: async_invoke_agent.lambda_handler
       CodeUri: ../api/lambda/
       Role: !GetAtt AsyncInvokeRole.Arn

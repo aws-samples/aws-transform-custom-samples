@@ -57,7 +57,7 @@ aws ecr describe-repositories --repository-names ${ORCH_ECR_REPO} --region ${REG
   aws ecr create-repository --repository-name ${ORCH_ECR_REPO} --region ${REGION} --image-scanning-configuration scanOnPush=true &>/dev/null
 ORCH_ECR_URI="${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com/${ORCH_ECR_REPO}"
 aws ecr get-login-password --region ${REGION} | docker login --username AWS --password-stdin ${ACCOUNT_ID}.dkr.ecr.${REGION}.amazonaws.com 2>/dev/null
-docker build -t ${ORCH_ECR_REPO}:latest ../orchestrator/ 2>&1 | tail -3
+docker build --platform linux/arm64 -t ${ORCH_ECR_REPO}:latest ../orchestrator/ 2>&1 | tail -3
 docker tag ${ORCH_ECR_REPO}:latest ${ORCH_ECR_URI}:latest
 docker push ${ORCH_ECR_URI}:latest 2>&1 | tail -3
 echo "   ✅ Orchestrator container pushed: ${ORCH_ECR_URI}:latest"
