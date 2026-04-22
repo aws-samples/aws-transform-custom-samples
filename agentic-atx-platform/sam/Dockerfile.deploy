@@ -1,0 +1,19 @@
+# Dockerfile for AgentCore Deploy Lambda (SDK-based)
+# Uses boto3 bedrock-agentcore-control SDK directly — no CLI subprocess calls.
+# Packages orchestrator code into a ZIP, uploads to S3, calls create/update_agent_runtime.
+
+FROM public.ecr.aws/lambda/python:3.11
+
+# Install only what's needed — no starter toolkit required
+COPY requirements-deploy.txt ${LAMBDA_TASK_ROOT}/requirements-deploy.txt
+RUN pip install --no-cache-dir -r ${LAMBDA_TASK_ROOT}/requirements-deploy.txt
+
+# Copy the deploy Lambda handler
+COPY deploy_agentcore.py ${LAMBDA_TASK_ROOT}/
+
+# Copy orchestrator agent code (will be packaged into ZIP and uploaded to S3)
+COPY orchestrator-bundle/agent.py ${LAMBDA_TASK_ROOT}/
+COPY orchestrator-bundle/tools/ ${LAMBDA_TASK_ROOT}/tools/
+COPY orchestrator-bundle/requirements.txt ${LAMBDA_TASK_ROOT}/
+
+CMD ["deploy_agentcore.lambda_handler"]

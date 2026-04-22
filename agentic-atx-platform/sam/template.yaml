@@ -1,0 +1,262 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  ATX Transform Platform - AgentCore Orchestrator + API Layer.
+  Deploys the orchestrator to Bedrock AgentCore via Starter Toolkit,
+  plus the async Lambda bridge and HTTP API for the UI.
+
+Parameters:
+  OutputBucketName:
+    Type: String
+    Description: S3 bucket for transformation outputs (from CDK InfrastructureStack)
+  SourceBucketName:
+    Type: String
+    Description: S3 bucket for source code and custom definitions (from CDK InfrastructureStack)
+  BedrockModelId:
+    Type: String
+    Default: us.anthropic.claude-sonnet-4-20250514-v1:0
+    Description: Bedrock model ID for the orchestrator
+  AwsRegion:
+    Type: String
+    Default: us-east-1
+  OrchestratorContainerUri:
+    Type: String
+    Default: ""
+    Description: ECR URI for the orchestrator container (built by deploy.sh)
+
+Globals:
+  Function:
+    Timeout: 300
+    MemorySize: 256
+
+Resources:
+  # ========================================
+  # 1. AgentCore Deploy Lambda
+  # ========================================
+  # One-time Lambda that deploys the orchestrator to AgentCore Runtime
+  # using the boto3 bedrock-agentcore-control SDK directly (no CLI).
+  DeployAgentCoreFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: atx-deploy-agentcore
+      Runtime: python3.12
+      Handler: deploy_agentcore.lambda_handler
+      CodeUri: .
+      Timeout: 900
+      MemorySize: 512
+      Environment:
+        Variables:
+          ATX_REGION: !Ref AwsRegion
+          BEDROCK_MODEL_ID: !Ref BedrockModelId
+          AGENT_RUNTIME_NAME: atxTransformOrchestrator
+          AGENT_EXECUTION_ROLE_ARN: !GetAtt AgentCoreExecutionRole.Arn
+          RESULT_BUCKET: !Ref OutputBucketName
+          ORCHESTRATOR_CONTAINER_URI: !Ref OrchestratorContainerUri
+      Policies:
+        - Statement:
+            - Sid: AgentCoreControlAccess
+              Effect: Allow
+              Action:
+                - bedrock-agentcore:*
+                - bedrock-agentcore-control:*
+              Resource: "*"
+            - Sid: IAMPassRole
+              Effect: Allow
+              Action:
+                - iam:PassRole
+              Resource: !GetAtt AgentCoreExecutionRole.Arn
+            - Sid: IAMServiceLinkedRole
+              Effect: Allow
+              Action:
+                - iam:CreateServiceLinkedRole
+              Resource: !Sub "arn:aws:iam::${AWS::AccountId}:role/aws-service-role/*"
+            - Sid: S3ZipAccess
+              Effect: Allow
+              Action:
+                - s3:PutObject
+                - s3:GetObject
+              Resource:
+                - !Sub "arn:aws:s3:::${OutputBucketName}/agentcore-deployments/*"
+            - Sid: LogsAccess
+              Effect: Allow
+              Action:
+                - logs:CreateLogGroup
+                - logs:CreateLogStream
+                - logs:PutLogEvents
+              Resource:
+                - !Sub "arn:aws:logs:${AwsRegion}:${AWS::AccountId}:log-group:/aws/lambda/atx-deploy-agentcore:*"
+
+  # ========================================
+  # AgentCore Execution Role
+  # ========================================
+  # IAM role that the AgentCore runtime assumes when running the orchestrator
+  AgentCoreExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: atx-agentcore-execution-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: bedrock-agentcore.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: AtxAgentCorePolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                  - bedrock:InvokeModelWithResponseStream
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - batch:SubmitJob
+                  - batch:DescribeJobs
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                  - s3:GetObject
+                  - s3:PutObject
+                Resource:
+                  - !Sub "arn:aws:s3:::${OutputBucketName}"
+                  - !Sub "arn:aws:s3:::${OutputBucketName}/*"
+                  - !Sub "arn:aws:s3:::${SourceBucketName}"
+                  - !Sub "arn:aws:s3:::${SourceBucketName}/*"
+              - Effect: Allow
+                Action:
+                  - sts:GetCallerIdentity
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - xray:PutTraceSegments
+                  - xray:PutTelemetryRecords
+                  - xray:GetSamplingRules
+                  - xray:GetSamplingTargets
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - ecr:GetAuthorizationToken
+                  - ecr:BatchGetImage
+                  - ecr:GetDownloadUrlForLayer
+                  - ecr:BatchCheckLayerAvailability
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - logs:CreateLogGroup
+                  - logs:CreateLogStream
+                  - logs:PutLogEvents
+                Resource: "*"
+
+  # ========================================
+  # 2. Async Invoke Lambda (API Bridge)
+  # ========================================
+  AsyncInvokeRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: atx-async-invoke-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: AtxAsyncInvokePolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: bedrock-agentcore:InvokeAgentRuntime
+                Resource: !Sub "arn:aws:bedrock-agentcore:${AwsRegion}:${AWS::AccountId}:runtime/*"
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub "arn:aws:s3:::${OutputBucketName}"
+                  - !Sub "arn:aws:s3:::${OutputBucketName}/*"
+                  - !Sub "arn:aws:s3:::${SourceBucketName}"
+                  - !Sub "arn:aws:s3:::${SourceBucketName}/*"
+              - Effect: Allow
+                Action: batch:DescribeJobs
+                Resource: "*"
+              - Effect: Allow
+                Action: sts:GetCallerIdentity
+                Resource: "*"
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: !Sub "arn:aws:lambda:${AwsRegion}:${AWS::AccountId}:function:atx-async-invoke-agent"
+              - Effect: Allow
+                Action:
+                  - xray:PutTraceSegments
+                  - xray:PutTelemetryRecords
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - dynamodb:GetItem
+                  - dynamodb:PutItem
+                  - dynamodb:UpdateItem
+                  - dynamodb:DeleteItem
+                  - dynamodb:Scan
+                Resource: !Sub "arn:aws:dynamodb:${AwsRegion}:${AWS::AccountId}:table/atx-transform-jobs"
+
+  AsyncInvokeFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: atx-async-invoke-agent
+      Runtime: python3.12
+      Handler: async_invoke_agent.lambda_handler
+      CodeUri: ../api/lambda/
+      Role: !GetAtt AsyncInvokeRole.Arn
+      Timeout: 900
+      MemorySize: 1024
+      Tracing: Active
+      Environment:
+        Variables:
+          AGENT_RUNTIME_ARN: ""  # Updated after deploy-agent is invoked
+          RESULT_BUCKET: !Ref OutputBucketName
+      Events:
+        Orchestrate:
+          Type: HttpApi
+          Properties:
+            Path: /orchestrate
+            Method: POST
+            ApiId: !Ref HttpApi
+
+  # ========================================
+  # 3. HTTP API Gateway
+  # ========================================
+  HttpApi:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: prod
+      CorsConfiguration:
+        AllowOrigins:
+          - "*"
+        AllowMethods:
+          - POST
+        AllowHeaders:
+          - content-type
+        MaxAge: 86400
+
+Outputs:
+  ApiEndpoint:
+    Description: HTTP API endpoint for UI
+    Value: !Sub "https://${HttpApi}.execute-api.${AwsRegion}.amazonaws.com/prod"
+  DeployLambdaName:
+    Description: Deploy Lambda function name (invoke directly via AWS CLI)
+    Value: !Ref DeployAgentCoreFunction
+  AsyncLambdaArn:
+    Description: Async invoke Lambda ARN
+    Value: !GetAtt AsyncInvokeFunction.Arn
+  AsyncLambdaName:
+    Description: Async invoke Lambda function name
+    Value: !Ref AsyncInvokeFunction

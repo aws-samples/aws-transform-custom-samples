@@ -1,0 +1,2 @@
+# Dependencies for the deploy Lambda (SDK-based, no CLI)
+boto3>=1.34.0
