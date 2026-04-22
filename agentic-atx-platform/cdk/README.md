@@ -8,6 +8,7 @@ AWS CDK stacks for the ATX Transform Platform.
 |-------|-----------|
 | `AtxContainerStack` | ECR repository + Docker image build (shared Dockerfile from `../../scaled-execution-containers/container/`) |
 | `AtxInfrastructureStack` | VPC, S3 buckets, AWS Batch (Fargate), IAM roles, CloudWatch |
+| `AtxAgenticExtrasStack` | DynamoDB table + source bucket write access (hybrid mode only) |
 | `AtxAgentCoreStack` | AgentCore Runtime + async Lambda + HTTP API (experimental) |
 | `AtxUiStack` | S3 bucket + CloudFront distribution for UI hosting |
 
@@ -67,3 +68,27 @@ cdk deploy AtxContainerStack AtxInfrastructureStack AtxUiStack --require-approva
 ```bash
 ./destroy.sh
 ```
+
+## Hybrid Mode: Deploy on Top of Base Infrastructure
+
+If you already have `scaled-execution-containers/cdk` deployed and want to add the
+agentic platform without redeploying the base infrastructure, use the `-c useBaseInfra=true`
+context flag. This deploys only the agentic-specific resources:
+
+- `AtxAgenticExtrasStack` — DynamoDB table (`atx-transform-jobs`) for job tracking + write
+  access on the source bucket for the create-transform flow
+- `AtxAgentCoreStack` — AgentCore Runtime + async Lambda + HTTP API
+- `AtxUiStack` — S3 + CloudFront for the UI
+
+```bash
+cd cdk
+npm install
+npx tsc
+
+CDK_DEFAULT_ACCOUNT=$(aws sts get-caller-identity --query Account --output text) \
+  cdk deploy --all --require-approval never -c useBaseInfra=true
+```
+
+The extras stack imports bucket names from the base infrastructure's CloudFormation
+exports (`AtxOutputBucketName`, `AtxSourceBucketName`) and references the existing
+`ATXBatchJobRole` by name. No changes to the base stacks are required.

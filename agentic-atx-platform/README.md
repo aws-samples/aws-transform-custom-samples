@@ -221,6 +221,27 @@ VITE_API_ENDPOINT=$API_URL npx vite build
 
 ---
 
+## Hybrid Mode: Deploy on Top of Existing Base Infrastructure
+
+If you already have the base `scaled-execution-containers/cdk` stacks deployed and want to
+add the agentic platform without redeploying the full infrastructure, use the hybrid mode:
+
+```bash
+cd cdk
+npm install && npx tsc
+
+CDK_DEFAULT_ACCOUNT=$(aws sts get-caller-identity --query Account --output text) \
+  cdk deploy --all --require-approval never -c useBaseInfra=true
+```
+
+This deploys `AtxAgenticExtrasStack` (DynamoDB table + source bucket write access),
+`AtxAgentCoreStack`, and `AtxUiStack` on top of the existing base infrastructure.
+See [cdk/README.md](cdk/README.md#hybrid-mode-deploy-on-top-of-base-infrastructure) for details.
+
+Then continue with the SAM deployment (Option A Step 3+) or use the CDK AgentCore stack directly.
+
+---
+
 ## Local Development
 
 ```bash
