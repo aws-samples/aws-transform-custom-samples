@@ -70,8 +70,10 @@ def execute_transformation(transformation: str, source: str, configuration: str 
     AWS_MANAGED = [
         'AWS/python-version-upgrade', 'AWS/java-version-upgrade', 'AWS/nodejs-version-upgrade',
         'AWS/python-boto2-to-boto3', 'AWS/java-aws-sdk-v1-to-v2', 'AWS/nodejs-aws-sdk-v2-to-v3',
-        'AWS/early-access-comprehensive-codebase-analysis', 'AWS/early-access-java-x86-to-graviton',
-        'AWS/early-access-angular-to-react-migration', 'AWS/early-access-jfr-performance-optimization',
+        'AWS/comprehensive-codebase-analysis', 'AWS/java-performance-optimization',
+        'AWS/early-access-java-x86-to-graviton', 'AWS/early-access-angular-to-react-migration',
+        'AWS/vue.js-version-upgrade', 'AWS/angular-version-upgrade',
+        'AWS/early-access-log4j-to-slf4j-migration',
     ]
     if transformation.startswith('AWS/') and transformation not in AWS_MANAGED:
         transformation = transformation.replace('AWS/', '', 1)

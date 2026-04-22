@@ -256,7 +256,7 @@ cd ui && npm run dev
 
 ## Available Transformations
 
-### AWS Managed (10)
+### AWS Managed (13)
 
 | Transformation | Description |
 |---|---|
@@ -266,10 +266,13 @@ cd ui && npm run dev
 | `AWS/python-boto2-to-boto3` | boto2 → boto3 |
 | `AWS/java-aws-sdk-v1-to-v2` | Java AWS SDK v1 → v2 |
 | `AWS/nodejs-aws-sdk-v2-to-v3` | Node.js AWS SDK v2 → v3 |
-| `AWS/early-access-comprehensive-codebase-analysis` | Deep codebase analysis |
+| `AWS/comprehensive-codebase-analysis` | Deep static analysis with technical debt, security, and modernization insights |
+| `AWS/java-performance-optimization` | Java JFR performance optimization |
 | `AWS/early-access-java-x86-to-graviton` | Java x86 → ARM64/Graviton |
 | `AWS/early-access-angular-to-react-migration` | Angular → React |
-| `AWS/early-access-jfr-performance-optimization` | Java JFR performance |
+| `AWS/vue.js-version-upgrade` | Vue.js 2 → Vue.js 3 |
+| `AWS/angular-version-upgrade` | Older Angular → target version |
+| `AWS/early-access-log4j-to-slf4j-migration` | Log4j → SLF4J with Logback |
 
 ### Custom Transformations
 

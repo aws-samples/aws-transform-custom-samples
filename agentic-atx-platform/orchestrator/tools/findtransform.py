@@ -17,16 +17,23 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 MANAGED_TRANSFORMATIONS = [
+    # Language Version Upgrades
     {'name': 'AWS/python-version-upgrade', 'language': 'python', 'description': 'Upgrade Python applications from 3.8/3.9 to 3.11/3.12/3.13', 'tags': ['python', 'upgrade', 'migration']},
     {'name': 'AWS/java-version-upgrade', 'language': 'java', 'description': 'Upgrade Java applications from any source JDK to any target JDK', 'tags': ['java', 'upgrade', 'migration']},
     {'name': 'AWS/nodejs-version-upgrade', 'language': 'nodejs', 'description': 'Upgrade Node.js applications from any source to any target version', 'tags': ['nodejs', 'javascript', 'upgrade', 'migration']},
+    # AWS SDK Migrations
     {'name': 'AWS/python-boto2-to-boto3', 'language': 'python', 'description': 'Migrate Python applications from boto2 to boto3', 'tags': ['python', 'aws', 'sdk', 'migration', 'boto']},
     {'name': 'AWS/java-aws-sdk-v1-to-v2', 'language': 'java', 'description': 'Upgrade AWS SDK from v1 to v2 for Java (Maven or Gradle)', 'tags': ['java', 'aws', 'sdk', 'migration']},
     {'name': 'AWS/nodejs-aws-sdk-v2-to-v3', 'language': 'nodejs', 'description': 'Upgrade Node.js from AWS SDK v2 to v3 modular architecture', 'tags': ['nodejs', 'javascript', 'aws', 'sdk', 'migration']},
-    {'name': 'AWS/early-access-comprehensive-codebase-analysis', 'language': 'all', 'description': 'Deep static analysis with technical debt, security, and modernization insights', 'tags': ['analysis', 'security', 'modernization']},
+    # Analysis
+    {'name': 'AWS/comprehensive-codebase-analysis', 'language': 'all', 'description': 'Deep static analysis with technical debt, security, and modernization insights', 'tags': ['analysis', 'security', 'modernization']},
+    {'name': 'AWS/java-performance-optimization', 'language': 'java', 'description': 'Optimize Java performance by analyzing JFR profiling data to detect CPU/memory hotspots and apply targeted fixes', 'tags': ['java', 'performance', 'jfr', 'optimization']},
+    # Early Access
     {'name': 'AWS/early-access-java-x86-to-graviton', 'language': 'java', 'description': 'Validate and migrate Java applications to ARM64 for AWS Graviton', 'tags': ['java', 'graviton', 'arm64', 'migration']},
     {'name': 'AWS/early-access-angular-to-react-migration', 'language': 'nodejs', 'description': 'Transform Angular applications to React', 'tags': ['angular', 'react', 'javascript', 'migration']},
-    {'name': 'AWS/early-access-jfr-performance-optimization', 'language': 'java', 'description': 'Optimize Java performance using JFR profiling data', 'tags': ['java', 'performance', 'jfr', 'optimization']},
+    {'name': 'AWS/vue.js-version-upgrade', 'language': 'nodejs', 'description': 'Upgrade Vue.js 2 applications to Vue.js 3', 'tags': ['vue', 'vuejs', 'javascript', 'upgrade', 'migration']},
+    {'name': 'AWS/angular-version-upgrade', 'language': 'nodejs', 'description': 'Upgrade older Angular applications to a target Angular version', 'tags': ['angular', 'javascript', 'upgrade', 'migration']},
+    {'name': 'AWS/early-access-log4j-to-slf4j-migration', 'language': 'java', 'description': 'Migrate Java applications from Log4j (1.x/2.x) to SLF4J with Logback backend', 'tags': ['java', 'logging', 'log4j', 'slf4j', 'migration']},
 ]
 
 

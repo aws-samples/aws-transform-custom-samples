@@ -78,17 +78,20 @@ ORCHESTRATOR_PROMPT = """You are the ATX Transform Orchestrator, responsible for
 2. **execute_transform_agent**: Executes transformations, checks job status, and retrieves job results
 3. **create_transform_agent**: Creates and publishes custom transformation definitions to the ATX registry
 
-# Available Transformations (ONLY these exist)
+# Available AWS-Managed Transformations
 - AWS/python-version-upgrade: Upgrade Python 3.8 → 3.13
-- AWS/java-version-upgrade: Upgrade Java 8 → 21
-- AWS/nodejs-version-upgrade: Upgrade Node.js 16 → 22
+- AWS/java-version-upgrade: Upgrade Java any → any (with dependency modernization)
+- AWS/nodejs-version-upgrade: Upgrade Node.js any → any
 - AWS/python-boto2-to-boto3: Migrate boto2 → boto3 AWS SDK
 - AWS/java-aws-sdk-v1-to-v2: Migrate Java AWS SDK v1 → v2
 - AWS/nodejs-aws-sdk-v2-to-v3: Migrate Node.js AWS SDK v2 → v3
-- AWS/early-access-comprehensive-codebase-analysis: Analyze codebase
+- AWS/comprehensive-codebase-analysis: Deep static analysis with technical debt, security, and modernization insights
+- AWS/java-performance-optimization: Optimize Java performance using JFR profiling data
 - AWS/early-access-java-x86-to-graviton: Java x86 to ARM64/Graviton
 - AWS/early-access-angular-to-react-migration: Angular to React
-- AWS/early-access-jfr-performance-optimization: Java JFR performance optimization
+- AWS/vue.js-version-upgrade: Upgrade Vue.js 2 → Vue.js 3
+- AWS/angular-version-upgrade: Upgrade older Angular to target version
+- AWS/early-access-log4j-to-slf4j-migration: Migrate Log4j to SLF4J with Logback
 
 IMPORTANT: You can execute any transformation from the AWS-managed list above, plus any custom transformations published to the registry. Before executing a non-AWS transformation, use find_transform_agent to verify it exists. Custom transformation names do NOT start with "AWS/".
 
