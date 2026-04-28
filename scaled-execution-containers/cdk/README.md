@@ -49,7 +49,111 @@ export CDK_DEFAULT_REGION=us-east-1
 
 ---
 
+## Configuration
+
+All CDK configuration is managed through context values in **`cdk.json`**. The user-configurable settings are at the bottom of the `context` block (the `@aws-cdk/...` entries above them are CDK feature flags and should not be changed).
+
+Edit `cdk.json` before deploying to customize your infrastructure:
+
+```json
+{
+  "context": {
+    "ecrRepoName": "aws-transform-custom",
+    "usePublicEcr": "false",
+    "publicEcrImage": "public.ecr.aws/b7y6j9m3/aws-transform-custom:latest",
+    "awsRegion": "us-east-1",
+    "fargateVcpu": 2,
+    "fargateMemory": 4096,
+    "jobTimeout": 43200,
+    "maxVcpus": 256,
+    "existingOutputBucket": "",
+    "existingSourceBucket": "",
+    "existingVpcId": "",
+    "existingSubnetIds": [],
+    "existingSecurityGroupId": ""
+  }
+}
+```
+
+### Resource Configuration
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `ecrRepoName` | `aws-transform-custom` | ECR repository name |
+| `usePublicEcr` | `false` | Use pre-built public ECR image (skip Docker build) |
+| `publicEcrImage` | `public.ecr.aws/...` | Public ECR image URI (only when `usePublicEcr` is `true`) |
+| `awsRegion` | `us-east-1` | AWS region for all resources |
+| `fargateVcpu` | `2` | vCPU per Fargate task (0.25, 0.5, 1, 2, 4, 8, 16) |
+| `fargateMemory` | `4096` | Memory in MB per task (512–30720, must be compatible with vCPU) |
+| `jobTimeout` | `43200` | Max job duration in seconds (default: 12 hours) |
+| `maxVcpus` | `256` | Max concurrent vCPUs (e.g., 256 = 128 jobs at 2 vCPU each) |
+
+### Use Existing Resources (Optional)
+
+By default, CDK creates all resources from scratch. To use existing resources instead, set these values:
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `existingOutputBucket` | `""` | Existing S3 bucket name for outputs (empty = create new) |
+| `existingSourceBucket` | `""` | Existing S3 bucket name for source code (empty = create new) |
+| `existingVpcId` | `""` | Existing VPC ID (empty = use account's default VPC) |
+| `existingSubnetIds` | `[]` | Array of subnet IDs (empty = auto-discover public subnets from VPC) |
+| `existingSecurityGroupId` | `""` | Existing security group ID (empty = create new) |
+
+### ⚠️ No Default VPC? You Must Configure VPC Settings
+
+If your AWS account does not have a default VPC (common in accounts created through AWS Organizations or where the default VPC was deleted), deployment will fail with an error like:
+
+```
+Cannot retrieve value from context provider vpc-provider
+```
+
+**To fix this**, set `existingVpcId` and `existingSubnetIds` in `cdk.json` before deploying:
+
+```json
+{
+  "context": {
+    "existingVpcId": "vpc-0123456789abcdef0",
+    "existingSubnetIds": ["subnet-aaa111", "subnet-bbb222"],
+    "existingSecurityGroupId": ""
+  }
+}
+```
+
+**Requirements for subnets:**
+- Subnets must have **internet access** (Fargate tasks need to pull container images and reach AWS APIs)
+- Use **public subnets** with an Internet Gateway, or **private subnets** with a NAT Gateway
+- Provide at least **two subnets** in different Availability Zones for reliability
+
+**Find your VPC and subnets:**
+```bash
+# List VPCs
+aws ec2 describe-vpcs --query 'Vpcs[*].[VpcId,Tags[?Key==`Name`].Value|[0],IsDefault]' --output table
+
+# List subnets for a VPC (look for ones with internet access)
+aws ec2 describe-subnets --filters "Name=vpc-id,Values=vpc-YOUR_VPC_ID" \
+  --query 'Subnets[*].[SubnetId,AvailabilityZone,CidrBlock,MapPublicIpOnLaunch]' --output table
+```
+
+### Command-Line Overrides
+
+You can also override any `cdk.json` context value on the command line without editing the file:
+
+```bash
+npx cdk deploy --all \
+  -c existingVpcId=vpc-0123456789abcdef0 \
+  -c existingSubnetIds='["subnet-aaa111","subnet-bbb222"]' \
+  -c fargateVcpu=4 \
+  -c fargateMemory=8192
+```
+
+Command-line values take precedence over `cdk.json`.
+
+---
+
 ## Quick Start
+
+> **Before you start:** If your AWS account doesn't have a default VPC, or you want to customize compute resources, region, or S3 buckets, edit `cdk.json` first. See the [Configuration](#configuration) section above.
 
 ### Option 1: With Least-Privilege IAM Policy (Recommended for Production)
 
@@ -127,12 +231,6 @@ CDK automatically builds and pushes the Docker image during deployment.
 
 ---
 
-## Configuration Options
-./deploy.sh
-```
-
-This skips the Docker build and uses the existing image from your ECR.
-
 ---
 
 ## Deployment Time
@@ -169,58 +267,6 @@ This skips the Docker build and uses the existing image from your ECR.
 - 7 Lambda functions
 - API Gateway REST API
 - IAM role for Lambda
-
----
-
-## Configuration
-
-Edit `cdk.json` context values:
-
-```json
-{
-  "context": {
-    "ecrRepoName": "atx-custom-ecr",
-    "awsRegion": "us-east-1",
-    "fargateVcpu": 2,
-    "fargateMemory": 4096,
-    "jobTimeout": 43200,
-    "maxVcpus": 256,
-    "existingOutputBucket": "",
-    "existingSourceBucket": "",
-    "existingVpcId": "",
-    "existingSubnetIds": [],
-    "existingSecurityGroupId": ""
-  }
-}
-```
-
-**Resource Configuration:**
-- `ecrRepoName` - ECR repository name
-- `awsRegion` - AWS region
-- `fargateVcpu` - vCPU per job (0.25, 0.5, 1, 2, 4, 8, 16)
-- `fargateMemory` - Memory in MB (512-30720, must match vCPU)
-- `jobTimeout` - Max job duration in seconds
-- `maxVcpus` - Max concurrent vCPUs (256 = 128 jobs at 2 vCPU each)
-
-**Use Existing Resources (Optional):**
-- `existingOutputBucket` - Use existing S3 bucket for outputs (leave empty to create new)
-- `existingSourceBucket` - Use existing S3 bucket for source code (leave empty to create new)
-- `existingVpcId` - Use existing VPC (leave empty to use default VPC)
-- `existingSubnetIds` - Array of subnet IDs (leave empty to use VPC public subnets)
-- `existingSecurityGroupId` - Use existing security group (leave empty to create new)
-
-**Example - Using Existing Resources:**
-```json
-{
-  "context": {
-    "existingOutputBucket": "my-existing-output-bucket",
-    "existingSourceBucket": "my-existing-source-bucket",
-    "existingVpcId": "vpc-12345678",
-    "existingSubnetIds": ["subnet-abc123", "subnet-def456"],
-    "existingSecurityGroupId": "sg-12345678"
-  }
-}
-```
 
 ---
 
@@ -320,10 +366,32 @@ python3 ../utilities/invoke-api.py \
 
 **Error:** "Cannot retrieve value from context provider vpc-provider"
 
-**Fix:** CDK needs to be bootstrapped first:
-```bash
-npx cdk bootstrap
+**Cause:** Your AWS account does not have a default VPC. This is common in accounts created through AWS Organizations or where the default VPC was deleted.
+
+**Fix:** Set your VPC and subnet IDs in `cdk.json` before deploying:
+
+```json
+{
+  "context": {
+    "existingVpcId": "vpc-0123456789abcdef0",
+    "existingSubnetIds": ["subnet-aaa111", "subnet-bbb222"]
+  }
+}
 ```
+
+Or pass them on the command line:
+```bash
+npx cdk deploy --all -c existingVpcId=vpc-YOUR_ID -c existingSubnetIds='["subnet-aaa","subnet-bbb"]'
+```
+
+To find your VPC and subnets:
+```bash
+aws ec2 describe-vpcs --query 'Vpcs[*].[VpcId,Tags[?Key==`Name`].Value|[0],IsDefault]' --output table
+aws ec2 describe-subnets --filters "Name=vpc-id,Values=vpc-YOUR_VPC_ID" \
+  --query 'Subnets[*].[SubnetId,AvailabilityZone,MapPublicIpOnLaunch]' --output table
+```
+
+See the [Configuration](#configuration) section for full details on VPC requirements.
 
 ### Docker Build Fails
 

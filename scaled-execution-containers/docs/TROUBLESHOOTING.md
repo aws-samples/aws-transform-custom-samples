@@ -29,13 +29,28 @@ Common issues customers may encounter and how to resolve them.
    ```
 
 3. **VPC/Subnet not found**
+   
+   If your account doesn't have a default VPC, CDK deployment will fail with a VPC lookup error. You need to specify your VPC and subnet IDs in `cdk/cdk.json`:
+   
+   ```json
+   {
+     "context": {
+       "existingVpcId": "vpc-0123456789abcdef0",
+       "existingSubnetIds": ["subnet-aaa111", "subnet-bbb222"]
+     }
+   }
+   ```
+   
+   Find your VPC and subnets:
    ```bash
    # List available VPCs
-   aws ec2 describe-vpcs --query 'Vpcs[*].[VpcId,IsDefault]' --output table
+   aws ec2 describe-vpcs --query 'Vpcs[*].[VpcId,Tags[?Key==`Name`].Value|[0],IsDefault]' --output table
    
-   # List public subnets
+   # List subnets for a VPC (look for public subnets with internet access)
    aws ec2 describe-subnets --filters "Name=vpc-id,Values=vpc-xxx" --query 'Subnets[*].[SubnetId,AvailabilityZone,MapPublicIpOnLaunch]' --output table
    ```
+   
+   See [cdk/README.md](../cdk/README.md#configuration) for full VPC configuration details.
 
 **Solution:** Ensure AWS CLI is configured and you have necessary permissions.
 

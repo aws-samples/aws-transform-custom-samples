@@ -93,6 +93,14 @@ chmod +x generate-custom-policy.sh
 
 ---
 
+## Configuration (CDK)
+
+Before deploying with CDK, you can customize infrastructure settings — VPC, compute resources, region, S3 buckets, and more — by editing `cdk/cdk.json`.
+
+See [cdk/README.md — Configuration](cdk/README.md#configuration) for all available settings and examples.
+
+---
+
 ## Quick Start
 
 Choose your deployment method:

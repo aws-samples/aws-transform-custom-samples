@@ -25,3 +25,5 @@ Thumbs.db
 # Deployment artifacts
 **/deployment/.ecr-uri.txt
 **/cdk.context.json
+
+.kiro
