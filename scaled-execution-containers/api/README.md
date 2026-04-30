@@ -701,13 +701,15 @@ python3 utilities/invoke-api.py \
 
 ### 9. Get Metrics
 
-Retrieve CloudWatch metrics for ATX jobs, Lambda functions, and API Gateway. Supports filtering by type for fast responses.
+Retrieve CloudWatch metrics for ATX jobs, Lambda functions, and API Gateway. Supports filtering by type for fast responses and date range queries.
 
 **Endpoint:** `GET /metrics`
 
 **Query Parameters (all optional):**
-- `type` - Filter type: `all` (default), `jobs`, `transform`, `lambda`, `api`, `job_list`, `job_detail`
-- `period` - Hours to look back (default: 24, max: 168)
+- `type` - Filter type: `all` (default), `jobs`, `transform`, `transform_detail`, `lambda`, `api`, `job_list`, `job_detail`
+- `period` - Hours to look back (default: 24, max: 720)
+- `startDate` - Start date in ISO format (e.g., `2026-04-01`). Overrides `period`.
+- `endDate` - End date in ISO format (e.g., `2026-04-30`). Defaults to now if only `startDate` is provided.
 - `jobId` - Required when `type=job_detail`
 
 #### 9a. Aggregate Metrics (default)
@@ -716,45 +718,158 @@ Retrieve CloudWatch metrics for ATX jobs, Lambda functions, and API Gateway. Sup
 # Get all metrics for last 24 hours
 GET /metrics
 GET /metrics?type=all&period=24
+
+# Get metrics for a specific date range
+GET /metrics?type=all&startDate=2026-04-01&endDate=2026-04-30
 ```
 
 **Response:**
 ```json
 {
-  "periodHours": 24,
-  "type": "all",
-  "startTime": "2026-04-26T10:00:00Z",
-  "endTime": "2026-04-27T10:00:00Z",
+  "startTime": "2026-04-23T16:31:07Z",
+  "endTime": "2026-04-30T16:31:07Z",
   "jobs": {
     "SUBMITTED": 0,
-    "RUNNING": 2,
-    "SUCCEEDED": 15,
-    "FAILED": 1
+    "PENDING": 0,
+    "RUNNABLE": 0,
+    "STARTING": 2,
+    "RUNNING": 3,
+    "SUCCEEDED": 31,
+    "FAILED": 3
   },
   "transformCustom": {
-    "agentExecutionMinutes": 236.69,
-    "conversationsStarted": 28,
-    "transformationExecutionsStarted": 2,
+    "totals": {
+      "AgentExecutionMinutes": 635.5,
+      "ConversationStarted": 125.0,
+      "TransformationExecutionStarted": 8.0,
+      "TransformationExecutionCompleted": 5.0,
+      "ExecutionDuration": 8495.94,
+      "FilesRead": 336.0,
+      "FilesModified": 28.0,
+      "LinesAdded": 68.0,
+      "LinesDeleted": 79.0,
+      "LinesModified": 229.0
+    },
+    "uniqueConversations": 12,
+    "uniqueExecutions": 12,
     "byTransformation": {
-      "AWS/python-version-upgrade": { "executions": 1, "agentMinutes": 83.99 }
+      "AWS/python-version-upgrade": {
+        "AgentExecutionMinutes": 92.65,
+        "TransformationExecutionCompleted": 2.0,
+        "TransformationExecutionStarted": 1.0,
+        "FilesModified": 12.0,
+        "FilesRead": 60.0,
+        "LinesModified": 189.0,
+        "LinesDeleted": 18.0
+      },
+      "AWS/java-version-upgrade": {
+        "AgentExecutionMinutes": 49.08,
+        "TransformationExecutionStarted": 1.0,
+        "ExecutionDuration": 1399.17,
+        "FilesRead": 49.0,
+        "FilesModified": 13.0,
+        "LinesAdded": 68.0,
+        "LinesDeleted": 48.0
+      },
+      "AWS/nodejs-version-upgrade": {
+        "AgentExecutionMinutes": 55.75,
+        "TransformationExecutionStarted": 2.0,
+        "TransformationExecutionCompleted": 1.0,
+        "ExecutionDuration": 1316.71,
+        "FilesModified": 3.0,
+        "LinesDeleted": 13.0,
+        "LinesModified": 40.0
+      },
+      "AWS/comprehensive-codebase-analysis": {
+        "AgentExecutionMinutes": 438.03,
+        "TransformationExecutionStarted": 4.0,
+        "TransformationExecutionCompleted": 2.0,
+        "ExecutionDuration": 5780.05,
+        "FilesRead": 227.0
+      }
+    },
+    "byRepository": {
+      "todoapilambda": {
+        "AgentExecutionMinutes": 189.22,
+        "TransformationExecutionStarted": 3.0,
+        "TransformationExecutionCompleted": 2.0,
+        "FilesModified": 12.0,
+        "FilesRead": 60.0,
+        "LinesModified": 189.0,
+        "LinesDeleted": 18.0
+      },
+      "spring-petclinic": {
+        "AgentExecutionMinutes": 167.79,
+        "TransformationExecutionStarted": 2.0,
+        "ExecutionDuration": 3710.13,
+        "FilesRead": 78.0
+      }
     }
   },
   "lambda": {
-    "atx-trigger-job": {
-      "invocations": 18,
-      "errors": 0,
-      "avgDurationMs": 245.3
-    }
+    "atx-trigger-job": { "invocations": 18, "errors": 0, "avgDurationMs": 245.3 }
   },
-  "api": {
-    "requests": 42,
-    "4xxErrors": 2,
-    "5xxErrors": 0
-  }
+  "api": { "requests": 42, "4xxErrors": 2, "5xxErrors": 0 }
 }
 ```
 
-#### 9b. Job List
+#### 9b. Transform Detail (Per-Execution Breakdown)
+
+Get per-execution metrics with full dimensions from `AWS/TransformCustom` namespace.
+
+```bash
+GET /metrics?type=transform_detail&period=168
+GET /metrics?type=transform_detail&startDate=2026-04-27&endDate=2026-04-28
+```
+
+**Response:**
+```json
+{
+  "startTime": "2026-04-23T16:31:26Z",
+  "endTime": "2026-04-30T16:31:26Z",
+  "executions": [
+    {
+      "executionId": "8227e229-751e-406b-924c-b1731ef32793",
+      "dimensions": {
+        "ConversationId": "20260430_142921_d257b571",
+        "ExecutionId": "8227e229-751e-406b-924c-b1731ef32793",
+        "ExecutionType": "Unsupervised",
+        "ExecutionStatus": "InProgress",
+        "RepositoryName": "todoapilambda",
+        "TransformationName": "AWS/python-version-upgrade",
+        "TransformationVersion": "unknown",
+        "TransformationVersionType": "published",
+        "TransformationType": "aws_managed"
+      },
+      "metrics": {
+        "AgentExecutionMinutes": 39.19,
+        "ExecutionDuration": 1102.13,
+        "FilesRead": 60.0,
+        "FilesModified": 8.0,
+        "LinesAdded": 18.0,
+        "LinesDeleted": 18.0
+      }
+    },
+    {
+      "type": "conversations",
+      "entries": [
+        {
+          "dimensions": {
+            "ConversationId": "20260430_142921_d257b571",
+            "CliVersion": "1.4.0",
+            "NodeVersion": "20.20.1",
+            "OsName": "linux",
+            "OsVersion": "6.1.166"
+          },
+          "metrics": { "ConversationStarted": 15.0 }
+        }
+      ]
+    }
+  ]
+}
+```
+
+#### 9c. Job List
 
 List all Batch jobs with IDs, names, status, and timestamps. Sorted newest first.
 
@@ -778,7 +893,7 @@ GET /metrics?type=job_list
 }
 ```
 
-#### 9c. Job Detail
+#### 9d. Job Detail
 
 Get full detail for a specific job including conversation ID, S3 output path, log stream, and CloudWatch metrics scoped to that job's time window.
 
@@ -827,6 +942,18 @@ python3 utilities/invoke-api.py \
   --endpoint "$API_ENDPOINT" \
   --method GET \
   --path "/metrics?period=168"
+
+# Get metrics for a specific date range
+python3 utilities/invoke-api.py \
+  --endpoint "$API_ENDPOINT" \
+  --method GET \
+  --path "/metrics?type=transform&startDate=2026-04-01&endDate=2026-04-30"
+
+# Per-execution breakdown with full dimensions
+python3 utilities/invoke-api.py \
+  --endpoint "$API_ENDPOINT" \
+  --method GET \
+  --path "/metrics?type=transform_detail&period=168"
 
 # List all jobs
 python3 utilities/invoke-api.py \

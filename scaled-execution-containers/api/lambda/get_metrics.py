@@ -2,11 +2,15 @@
 Lambda function to retrieve CloudWatch metrics for ATX transformation jobs.
 
 Supports filtering by type to keep response times fast:
-  ?type=jobs       - Batch job counts (~200ms)
-  ?type=transform  - AWS/TransformCustom metrics (~1-2s)
-  ?type=lambda     - Lambda invocation/error/duration (~300ms)
-  ?type=api        - API Gateway request/error counts (~200ms)
-  ?type=all        - Everything (default)
+  ?type=jobs              - Batch job counts (~200ms)
+  ?type=transform         - AWS/TransformCustom aggregate metrics (~1-2s)
+  ?type=transform_detail  - Per-execution breakdown with all dimensions
+  ?type=lambda            - Lambda invocation/error/duration (~300ms)
+  ?type=api               - API Gateway request/error counts (~200ms)
+  ?type=all               - Everything (default)
+
+Date range: ?startDate=2026-04-01&endDate=2026-04-30 (ISO date, optional)
+            ?period=24 (hours lookback, default, ignored if startDate/endDate set)
 """
 import json
 import boto3
@@ -16,23 +20,31 @@ from datetime import datetime, timedelta
 batch = boto3.client('batch')
 cloudwatch = boto3.client('cloudwatch')
 
-VALID_TYPES = {'jobs', 'transform', 'lambda', 'api', 'all', 'job_list', 'job_detail'}
+VALID_TYPES = {'jobs', 'transform', 'transform_detail', 'lambda', 'api', 'all', 'job_list', 'job_detail'}
 
 
 def lambda_handler(event, context):
     """
-    GET /metrics?type=jobs|transform|lambda|api|all|job_list|job_detail&period=24&jobId=xxx
+    GET /metrics?type=...&period=24&startDate=2026-04-01&endDate=2026-04-30&jobId=xxx
     """
     try:
         params = event.get('queryStringParameters') or {}
-        period_hours = min(int(params.get('period', '24')), 168)
         metric_type = params.get('type', 'all').lower()
 
         if metric_type not in VALID_TYPES:
             return _resp(400, {'error': f'Invalid type. Must be one of: {", ".join(sorted(VALID_TYPES))}'})
 
-        end_time = datetime.utcnow()
-        start_time = end_time - timedelta(hours=period_hours)
+        # Date range: explicit startDate/endDate take priority over period
+        if params.get('startDate') and params.get('endDate'):
+            start_time = datetime.fromisoformat(params['startDate'].replace('Z', ''))
+            end_time = datetime.fromisoformat(params['endDate'].replace('Z', ''))
+        elif params.get('startDate'):
+            start_time = datetime.fromisoformat(params['startDate'].replace('Z', ''))
+            end_time = datetime.utcnow()
+        else:
+            period_hours = min(int(params.get('period', '24')), 720)
+            end_time = datetime.utcnow()
+            start_time = end_time - timedelta(hours=period_hours)
 
         # Job list: return all jobs with IDs, names, status
         if metric_type == 'job_list':
@@ -45,11 +57,17 @@ def lambda_handler(event, context):
                 return _resp(400, {'error': 'jobId parameter required for job_detail type'})
             return _resp(200, _get_job_detail(job_id))
 
+        # Transform detail: per-execution breakdown
+        if metric_type == 'transform_detail':
+            return _resp(200, {
+                'startTime': start_time.isoformat() + 'Z',
+                'endTime': end_time.isoformat() + 'Z',
+                'executions': _get_transform_executions(start_time, end_time),
+            })
+
         fetch_all = metric_type == 'all'
 
         result = {
-            'periodHours': period_hours,
-            'type': metric_type,
             'startTime': start_time.isoformat() + 'Z',
             'endTime': end_time.isoformat() + 'Z',
         }
@@ -266,48 +284,100 @@ def _get_job_counts():
     job_queue = os.environ.get('JOB_QUEUE', 'atx-job-queue')
     counts = {}
     for status in ['SUBMITTED', 'PENDING', 'RUNNABLE', 'STARTING', 'RUNNING', 'SUCCEEDED', 'FAILED']:
+        total = 0
         try:
-            resp = batch.list_jobs(jobQueue=job_queue, jobStatus=status, maxResults=1)
-            jobs = resp.get('jobSummaryList', [])
-            counts[status] = f"{len(jobs)}+" if 'nextToken' in resp else len(jobs)
+            token = None
+            while True:
+                kwargs = {'jobQueue': job_queue, 'jobStatus': status, 'maxResults': 100}
+                if token:
+                    kwargs['nextToken'] = token
+                resp = batch.list_jobs(**kwargs)
+                total += len(resp.get('jobSummaryList', []))
+                token = resp.get('nextToken')
+                if not token:
+                    break
         except Exception:
-            counts[status] = 0
+            pass
+        counts[status] = total
     return counts
 
 
+def _list_all_metrics(namespace):
+    """List all metrics in a namespace, handling pagination."""
+    all_metrics = []
+    token = None
+    while True:
+        kwargs = {'Namespace': namespace}
+        if token:
+            kwargs['NextToken'] = token
+        resp = cloudwatch.list_metrics(**kwargs)
+        all_metrics.extend(resp.get('Metrics', []))
+        token = resp.get('NextToken')
+        if not token:
+            break
+    return all_metrics
+
+
 def _get_transform_custom_metrics(start_time, end_time):
+    """Enhanced aggregate view: all 10 TransformCustom metrics with full dimension rollup."""
     namespace = 'AWS/TransformCustom'
-    total_minutes = 0
-    total_conversations = 0
-    total_executions = 0
-    by_transform = {}
-
+    # Completion metrics — one per execution, not per segment
+    COMPLETION_METRICS = [
+        'TransformationExecutionStarted', 'TransformationExecutionCompleted',
+        'ConversationStarted', 'ExecutionDuration',
+        'FilesRead', 'FilesModified', 'LinesAdded', 'LinesDeleted', 'LinesModified',
+    ]
     try:
+        all_cw = _list_all_metrics(namespace)
         queries = []
-        metric_map = {}
+        meta = {}
+        idx = 0
+        for m in all_cw:
+            dims = {d['Name']: d['Value'] for d in m['Dimensions']}
+            mn = m['MetricName']
+            # Skip per-segment AgentExecutionMinutes — aggregate separately
+            if mn == 'AgentExecutionMinutes' and 'SegmentIndex' in dims:
+                continue
+            qid = f'm{idx}'
+            idx += 1
+            queries.append({
+                'Id': qid,
+                'MetricStat': {
+                    'Metric': m,
+                    'Period': max(int((end_time - start_time).total_seconds()), 60),
+                    'Stat': 'Sum' if mn != 'ExecutionDuration' else 'Average',
+                },
+                'ReturnData': True,
+            })
+            meta[qid] = (mn, dims)
 
-        for metric_name, prefix in [
-            ('AgentExecutionMinutes', 'am'),
-            ('TransformationExecutionStarted', 'te'),
-            ('ConversationStarted', 'cs'),
-        ]:
-            resp = cloudwatch.list_metrics(Namespace=namespace, MetricName=metric_name)
-            for i, m in enumerate(resp.get('Metrics', [])):
-                qid = f'{prefix}_{i}'
+        # Also query AgentExecutionMinutes aggregated (all segments summed per execution)
+        # We do this by querying ALL AgentExecutionMinutes and summing
+        for m in all_cw:
+            if m['MetricName'] == 'AgentExecutionMinutes':
+                dims = {d['Name']: d['Value'] for d in m['Dimensions']}
+                qid = f'm{idx}'
+                idx += 1
                 queries.append({
                     'Id': qid,
                     'MetricStat': {
-                        'Metric': {'Namespace': namespace, 'MetricName': metric_name, 'Dimensions': m['Dimensions']},
-                        'Period': 3600,
+                        'Metric': m,
+                        'Period': max(int((end_time - start_time).total_seconds()), 60),
                         'Stat': 'Sum',
                     },
                     'ReturnData': True,
                 })
-                t_name = next((d['Value'] for d in m['Dimensions'] if d['Name'] == 'TransformationName'), None)
-                metric_map[qid] = (metric_name, t_name)
+                meta[qid] = ('AgentExecutionMinutes', dims)
 
         if not queries:
-            return {'agentExecutionMinutes': 0, 'conversationsStarted': 0, 'transformationExecutionsStarted': 0, 'byTransformation': {}}
+            return _empty_transform_result()
+
+        # Fetch in batches of 500
+        totals = {}
+        by_transform = {}
+        by_repo = {}
+        conversations = set()
+        executions = set()
 
         for batch_start in range(0, len(queries), 500):
             batch_q = queries[batch_start:batch_start + 500]
@@ -316,31 +386,125 @@ def _get_transform_custom_metrics(start_time, end_time):
                 val = sum(r.get('Values', []))
                 if val == 0:
                     continue
-                mn, t_name = metric_map.get(r['Id'], (None, None))
-                if mn == 'AgentExecutionMinutes':
-                    total_minutes += val
-                    if t_name:
-                        by_transform.setdefault(t_name, {'executions': 0, 'agentMinutes': 0})
-                        by_transform[t_name]['agentMinutes'] += val
-                elif mn == 'TransformationExecutionStarted':
-                    total_executions += val
-                    if t_name:
-                        by_transform.setdefault(t_name, {'executions': 0, 'agentMinutes': 0})
-                        by_transform[t_name]['executions'] += int(val)
-                elif mn == 'ConversationStarted':
-                    total_conversations += val
+                mn, dims = meta.get(r['Id'], (None, {}))
+                if not mn:
+                    continue
+                totals[mn] = totals.get(mn, 0) + val
+                cid = dims.get('ConversationId')
+                eid = dims.get('ExecutionId')
+                if cid:
+                    conversations.add(cid)
+                if eid:
+                    executions.add(eid)
+                t_name = dims.get('TransformationName')
+                if t_name:
+                    t = by_transform.setdefault(t_name, {})
+                    t[mn] = t.get(mn, 0) + val
+                repo = dims.get('RepositoryName')
+                if repo:
+                    r_entry = by_repo.setdefault(repo, {})
+                    r_entry[mn] = r_entry.get(mn, 0) + val
 
-        for t in by_transform.values():
-            t['agentMinutes'] = round(t['agentMinutes'], 2)
+        # Round floats
+        for d in [totals, *by_transform.values(), *by_repo.values()]:
+            for k in d:
+                if isinstance(d[k], float):
+                    d[k] = round(d[k], 2)
+
+        return {
+            'totals': totals,
+            'uniqueConversations': len(conversations),
+            'uniqueExecutions': len(executions),
+            'byTransformation': by_transform,
+            'byRepository': by_repo,
+        }
     except Exception as e:
         print(f"Error getting TransformCustom metrics: {e}")
+        return _empty_transform_result()
 
-    return {
-        'agentExecutionMinutes': round(total_minutes, 2),
-        'conversationsStarted': int(total_conversations),
-        'transformationExecutionsStarted': int(total_executions),
-        'byTransformation': by_transform,
-    }
+
+def _empty_transform_result():
+    return {'totals': {}, 'uniqueConversations': 0, 'uniqueExecutions': 0, 'byTransformation': {}, 'byRepository': {}}
+
+
+def _get_transform_executions(start_time, end_time):
+    """Per-execution breakdown: each ExecutionId gets its own entry with all metrics and dimensions."""
+    namespace = 'AWS/TransformCustom'
+    try:
+        all_cw = _list_all_metrics(namespace)
+        # Group metrics by ExecutionId (skip ConversationStarted — different dimension set)
+        exec_map = {}  # executionId -> {dims, metrics}
+        conv_list = []  # ConversationStarted entries (no ExecutionId)
+
+        queries = []
+        meta = {}
+        idx = 0
+        for m in all_cw:
+            dims = {d['Name']: d['Value'] for d in m['Dimensions']}
+            mn = m['MetricName']
+            # Skip per-segment AgentExecutionMinutes
+            if mn == 'AgentExecutionMinutes' and 'SegmentIndex' in dims:
+                continue
+            qid = f'e{idx}'
+            idx += 1
+            stat = 'Average' if mn == 'ExecutionDuration' else 'Sum'
+            queries.append({
+                'Id': qid,
+                'MetricStat': {'Metric': m, 'Period': max(int((end_time - start_time).total_seconds()), 60), 'Stat': stat},
+                'ReturnData': True,
+            })
+            meta[qid] = (mn, dims)
+
+        # Also sum AgentExecutionMinutes across segments per execution
+        for m in all_cw:
+            if m['MetricName'] == 'AgentExecutionMinutes':
+                dims = {d['Name']: d['Value'] for d in m['Dimensions']}
+                qid = f'e{idx}'
+                idx += 1
+                queries.append({
+                    'Id': qid,
+                    'MetricStat': {'Metric': m, 'Period': max(int((end_time - start_time).total_seconds()), 60), 'Stat': 'Sum'},
+                    'ReturnData': True,
+                })
+                meta[qid] = ('AgentExecutionMinutes', dims)
+
+        if not queries:
+            return []
+
+        for batch_start in range(0, len(queries), 500):
+            batch_q = queries[batch_start:batch_start + 500]
+            resp = cloudwatch.get_metric_data(MetricDataQueries=batch_q, StartTime=start_time, EndTime=end_time)
+            for r in resp.get('MetricDataResults', []):
+                val = sum(r.get('Values', []))
+                if val == 0:
+                    continue
+                mn, dims = meta.get(r['Id'], (None, {}))
+                if not mn:
+                    continue
+                eid = dims.get('ExecutionId')
+                if eid:
+                    entry = exec_map.setdefault(eid, {'executionId': eid, 'dimensions': {}, 'metrics': {}})
+                    # Merge dimensions (keep all unique)
+                    for k, v in dims.items():
+                        if k != 'SegmentIndex':
+                            entry['dimensions'][k] = v
+                    entry['metrics'][mn] = entry['metrics'].get(mn, 0) + val
+                elif mn == 'ConversationStarted':
+                    conv_list.append({'dimensions': dims, 'metrics': {mn: val}})
+
+        # Round floats
+        for entry in exec_map.values():
+            for k in entry['metrics']:
+                if isinstance(entry['metrics'][k], float):
+                    entry['metrics'][k] = round(entry['metrics'][k], 2)
+
+        result = sorted(exec_map.values(), key=lambda x: x['dimensions'].get('ConversationId', ''), reverse=True)
+        if conv_list:
+            result.append({'type': 'conversations', 'entries': conv_list})
+        return result
+    except Exception as e:
+        print(f"Error getting transform executions: {e}")
+        return []
 
 
 def _get_lambda_metrics(start_time, end_time):
