@@ -574,6 +574,408 @@ python3 utilities/invoke-api.py \
 
 ---
 
+### 8. Knowledge Items
+
+Manage knowledge items for transformation definitions. Uses an S3 cache for fast reads and AWS Batch for write operations.
+
+#### 8a. GET — Read from Cache
+
+Read cached knowledge items instantly from S3. No Batch job needed.
+
+**Endpoint:** `GET /knowledge-items`
+
+**Query Parameters:**
+- `transformationName` (required) - Transformation name (e.g., "AWS/python-version-upgrade")
+
+**Response (cached):**
+```json
+{
+  "source": "cache",
+  "transformationName": "AWS/python-version-upgrade",
+  "knowledgeItems": [...]
+}
+```
+
+**Response (no items available):**
+```json
+{
+  "source": "cache",
+  "transformationName": "AWS/java-version-upgrade",
+  "knowledgeItems": [],
+  "message": "No knowledge items available for AWS/java-version-upgrade. This transformation may not have been used yet, or the cache has not been populated. Try again later."
+}
+```
+
+**Examples:**
+```bash
+# Get cached knowledge items for a specific transformation
+python3 utilities/invoke-api.py \
+  --endpoint "$API_ENDPOINT" \
+  --method GET \
+  --path "/knowledge-items?transformationName=AWS/python-version-upgrade"
+```
+
+#### 8b. POST — Submit & Poll (Async Reads)
+
+Submit a Batch job to fetch knowledge items from the ATX CLI and cache the results in S3. Poll for results using the returned `request_id`.
+
+**Submit:**
+```json
+{
+  "action": "submit",
+  "cliAction": "list-ki",
+  "transformationName": "AWS/python-version-upgrade"
+}
+```
+
+**Response:**
+```json
+{
+  "status": "SUBMITTED",
+  "request_id": "abc-123-def",
+  "batchJobId": "job-456"
+}
+```
+
+**Poll:**
+```json
+{
+  "action": "poll",
+  "request_id": "abc-123-def"
+}
+```
+
+**Poll Response (while processing):**
+```json
+{ "status": "PROCESSING" }
+```
+
+**Poll Response (when complete):**
+```json
+{ "status": "COMPLETED", "items": [...] }
+```
+
+**Examples:**
+```bash
+# Submit a list-ki job to populate the cache
+python3 utilities/invoke-api.py \
+  --endpoint "$API_ENDPOINT" \
+  --path "/knowledge-items" \
+  --data '{"action":"submit","cliAction":"list-ki","transformationName":"AWS/python-version-upgrade"}'
+
+# Poll for results
+python3 utilities/invoke-api.py \
+  --endpoint "$API_ENDPOINT" \
+  --path "/knowledge-items" \
+  --data '{"action":"poll","request_id":"REQUEST_ID"}'
+```
+
+#### 8c. POST — Write Operations
+
+Mutating operations (delete, update, export) are submitted as Batch jobs.
+
+**Supported actions:** `delete-ki`, `update-ki-status`, `update-ki-config`, `export-ki-markdown`
+
+**Examples:**
+```bash
+# Delete a knowledge item
+python3 utilities/invoke-api.py \
+  --endpoint "$API_ENDPOINT" \
+  --path "/knowledge-items" \
+  --data '{"action":"delete-ki","transformationName":"MyTransform","id":"ki-123"}'
+
+# Enable/disable a knowledge item
+python3 utilities/invoke-api.py \
+  --endpoint "$API_ENDPOINT" \
+  --path "/knowledge-items" \
+  --data '{"action":"update-ki-status","transformationName":"MyTransform","id":"ki-123","status":"ENABLED"}'
+
+# Update auto-approval config
+python3 utilities/invoke-api.py \
+  --endpoint "$API_ENDPOINT" \
+  --path "/knowledge-items" \
+  --data '{"action":"update-ki-config","transformationName":"MyTransform","autoEnabled":"TRUE"}'
+```
+
+---
+
+### 9. Get Metrics
+
+Retrieve CloudWatch metrics for ATX jobs, Lambda functions, and API Gateway. Supports filtering by type for fast responses and date range queries.
+
+**Endpoint:** `GET /metrics`
+
+**Query Parameters (all optional):**
+- `type` - Filter type: `all` (default), `jobs`, `transform`, `transform_detail`, `lambda`, `api`, `job_list`, `job_detail`
+- `period` - Hours to look back (default: 24, max: 720)
+- `startDate` - Start date in ISO format (e.g., `2026-04-01`). Overrides `period`.
+- `endDate` - End date in ISO format (e.g., `2026-04-30`). Defaults to now if only `startDate` is provided.
+- `jobId` - Required when `type=job_detail`
+
+#### 9a. Aggregate Metrics (default)
+
+```bash
+# Get all metrics for last 24 hours
+GET /metrics
+GET /metrics?type=all&period=24
+
+# Get metrics for a specific date range
+GET /metrics?type=all&startDate=2026-04-01&endDate=2026-04-30
+```
+
+**Response:**
+```json
+{
+  "startTime": "2026-04-23T16:31:07Z",
+  "endTime": "2026-04-30T16:31:07Z",
+  "jobs": {
+    "SUBMITTED": 0,
+    "PENDING": 0,
+    "RUNNABLE": 0,
+    "STARTING": 2,
+    "RUNNING": 3,
+    "SUCCEEDED": 31,
+    "FAILED": 3
+  },
+  "transformCustom": {
+    "totals": {
+      "AgentExecutionMinutes": 635.5,
+      "ConversationStarted": 125.0,
+      "TransformationExecutionStarted": 8.0,
+      "TransformationExecutionCompleted": 5.0,
+      "ExecutionDuration": 8495.94,
+      "FilesRead": 336.0,
+      "FilesModified": 28.0,
+      "LinesAdded": 68.0,
+      "LinesDeleted": 79.0,
+      "LinesModified": 229.0
+    },
+    "uniqueConversations": 12,
+    "uniqueExecutions": 12,
+    "byTransformation": {
+      "AWS/python-version-upgrade": {
+        "AgentExecutionMinutes": 92.65,
+        "TransformationExecutionCompleted": 2.0,
+        "TransformationExecutionStarted": 1.0,
+        "FilesModified": 12.0,
+        "FilesRead": 60.0,
+        "LinesModified": 189.0,
+        "LinesDeleted": 18.0
+      },
+      "AWS/java-version-upgrade": {
+        "AgentExecutionMinutes": 49.08,
+        "TransformationExecutionStarted": 1.0,
+        "ExecutionDuration": 1399.17,
+        "FilesRead": 49.0,
+        "FilesModified": 13.0,
+        "LinesAdded": 68.0,
+        "LinesDeleted": 48.0
+      },
+      "AWS/nodejs-version-upgrade": {
+        "AgentExecutionMinutes": 55.75,
+        "TransformationExecutionStarted": 2.0,
+        "TransformationExecutionCompleted": 1.0,
+        "ExecutionDuration": 1316.71,
+        "FilesModified": 3.0,
+        "LinesDeleted": 13.0,
+        "LinesModified": 40.0
+      },
+      "AWS/comprehensive-codebase-analysis": {
+        "AgentExecutionMinutes": 438.03,
+        "TransformationExecutionStarted": 4.0,
+        "TransformationExecutionCompleted": 2.0,
+        "ExecutionDuration": 5780.05,
+        "FilesRead": 227.0
+      }
+    },
+    "byRepository": {
+      "todoapilambda": {
+        "AgentExecutionMinutes": 189.22,
+        "TransformationExecutionStarted": 3.0,
+        "TransformationExecutionCompleted": 2.0,
+        "FilesModified": 12.0,
+        "FilesRead": 60.0,
+        "LinesModified": 189.0,
+        "LinesDeleted": 18.0
+      },
+      "spring-petclinic": {
+        "AgentExecutionMinutes": 167.79,
+        "TransformationExecutionStarted": 2.0,
+        "ExecutionDuration": 3710.13,
+        "FilesRead": 78.0
+      }
+    }
+  },
+  "lambda": {
+    "atx-trigger-job": { "invocations": 18, "errors": 0, "avgDurationMs": 245.3 }
+  },
+  "api": { "requests": 42, "4xxErrors": 2, "5xxErrors": 0 }
+}
+```
+
+#### 9b. Transform Detail (Per-Execution Breakdown)
+
+Get per-execution metrics with full dimensions from `AWS/TransformCustom` namespace.
+
+```bash
+GET /metrics?type=transform_detail&period=168
+GET /metrics?type=transform_detail&startDate=2026-04-27&endDate=2026-04-28
+```
+
+**Response:**
+```json
+{
+  "startTime": "2026-04-23T16:31:26Z",
+  "endTime": "2026-04-30T16:31:26Z",
+  "executions": [
+    {
+      "executionId": "8227e229-751e-406b-924c-b1731ef32793",
+      "dimensions": {
+        "ConversationId": "20260430_142921_d257b571",
+        "ExecutionId": "8227e229-751e-406b-924c-b1731ef32793",
+        "ExecutionType": "Unsupervised",
+        "ExecutionStatus": "InProgress",
+        "RepositoryName": "todoapilambda",
+        "TransformationName": "AWS/python-version-upgrade",
+        "TransformationVersion": "unknown",
+        "TransformationVersionType": "published",
+        "TransformationType": "aws_managed"
+      },
+      "metrics": {
+        "AgentExecutionMinutes": 39.19,
+        "ExecutionDuration": 1102.13,
+        "FilesRead": 60.0,
+        "FilesModified": 8.0,
+        "LinesAdded": 18.0,
+        "LinesDeleted": 18.0
+      }
+    },
+    {
+      "type": "conversations",
+      "entries": [
+        {
+          "dimensions": {
+            "ConversationId": "20260430_142921_d257b571",
+            "CliVersion": "1.4.0",
+            "NodeVersion": "20.20.1",
+            "OsName": "linux",
+            "OsVersion": "6.1.166"
+          },
+          "metrics": { "ConversationStarted": 15.0 }
+        }
+      ]
+    }
+  ]
+}
+```
+
+#### 9c. Job List
+
+List all Batch jobs with IDs, names, status, and timestamps. Sorted newest first.
+
+```bash
+GET /metrics?type=job_list
+```
+
+**Response:**
+```json
+{
+  "jobs": [
+    {
+      "jobId": "22e44397-0957-4605-837d-4e00f05102cc",
+      "jobName": "todoapilambda-codebase-analysis",
+      "status": "SUCCEEDED",
+      "createdAt": "2026-04-29T13:09:20Z",
+      "startedAt": "2026-04-29T13:10:42Z",
+      "stoppedAt": "2026-04-29T13:11:17Z"
+    }
+  ]
+}
+```
+
+#### 9d. Job Detail
+
+Get full detail for a specific job including conversation ID, S3 output path, log stream, and CloudWatch metrics scoped to that job's time window.
+
+```bash
+GET /metrics?type=job_detail&jobId=ae9bc654-64dc-42bd-9960-7290c43c4e1c
+```
+
+**Response:**
+```json
+{
+  "jobId": "ae9bc654-64dc-42bd-9960-7290c43c4e1c",
+  "jobName": "todoapilambda-python-version-upgrade",
+  "status": "SUCCEEDED",
+  "createdAt": "2026-04-27T15:30:40Z",
+  "startedAt": "2026-04-27T15:32:14Z",
+  "stoppedAt": "2026-04-27T15:55:47Z",
+  "duration": 1413,
+  "command": ["--output", "transformations/...", "--source", "https://github.com/..."],
+  "exitCode": 0,
+  "conversationId": "20260427_153222_180e2369",
+  "s3OutputPath": "s3://atx-custom-output-{account}/transformations/{jobName}/{conversationId}/",
+  "logStream": {
+    "logGroup": "/aws/batch/atx-transform",
+    "logStreamName": "atx/default/0da189c612454b7e86f7a4d19fd3f455"
+  },
+  "metrics": {
+    "lambda": {
+      "atx-trigger-job": { "invocations": 1, "errors": 0, "avgDurationMs": 184.6 }
+    },
+    "transformCustom": { "AgentExecutionMinutes": 12.5 },
+    "batch": { "vcpus": 2, "memory": 4096, "attempts": 1 }
+  }
+}
+```
+
+**Examples:**
+```bash
+# Get all metrics for last 24 hours (default)
+python3 utilities/invoke-api.py \
+  --endpoint "$API_ENDPOINT" \
+  --method GET \
+  --path "/metrics"
+
+# Get metrics for last 7 days
+python3 utilities/invoke-api.py \
+  --endpoint "$API_ENDPOINT" \
+  --method GET \
+  --path "/metrics?period=168"
+
+# Get metrics for a specific date range
+python3 utilities/invoke-api.py \
+  --endpoint "$API_ENDPOINT" \
+  --method GET \
+  --path "/metrics?type=transform&startDate=2026-04-01&endDate=2026-04-30"
+
+# Per-execution breakdown with full dimensions
+python3 utilities/invoke-api.py \
+  --endpoint "$API_ENDPOINT" \
+  --method GET \
+  --path "/metrics?type=transform_detail&period=168"
+
+# List all jobs
+python3 utilities/invoke-api.py \
+  --endpoint "$API_ENDPOINT" \
+  --method GET \
+  --path "/metrics?type=job_list"
+
+# Get detail for a specific job
+python3 utilities/invoke-api.py \
+  --endpoint "$API_ENDPOINT" \
+  --method GET \
+  --path "/metrics?type=job_detail&jobId=JOB_ID"
+
+# Get only transform metrics
+python3 utilities/invoke-api.py \
+  --endpoint "$API_ENDPOINT" \
+  --method GET \
+  --path "/metrics?type=transform&period=72"
+```
+
+---
+
 ## Utilities
 
 ### invoke-api.py

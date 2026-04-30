@@ -9,6 +9,9 @@ import { NotificationStack } from '../lib/notification-stack';
 
 const app = new cdk.App();
 
+// Add auto-delete=no tag to all resources
+cdk.Tags.of(app).add('auto-delete', 'no');
+
 // Add cdk-nag AWS Solutions checks
 Aspects.of(app).add(new AwsSolutionsChecks({ verbose: true }));
 
