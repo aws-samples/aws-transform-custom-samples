@@ -13,6 +13,10 @@ Out-of-box transformation definitions provided by AWS for common migration and u
 | Python | [Version Upgrade](python/version-upgrade.md) | Upgrade Python 3.8/3.9 Lambda applications to 3.11+ |
 | Python | [boto2 → boto3](python/boto2-to-boto3.md) | Migrate from AWS SDK v1 (boto2) to v2 (boto3) |
 | General | [Codebase Analysis](comprehensive-codebase-analysis/codebase-analysis.md) | Static analysis and documentation for migration planning |
+| Readiness | [Modernization Readiness Analysis](readiness-analysis/modernization-readiness-analysis.md) | Scans portfolios for cloud-native maturity gaps and maps findings to AWS modernization pathways |
+| Readiness | [Agentic Readiness Analysis](readiness-analysis/agentic-readiness-analysis.md) | Evaluates whether systems are ready to be safely called by AI agents — covering APIs, identity, state management, human-in-the-loop, and observability |
+| Readiness | [Portfolio Modernization Readiness](readiness-analysis/portfolio-modernization-readiness.md) | Aggregates per-repo MOD reports into portfolio-level roadmap and cross-cutting analysis |
+| Readiness | [Portfolio Agentic Readiness](readiness-analysis/portfolio-agentic-readiness.md) | Aggregates per-repo ARA reports into portfolio-level cross-cutting analysis |
 
 ## Directory Structure
 
@@ -26,7 +30,12 @@ aws-managed-definitions/
 ├── nodejs/
 │   ├── version-upgrade.md
 │   └── aws-sdk-v2-to-v3.md
-└── python/
-    ├── version-upgrade.md
-    └── boto2-to-boto3.md
+├── python/
+│   ├── version-upgrade.md
+│   └── boto2-to-boto3.md
+└── readiness-analysis/
+    ├── modernization-readiness-analysis.md
+    ├── agentic-readiness-analysis.md
+    ├── portfolio-modernization-readiness.md
+    └── portfolio-agentic-readiness.md
 ```
