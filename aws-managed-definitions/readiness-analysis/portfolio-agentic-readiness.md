@@ -19,7 +19,7 @@ The transformation follows a 9-step pipeline:
 6. **Cross-Cutting RISKs** (Step 4b): Identify RISKs meeting the scaling threshold (max(3, 33% of applicable repos)), split by RISK-SAFETY and RISK-QUALITY tiers
 7. **Dependency Mapping** (Step 5): Construct service dependency map from dependency_overrides
 8. **Remediation Guidance** (Step 6): Generate portfolio-level remediation for cross-cutting BLOCKERs
-9. **Agentic Programs** (Step 7): Recommend AI DLC, AXE, EBA on Agentic AI where triggered
+9. **Agentic Programs** (Step 7): Recommend AI DLC, AXE, Innovation EBA where triggered
 10. **Portfolio-Level Questions** (Step 8): Evaluate PORT-ARA-Q1 through PORT-ARA-Q5 — capabilities only visible across multiple repos
 
 The output is a **four-artifact bundle** containing:
@@ -36,7 +36,7 @@ The MD report contains:
 - Cross-cutting RISKs (same risk question appearing in max(3, 33% of applicable repos))
 - Service dependency map from dependency_overrides
 - Portfolio-level remediation guidance for cross-cutting blockers
-- Agentic program recommendations (AI DLC, AXE, EBA on Agentic AI)
+- Agentic program recommendations (AI DLC, AXE, Innovation EBA)
 - Service-by-service summary (repo name, profile, blocker count, risk count)
 
 This portfolio TD focuses exclusively on cross-cutting BLOCKER/RISK identification across multiple ARA reports. It does not include modernization pathways, roadmap phases, numeric scores, technology preferences, or resource allocation recommendations.
@@ -557,7 +557,7 @@ Evaluate each program against its trigger condition. Include a program in the re
 |---------|-------------|-------------------|-----------------|
 | **AI DLC (AI Driven Development Lifecycle)** | Workshop for adopting the AI Driven Development Lifecycle, emphasizing two dimensions: (1) AI Powered Execution with Human Oversight — AI creates detailed work plans, seeks clarification, and defers critical decisions to humans who possess contextual understanding and business knowledge; (2) Dynamic Team Collaboration — as AI handles routine tasks, teams unite in collaborative spaces for real-time problem solving, creative thinking, and rapid decision-making, shifting from isolated work to high-energy teamwork that accelerates innovation and delivery. | Portfolio shows teams without established AI-assisted development practices, or when engineering maturity findings indicate manual development workflows that could benefit from AI-driven automation. | Check ENG section findings across the portfolio. If 50%+ of services have RISK-QUALITY or worse findings on ENG-Q1 (Infra Governance), ENG-Q2 (CI/CD + Contracts), or ENG-Q3 (Rollback), recommend AI DLC. Also recommend if the portfolio context mentions desire for AI-assisted development practices. |
 | **AXE (Agent Experience Engagement)** | A strategic methodology that helps enterprises implement agentic AI solutions by starting with desired customer and employee experience and working backwards to define AI agents and technical architecture. Built on the proven D2E methodology with 580+ successful engagements, AXE delivers a six-phase framework covering business process mapping, task identification, evaluation metrics, data architecture, governance, and guardrails. The Guardrails & Boundaries phase aligns with ARA, which evaluates whether target systems have the technical controls needed to safely support autonomous agents. Together, they provide a complete assess-to-implement pathway: ARA validates system readiness while AXE designs the agent experience and implementation roadmap. | Portfolio shows 3+ services in "Pilot-Ready" or "Agent-Ready" state, or when business has defined customer/employee experience goals but lacks technical implementation roadmap. | Count services with profile Agent-Ready or Pilot-Ready. If count >= 3, recommend AXE. Also recommend if the portfolio `context` describes experience-level goals (e.g., "customer support agent", "employee productivity") without a corresponding technical implementation plan. |
-| **EBA on Agentic AI** (Experience-Based Acceleration) | An Agentic EBA is an intensive, time-boxed engagement that accelerates an organization's path from agentic readiness analysis to production deployment of autonomous AI agents. It is designed for organizations where executive leadership has committed to an agentic AI transformation and where portfolio-level ARA findings reveal systemic gaps that cannot be resolved through standard advisory engagements alone. The engagement embeds AWS expertise to compress multi-quarter remediation cycles into a focused sprint, producing working outcomes — remediated systems, validated agent integrations, and a sequenced deployment roadmap that customers can keep doing. | Portfolio-level ARA results show systemic cross-cutting blockers appearing across five or more repositories, requiring coordinated architecture remediation. | Count cross-cutting BLOCKERs (same BLOCKER in 2+ repos). If any single cross-cutting BLOCKER affects 5 or more repositories, recommend EBA on Agentic AI. |
+| **Innovation EBA** (AIML-GenAI) | A 3-day sprint-based, interactive engagement that enables customers to build AI/ML models or deliver a Generative AI use case in an accelerated fashion using AWS services and prescriptive guidance. Targets customers with higher cloud maturity who want to leverage AI/ML to solve business problems and innovate faster. Follows the 4-step EBA framework (Executive Alignment → Readiness → Accelerate → Transform At Scale) with workstreams including Foundations, Data Engineering, GenAI Build/Evaluate, UI Integration, ML Ops, and Command Center. Develops customer skills through learning-by-doing and builds/accelerates a GenAI use case pipeline based on a blueprint developed during the EBA. | Portfolio context indicates AI/ML or GenAI is a strategic imperative, executive sponsorship exists, use cases deliver critical business value, data strategy exists, and the customer is committed to production deployment within ~90 days. Additionally, the portfolio should show a backlog of AIML-GenAI use cases and the customer team has some AIML-GenAI skills committed to upskilling. | Check portfolio `context` for signals of: (1) AI/ML or GenAI as strategic priority, (2) executive sponsorship mentioned, (3) existing data and data strategy (e.g., services with established data pipelines, DynamoDB/Aurora/S3 data stores), (4) use cases in categories like customer experience (chatbots, post-call analytics, personalization), productivity (intelligent search, summarization, code generation), business operations (IDP, fraud detection, predictive maintenance), or content creation. Also recommend if 3+ services have production-ready data stores AND the portfolio context describes GenAI ambitions beyond what AXE alone covers. |
 
 #### 7.2 Program Sequencing Guidance
 
@@ -565,7 +565,7 @@ When multiple programs are triggered, recommend them in this order:
 
 1. **AI DLC** (if triggered) — Run first to establish AI-driven development practices before agentic work
 2. **AXE** (if triggered) — Run after AI DLC to design the agent experience
-3. **EBA on Agentic AI** (if triggered) — Run after AXE to accelerate implementation
+3. **Innovation EBA** (if triggered) — Run when the customer is ready to accelerate an AI/ML or GenAI use case into production (can run in parallel with AXE if use cases are independent)
 
 If only one program is triggered, recommend it directly without sequencing context.
 
@@ -573,7 +573,7 @@ If only one program is triggered, recommend it directly without sequencing conte
 
 For each triggered program:
 
-- **Program name** — AI DLC, AXE, or EBA on Agentic AI
+- **Program name** — AI DLC, AXE, or Innovation EBA
 - **Relevance** — Why this program is recommended based on portfolio findings
 - **Trigger findings** — Specific portfolio metrics that triggered the recommendation
 - **What it provides** — Brief description of the program's value
@@ -1102,7 +1102,7 @@ The Portfolio ARA JSON artifact MUST emit these top-level keys in the order show
 | `findings[]` | Per-repo findings propagated up. Each entry is a 12-field per-repo finding plus `repo_name`. One entry per (repo × question_id). Used by webapp Findings tab. |
 | `cross_cutting_findings[]` | Portfolio-aggregated findings where the same question_id fires at the same tier across 2+ repos (BLOCKER) or meets the scaling threshold (RISK, max(3, 33% of applicable repos)). One entry per question_id. Used by webapp Cross-Cutting view. |
 | `remediation_roadmap` | See §"Remediation Roadmap" below |
-| `recommended_actions[]` | Canonical agentic programs (AI DLC, AXE, EBA on Agentic AI) |
+| `recommended_actions[]` | Canonical agentic programs (AI DLC, AXE, Innovation EBA) |
 | `portfolio_level_findings[]` | PORT-ARA-Q* cross-portfolio findings |
 | `dependency_map` | Dependency map |
 
@@ -1252,7 +1252,7 @@ The Portfolio ARA JSON emits `recommended_actions[]` as an array of agentic-prog
 |---|---|---|---|
 | `ai-dlc` | AI Driven Development Lifecycle | AI DLC | workshop |
 | `axe` | Agent Experience Engagement | AXE | program |
-| `eba-agentic-ai` | EBA on Agentic AI | EBA Agentic AI | program |
+| `innovation-eba` | Innovation EBA | Innovation EBA | program |
 
 Each entry carries:
 
@@ -1294,7 +1294,7 @@ Subsections:
 1. **Portfolio Status** — "Out of {N} repositories analyzed, {A} are agent-ready and can integrate with AI agents immediately, {B} are pilot-ready for read-only operations, and {C} require remediation before agent deployment. The analysis identified {H} high severity findings (blockers) and {M} medium severity findings (risks)."
 2. **Key Findings** — Top 3 cross-cutting high severity areas as bullet list with repo counts
 3. **Remediation Plan** — 3-phase numbered list with finding counts and timelines
-4. **Recommended Actions** — Bullet list of triggered programs (AI DLC, AXE, EBA on Agentic AI) with reasons
+4. **Recommended Actions** — Bullet list of triggered programs (AI DLC, AXE, Innovation EBA) with reasons
 
 **Stats Card Row** (4 cards):
 
@@ -1350,7 +1350,7 @@ Source: `remediation_roadmap.items[]` grouped by phase
 Table columns: `Program`, `Description`, `Why Recommended`, `Duration`
 
 - Source: `recommended_actions[]` filtered to `status == "Triggered"`
-- Canonical programs: AI DLC, AXE, EBA on Agentic AI
+- Canonical programs: AI DLC, AXE, Innovation EBA
 
 #### Footer
 
