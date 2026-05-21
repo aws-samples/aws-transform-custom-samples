@@ -52,6 +52,17 @@ export class ApiStack extends cdk.Stack {
       resources: ['*'],
     }));
 
+    // CloudWatch read permissions (for metrics and knowledge-items log scraping)
+    lambdaRole.addToPolicy(new iam.PolicyStatement({
+      actions: ['cloudwatch:GetMetricStatistics', 'cloudwatch:ListMetrics', 'cloudwatch:GetMetricData'],
+      resources: ['*'],
+    }));
+
+    lambdaRole.addToPolicy(new iam.PolicyStatement({
+      actions: ['logs:GetLogEvents'],
+      resources: [`arn:aws:logs:${this.region}:${this.account}:log-group:/aws/batch/atx-transform:*`],
+    }));
+
     // Allow Lambda to invoke itself (for async batch jobs)
     lambdaRole.addToPolicy(new iam.PolicyStatement({
       actions: ['lambda:InvokeFunction'],
@@ -167,6 +178,26 @@ export class ApiStack extends cdk.Stack {
       timeout: cdk.Duration.seconds(30),
     });
 
+    const getKnowledgeItemsFunction = new lambda.Function(this, 'GetKnowledgeItemsFunction', {
+      functionName: 'atx-get-knowledge-items',
+      runtime: lambda.Runtime.PYTHON_3_11,
+      handler: 'get_knowledge_items.lambda_handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../api/lambda')),
+      role: lambdaRole,
+      environment: commonEnv,
+      timeout: cdk.Duration.seconds(30),
+    });
+
+    const getMetricsFunction = new lambda.Function(this, 'GetMetricsFunction', {
+      functionName: 'atx-get-metrics',
+      runtime: lambda.Runtime.PYTHON_3_11,
+      handler: 'get_metrics.lambda_handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../../api/lambda')),
+      role: lambdaRole,
+      environment: commonEnv,
+      timeout: cdk.Duration.seconds(30),
+    });
+
     // Suppress Python runtime warnings for all Lambda functions
     const pythonRuntimeSuppression = {
       id: 'AwsSolutions-L1',
@@ -180,6 +211,8 @@ export class ApiStack extends cdk.Stack {
     NagSuppressions.addResourceSuppressions(getBatchStatusFunction, [pythonRuntimeSuppression], true);
     NagSuppressions.addResourceSuppressions(configureMcpFunction, [pythonRuntimeSuppression], true);
     NagSuppressions.addResourceSuppressions(uploadCodeFunction, [pythonRuntimeSuppression], true);
+    NagSuppressions.addResourceSuppressions(getKnowledgeItemsFunction, [pythonRuntimeSuppression], true);
+    NagSuppressions.addResourceSuppressions(getMetricsFunction, [pythonRuntimeSuppression], true);
 
     // CloudWatch Log Group for API Gateway access logs
     const apiLogGroup = new logs.LogGroup(this, 'ApiAccessLogs', {
@@ -262,6 +295,22 @@ export class ApiStack extends cdk.Stack {
       requestValidator,
     });
 
+    // /knowledge-items - Knowledge item operations
+    const knowledgeItems = this.api.root.addResource('knowledge-items');
+    knowledgeItems.addMethod('GET', new apigateway.LambdaIntegration(getKnowledgeItemsFunction), {
+      authorizationType: apigateway.AuthorizationType.IAM,
+    });
+    knowledgeItems.addMethod('POST', new apigateway.LambdaIntegration(getKnowledgeItemsFunction), {
+      authorizationType: apigateway.AuthorizationType.IAM,
+      requestValidator,
+    });
+
+    // GET /metrics - Get CloudWatch metrics
+    const metrics = this.api.root.addResource('metrics');
+    metrics.addMethod('GET', new apigateway.LambdaIntegration(getMetricsFunction), {
+      authorizationType: apigateway.AuthorizationType.IAM,
+    });
+
     // Suppress Cognito auth warnings - IAM auth is appropriate for backend API
     NagSuppressions.addResourceSuppressionsByPath(
       this,
@@ -296,6 +345,21 @@ export class ApiStack extends cdk.Stack {
     NagSuppressions.addResourceSuppressionsByPath(
       this,
       '/AtxApiStack/Api/Default/upload/POST/Resource',
+      [{ id: 'AwsSolutions-COG4', reason: 'This is a backend API for programmatic access and automation. IAM authentication is more appropriate than Cognito for service-to-service communication.' }]
+    );
+    NagSuppressions.addResourceSuppressionsByPath(
+      this,
+      '/AtxApiStack/Api/Default/knowledge-items/GET/Resource',
+      [{ id: 'AwsSolutions-COG4', reason: 'This is a backend API for programmatic access and automation. IAM authentication is more appropriate than Cognito for service-to-service communication.' }]
+    );
+    NagSuppressions.addResourceSuppressionsByPath(
+      this,
+      '/AtxApiStack/Api/Default/knowledge-items/POST/Resource',
+      [{ id: 'AwsSolutions-COG4', reason: 'This is a backend API for programmatic access and automation. IAM authentication is more appropriate than Cognito for service-to-service communication.' }]
+    );
+    NagSuppressions.addResourceSuppressionsByPath(
+      this,
+      '/AtxApiStack/Api/Default/metrics/GET/Resource',
       [{ id: 'AwsSolutions-COG4', reason: 'This is a backend API for programmatic access and automation. IAM authentication is more appropriate than Cognito for service-to-service communication.' }]
     );
 

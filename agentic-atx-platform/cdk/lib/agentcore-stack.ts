@@ -247,7 +247,7 @@ export class AgentCoreStack extends cdk.Stack {
     new cdk.CfnOutput(this, 'ApiEndpoint', {
       value: this.apiEndpoint,
       description: 'HTTP API endpoint for UI',
-      exportName: 'AtxApiEndpoint',
+      exportName: 'AtxAgentCoreApiEndpoint',
     });
 
     new cdk.CfnOutput(this, 'AsyncLambdaArn', {

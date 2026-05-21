@@ -12,6 +12,9 @@ import { AgenticExtrasStack } from '../lib/agentic-extras-stack';
 
 const app = new cdk.App();
 
+// Add auto-delete=no tag to all resources
+cdk.Tags.of(app).add('auto-delete', 'no');
+
 const ecrRepoName = app.node.tryGetContext('ecrRepoName') || 'atx-custom-ecr';
 const awsRegion = app.node.tryGetContext('awsRegion') || 'us-east-1';
 const fargateVcpu = app.node.tryGetContext('fargateVcpu') || 2;
@@ -42,7 +45,7 @@ const env = {
 // Hybrid mode: deploy on top of base scaled-execution-containers infra
 // Usage: cdk deploy --all -c useBaseInfra=true
 // ========================================
-const useBaseInfra = app.node.tryGetContext('useBaseInfra') === 'true';
+const useBaseInfra = app.node.tryGetContext('useBaseInfra') === 'true' || true; // Hybrid mode: deploy on top of base infra
 
 if (useBaseInfra) {
   // Hybrid: base infra already deployed via scaled-execution-containers/cdk.

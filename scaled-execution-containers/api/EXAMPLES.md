@@ -274,6 +274,66 @@ python3 utilities/tail-logs.py JOB_ID --no-follow
 
 ---
 
+## 8. List Knowledge Items
+
+```bash
+# List all available transformation definitions
+python3 utilities/invoke-api.py \
+  --endpoint "$API_ENDPOINT" \
+  --method GET \
+  --path "/knowledge-items"
+
+# Filter by category
+python3 utilities/invoke-api.py \
+  --endpoint "$API_ENDPOINT" \
+  --method GET \
+  --path "/knowledge-items?category=SDK%20Migration"
+
+# Filter GA-only transformations
+python3 utilities/invoke-api.py \
+  --endpoint "$API_ENDPOINT" \
+  --method GET \
+  --path "/knowledge-items?status=GA"
+```
+
+**Using curl:**
+```bash
+curl "$API_ENDPOINT/knowledge-items" \
+  --aws-sigv4 "aws:amz:us-east-1:execute-api"
+
+curl "$API_ENDPOINT/knowledge-items?status=GA" \
+  --aws-sigv4 "aws:amz:us-east-1:execute-api"
+```
+
+---
+
+## 9. Get Metrics
+
+```bash
+# Get metrics for last 24 hours (default)
+python3 utilities/invoke-api.py \
+  --endpoint "$API_ENDPOINT" \
+  --method GET \
+  --path "/metrics"
+
+# Get metrics for last 7 days
+python3 utilities/invoke-api.py \
+  --endpoint "$API_ENDPOINT" \
+  --method GET \
+  --path "/metrics?period=168"
+```
+
+**Using curl:**
+```bash
+curl "$API_ENDPOINT/metrics" \
+  --aws-sigv4 "aws:amz:us-east-1:execute-api"
+
+curl "$API_ENDPOINT/metrics?period=72" \
+  --aws-sigv4 "aws:amz:us-east-1:execute-api"
+```
+
+---
+
 ## Programmatic Usage (Python)
 
 ```python

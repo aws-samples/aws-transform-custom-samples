@@ -94,6 +94,7 @@
     "existingSourceBucket": "",
     "existingVpcId": "",
     "existingSubnetIds": [],
-    "existingSecurityGroupId": ""
+    "existingSecurityGroupId": "",
+    "useBaseInfra": "true"
   }
 }
