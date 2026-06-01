@@ -146,7 +146,7 @@ if objects:
 echo ""
 echo "Phase 2: S3 buckets..."
 
-for BUCKET in "atx-source-code-${ACCOUNT_ID}" "atx-custom-output-${ACCOUNT_ID}" "atx-logs-${ACCOUNT_ID}"; do
+for BUCKET in "atx-source-code-${ACCOUNT_ID}" "atx-custom-output-${ACCOUNT_ID}" "atx-ct-output-${ACCOUNT_ID}" "atx-logs-${ACCOUNT_ID}"; do
   if ! aws s3api head-bucket --bucket "$BUCKET" --region "$REGION" 2>/dev/null; then
     skip "s3://${BUCKET}"
     continue

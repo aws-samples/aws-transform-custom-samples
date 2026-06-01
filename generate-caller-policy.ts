@@ -48,6 +48,7 @@ log.info(`AWS Region:  ${region}`);
 const resources = {
   s3Output:    `atx-custom-output-${accountId}`,
   s3Source:    `atx-source-code-${accountId}`,
+  s3CtOutput:  `atx-ct-output-${accountId}`,
   logGroup:    '/aws/batch/atx-transform',
   kmsAlias:    'atx-encryption-key',
   computeEnv:  'atx-fargate-compute',
@@ -59,6 +60,7 @@ const resources = {
 console.log('\nGenerating policies for these resources:');
 console.log(`  • S3 Output:    ${resources.s3Output}`);
 console.log(`  • S3 Source:    ${resources.s3Source}`);
+console.log(`  • S3 CT Output: ${resources.s3CtOutput}`);
 console.log(`  • Log Group:    ${resources.logGroup}`);
 console.log(`  • KMS Alias:    ${resources.kmsAlias}`);
 console.log(`  • Job Queue:    ${resources.jobQueue}`);
@@ -115,6 +117,12 @@ const runtimePolicy: PolicyDocument = {
       Effect: 'Allow',
       Action: ['s3:GetObject', 's3:ListBucket'],
       Resource: [`arn:aws:s3:::${resources.s3Output}`, `arn:aws:s3:::${resources.s3Output}/*`],
+    },
+    {
+      Sid: 'S3DownloadCtArtifacts',
+      Effect: 'Allow',
+      Action: ['s3:GetObject', 's3:ListBucket'],
+      Resource: [`arn:aws:s3:::${resources.s3CtOutput}`, `arn:aws:s3:::${resources.s3CtOutput}/*`],
     },
     {
       Sid: 'KMSEncryptDecrypt',

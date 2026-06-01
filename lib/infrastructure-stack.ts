@@ -20,6 +20,7 @@ export interface InfrastructureStackProps extends cdk.StackProps {
   maxVcpus: number;
   existingOutputBucket?: string;
   existingSourceBucket?: string;
+  existingCtOutputBucket?: string;
   existingVpcId?: string;
   existingSubnetIds?: string[];
   existingSecurityGroupId?: string;
@@ -28,6 +29,7 @@ export interface InfrastructureStackProps extends cdk.StackProps {
 export class InfrastructureStack extends cdk.Stack {
   public readonly outputBucket: s3.IBucket;
   public readonly sourceBucket: s3.IBucket;
+  public readonly ctOutputBucket: s3.IBucket;
   public readonly encryptionKey: kms.IKey;
   public readonly jobQueue: batch.CfnJobQueue;
   public readonly jobDefinition: batch.CfnJobDefinition;
@@ -96,6 +98,21 @@ export class InfrastructureStack extends cdk.Stack {
       });
     }
 
+    if (props.existingCtOutputBucket) {
+      this.ctOutputBucket = s3.Bucket.fromBucketName(this, 'CtOutputBucket', props.existingCtOutputBucket);
+    } else {
+      this.ctOutputBucket = new s3.Bucket(this, 'CtOutputBucket', {
+        bucketName: `atx-ct-output-${accountId}`,
+        versioned: true,
+        encryptionKey: this.encryptionKey,
+        encryption: s3.BucketEncryption.KMS,
+        blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+        removalPolicy: cdk.RemovalPolicy.RETAIN,
+        enforceSSL: true,
+        lifecycleRules: [{ id: 'expire-30d', expiration: cdk.Duration.days(30) }],
+      });
+    }
+
     // Suppress S3 access logging — these are short-lived transformation buckets
     // with lifecycle rules (7d/30d). Access is already auditable via CloudTrail.
     if (!props.existingOutputBucket) {
@@ -106,6 +123,11 @@ export class InfrastructureStack extends cdk.Stack {
     if (!props.existingSourceBucket) {
       NagSuppressions.addResourceSuppressions(this.sourceBucket, [
         { id: 'AwsSolutions-S1', reason: 'Access logging not required for short-lived source code bucket with 7d lifecycle. Auditable via CloudTrail.' },
+      ], true);
+    }
+    if (!props.existingCtOutputBucket) {
+      NagSuppressions.addResourceSuppressions(this.ctOutputBucket, [
+        { id: 'AwsSolutions-S1', reason: 'Access logging not required for short-lived ATX CT artifact bucket with 30d lifecycle. Auditable via CloudTrail.' },
       ], true);
     }
 
@@ -129,6 +151,7 @@ export class InfrastructureStack extends cdk.Stack {
     // Grant S3 access to job role
     this.outputBucket.grantReadWrite(jobRole);
     this.sourceBucket.grantRead(jobRole);
+    this.ctOutputBucket.grantReadWrite(jobRole);
     this.encryptionKey.grantEncryptDecrypt(jobRole);
 
     // Allow container to fetch private repo credentials from Secrets Manager
@@ -293,6 +316,7 @@ export class InfrastructureStack extends cdk.Stack {
         },
         environment: [
           { name: 'S3_BUCKET', value: this.outputBucket.bucketName },
+          { name: 'CT_OUTPUT_BUCKET', value: this.ctOutputBucket.bucketName },
           { name: 'SOURCE_BUCKET', value: this.sourceBucket.bucketName },
           { name: 'AWS_DEFAULT_REGION', value: this.region },
         ],
@@ -391,6 +415,7 @@ export class InfrastructureStack extends cdk.Stack {
       JOB_QUEUE: 'atx-job-queue',
       JOB_DEFINITION: 'atx-transform-job',
       OUTPUT_BUCKET: this.outputBucket.bucketName,
+      CT_OUTPUT_BUCKET: this.ctOutputBucket.bucketName,
       SOURCE_BUCKET: this.sourceBucket.bucketName,
     };
 
@@ -506,6 +531,12 @@ export class InfrastructureStack extends cdk.Stack {
       value: this.sourceBucket.bucketName,
       description: 'S3 bucket for source code uploads',
       exportName: 'AtxSourceBucketName',
+    });
+
+    new cdk.CfnOutput(this, 'CtOutputBucketName', {
+      value: this.ctOutputBucket.bucketName,
+      description: 'S3 bucket for ATX Control Tower analysis/remediation artifacts',
+      exportName: 'AtxCtOutputBucketName',
     });
 
     new cdk.CfnOutput(this, 'JobQueueArn', {

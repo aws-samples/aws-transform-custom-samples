@@ -53,6 +53,18 @@ describe('S3 bucket security', () => {
     });
   });
 
+  test('ct-output bucket blocks all public access', () => {
+    template.hasResourceProperties('AWS::S3::Bucket', {
+      BucketName: Match.stringLikeRegexp('atx-ct-output'),
+      PublicAccessBlockConfiguration: {
+        BlockPublicAcls: true,
+        BlockPublicPolicy: true,
+        IgnorePublicAcls: true,
+        RestrictPublicBuckets: true,
+      },
+    });
+  });
+
   test('output bucket uses KMS encryption', () => {
     template.hasResourceProperties('AWS::S3::Bucket', {
       BucketName: Match.stringLikeRegexp('atx-custom-output'),
@@ -80,6 +92,28 @@ describe('S3 bucket security', () => {
           }),
         ]),
       },
+    });
+  });
+
+  test('ct-output bucket uses KMS encryption', () => {
+    template.hasResourceProperties('AWS::S3::Bucket', {
+      BucketName: Match.stringLikeRegexp('atx-ct-output'),
+      BucketEncryption: {
+        ServerSideEncryptionConfiguration: Match.arrayWith([
+          Match.objectLike({
+            ServerSideEncryptionByDefault: {
+              SSEAlgorithm: 'aws:kms',
+            },
+          }),
+        ]),
+      },
+    });
+  });
+
+  test('ct-output bucket has versioning enabled', () => {
+    template.hasResourceProperties('AWS::S3::Bucket', {
+      BucketName: Match.stringLikeRegexp('atx-ct-output'),
+      VersioningConfiguration: { Status: 'Enabled' },
     });
   });
 
@@ -122,6 +156,15 @@ describe('S3 bucket security', () => {
       LifecycleConfiguration: {
         Rules: Match.arrayWith([
           Match.objectLike({ ExpirationInDays: 7, Status: 'Enabled' }),
+        ]),
+      },
+    });
+    // CT output bucket: 30 days
+    template.hasResourceProperties('AWS::S3::Bucket', {
+      BucketName: Match.stringLikeRegexp('atx-ct-output'),
+      LifecycleConfiguration: {
+        Rules: Match.arrayWith([
+          Match.objectLike({ ExpirationInDays: 30, Status: 'Enabled' }),
         ]),
       },
     });

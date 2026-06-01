@@ -163,6 +163,7 @@ USER root
 COPY --chown=atxuser:atxuser entrypoint.sh /app/
 COPY --chown=atxuser:atxuser download-source.sh /app/
 COPY --chown=atxuser:atxuser upload-results.sh /app/
+COPY --chown=atxuser:atxuser upload-zerog-artifacts.sh /app/
 
 RUN chmod +x /app/*.sh
 
