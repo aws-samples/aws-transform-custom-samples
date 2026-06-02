@@ -4,14 +4,16 @@
 #
 # Iterates ALL conversation directories under ~/.aws/atx/custom/, reads each
 # conversation's metadata.json to discover its repo path, and uploads:
-#   - reports.zip       (the repo's ATXDocumentation/ folder — analysis output)
-#   - conversation.zip  (the conversation directory: artifacts/, logs/, metadata.json, ...)
+#   - code.zip — the working directory (TD-agnostic; mirrors upload-results.sh)
+#   - logs.zip — cherry-picked debug logs (mirrors upload-results.sh)
 # to s3://${CT_OUTPUT_BUCKET}/${ANALYSIS_ID}/<repo-slug>/.
 #
-# Different from upload-results.sh:
-#   - upload-results.sh picks ONE conversation (ls -t | head -n 1) and zips /source/.
-#   - This script iterates ALL conversations; ATX CT analyses produce N conversations
-#     (one per repo) in a single container's lifetime.
+# Differs from upload-results.sh in that:
+#   - upload-results.sh picks ONE conversation (ls -t | head -n 1).
+#     This script iterates ALL conversations; ATX CT can produce multiple per container.
+#   - upload-results.sh zips /source/. This script zips each conversation's
+#     codeRepositoryPath (from metadata.json), since CT manages source dirs
+#     under ~/.atxct/sources/... not /source/.
 #
 # Usage:
 #   upload-ct-artifacts.sh <analysis-id> <ct-output-bucket>
@@ -62,38 +64,56 @@ for conv_dir in "$CONV_BASE"/*/; do
   REPO_SLUG=$(basename "$REPO_PATH")
   S3_PREFIX="s3://${S3_BUCKET}/${ANALYSIS_ID}/${REPO_SLUG}"
 
-  # reports.zip — ATXDocumentation/ from the repo dir (analysis output)
-  if [[ -d "$REPO_PATH/ATXDocumentation" ]]; then
-    if (cd "$REPO_PATH" && zip -qr /tmp/reports.zip ATXDocumentation/); then
-      if aws s3 cp /tmp/reports.zip "${S3_PREFIX}/reports.zip" --quiet; then
-        log "Uploaded ${S3_PREFIX}/reports.zip"
+  # code.zip — the entire working directory (whatever the TD wrote there)
+  if [[ -d "$REPO_PATH" ]]; then
+    if (cd "$REPO_PATH" && zip -qr /tmp/code.zip . \
+        -x ".git/*" \
+        -x ".env*" \
+        -x "*.pem" \
+        -x "*.key" \
+        -x "node_modules/*" \
+        -x ".aws/*"); then
+      if aws s3 cp /tmp/code.zip "${S3_PREFIX}/code.zip" --quiet; then
+        log "Uploaded ${S3_PREFIX}/code.zip"
       else
-        log "Warning: failed to upload reports.zip for $CONV_ID"
+        log "Warning: failed to upload code.zip for $CONV_ID"
         FAILED=$((FAILED + 1))
       fi
-      rm -f /tmp/reports.zip
+      rm -f /tmp/code.zip
     else
-      log "Warning: failed to zip ATXDocumentation/ for $CONV_ID"
+      log "Warning: failed to zip $REPO_PATH for $CONV_ID"
       FAILED=$((FAILED + 1))
     fi
   else
-    log "No ATXDocumentation/ in $REPO_PATH — skipping reports.zip for $CONV_ID"
+    log "Warning: REPO_PATH $REPO_PATH does not exist for $CONV_ID"
   fi
 
-  # conversation.zip — entire conversation directory (logs, artifacts, metadata, mcp_usage)
-  if (cd "$conv_dir" && zip -qr /tmp/conversation.zip .); then
-    if aws s3 cp /tmp/conversation.zip "${S3_PREFIX}/conversation.zip" --quiet; then
-      log "Uploaded ${S3_PREFIX}/conversation.zip"
-      UPLOADED=$((UPLOADED + 1))
+  # logs.zip — cherry-pick the same files Custom's upload-results.sh picks
+  LOGS_STAGING=$(mktemp -d /tmp/ct-logs-XXXX)
+  cp "$HOME/.aws/atx/logs/debug"*.log "$LOGS_STAGING/" 2>/dev/null || true
+  cp "$HOME/.aws/atx/logs/error.log" "$LOGS_STAGING/" 2>/dev/null || true
+  cp "$conv_dir"/logs/*.log "$LOGS_STAGING/" 2>/dev/null || true
+  cp "$conv_dir/plan.json" "$LOGS_STAGING/" 2>/dev/null || true
+  cp "$conv_dir/artifacts/validation_summary.md" "$LOGS_STAGING/" 2>/dev/null || true
+
+  if [[ -n "$(ls -A "$LOGS_STAGING" 2>/dev/null)" ]]; then
+    if (cd "$LOGS_STAGING" && zip -qr /tmp/logs.zip .); then
+      if aws s3 cp /tmp/logs.zip "${S3_PREFIX}/logs.zip" --quiet; then
+        log "Uploaded ${S3_PREFIX}/logs.zip"
+        UPLOADED=$((UPLOADED + 1))
+      else
+        log "Warning: failed to upload logs.zip for $CONV_ID"
+        FAILED=$((FAILED + 1))
+      fi
+      rm -f /tmp/logs.zip
     else
-      log "Warning: failed to upload conversation.zip for $CONV_ID"
+      log "Warning: failed to zip logs for $CONV_ID"
       FAILED=$((FAILED + 1))
     fi
-    rm -f /tmp/conversation.zip
   else
-    log "Warning: failed to zip conversation directory for $CONV_ID"
-    FAILED=$((FAILED + 1))
+    log "No logs found for $CONV_ID — skipping logs.zip"
   fi
+  rm -rf "$LOGS_STAGING"
 done
 
 log "ATX CT artifact upload complete: uploaded=$UPLOADED skipped=$SKIPPED failed=$FAILED analysis_id=$ANALYSIS_ID"
