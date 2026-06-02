@@ -1,5 +1,5 @@
 #!/bin/bash
-# upload-zerog-artifacts.sh — uploads ZeroG (ATX Control Tower) analysis/remediation
+# upload-ct-artifacts.sh — uploads ATX Control Tower analysis/remediation
 # artifacts to S3. Runs inside the Batch container before exit.
 #
 # Iterates ALL conversation directories under ~/.aws/atx/custom/, reads each
@@ -10,14 +10,14 @@
 #
 # Different from upload-results.sh:
 #   - upload-results.sh picks ONE conversation (ls -t | head -n 1) and zips /source/.
-#   - This script iterates ALL conversations; ZeroG analyses produce N conversations
+#   - This script iterates ALL conversations; ATX CT analyses produce N conversations
 #     (one per repo) in a single container's lifetime.
 #
 # Usage:
-#   upload-zerog-artifacts.sh <analysis-id> <ct-output-bucket>
+#   upload-ct-artifacts.sh <analysis-id> <ct-output-bucket>
 #
 # Exit code: always 0. Upload failures are logged but do not fail the job —
-# findings are already in FES (the primary deliverable for ZeroG analyses).
+# findings are already in FES (the primary deliverable for ATX CT analyses).
 
 set -u
 
@@ -27,7 +27,7 @@ ANALYSIS_ID="${1:-}"
 S3_BUCKET="${2:-}"
 
 if [[ -z "$ANALYSIS_ID" || -z "$S3_BUCKET" ]]; then
-  log "Error: usage: upload-zerog-artifacts.sh <analysis-id> <ct-output-bucket>"
+  log "Error: usage: upload-ct-artifacts.sh <analysis-id> <ct-output-bucket>"
   exit 1
 fi
 
@@ -96,5 +96,5 @@ for conv_dir in "$CONV_BASE"/*/; do
   fi
 done
 
-log "ZeroG artifact upload complete: uploaded=$UPLOADED skipped=$SKIPPED failed=$FAILED analysis_id=$ANALYSIS_ID"
+log "ATX CT artifact upload complete: uploaded=$UPLOADED skipped=$SKIPPED failed=$FAILED analysis_id=$ANALYSIS_ID"
 exit 0
