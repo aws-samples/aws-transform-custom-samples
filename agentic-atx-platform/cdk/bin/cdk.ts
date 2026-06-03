@@ -45,7 +45,10 @@ const env = {
 // Hybrid mode: deploy on top of base scaled-execution-containers infra
 // Usage: cdk deploy --all -c useBaseInfra=true
 // ========================================
-const useBaseInfra = app.node.tryGetContext('useBaseInfra') === 'true' || true; // Hybrid mode: deploy on top of base infra
+// Hybrid mode (-c useBaseInfra=true): deploy on top of base infra.
+const useBaseInfraContext = app.node.tryGetContext('useBaseInfra');
+// Normalize: CLI -c passes strings, but cdk.json could hold a JSON boolean.
+const useBaseInfra = useBaseInfraContext === true || useBaseInfraContext === 'true';
 
 if (useBaseInfra) {
   // Hybrid: base infra already deployed via scaled-execution-containers/cdk.
@@ -74,17 +77,28 @@ if (useBaseInfra) {
 } else {
   // Full mode: deploy everything including container + infrastructure
 
-  // Stack 1: Container (ECR + Docker Image)
-  const containerStack = new ContainerStack(app, 'AtxContainerStack', {
-    env,
-    ecrRepoName,
-    description: 'AWS Transform CLI - Container and ECR Repository',
-  });
+  // Optionally skip the (slow) local Docker build and use a prebuilt public image
+  // Usage: cdk deploy ... -c publicEcrImage=public.ecr.aws/b7y6j9m3/aws-transform-custom:latest
+  const publicEcrImage = app.node.tryGetContext('publicEcrImage') || '';
+
+  let imageUri: string;
+  let containerStack: ContainerStack | undefined;
+  if (publicEcrImage) {
+    imageUri = publicEcrImage;
+  } else {
+    // Stack 1: Container (ECR + Docker Image)
+    containerStack = new ContainerStack(app, 'AtxContainerStack', {
+      env,
+      ecrRepoName,
+      description: 'AWS Transform CLI - Container and ECR Repository',
+    });
+    imageUri = containerStack.imageUri;
+  }
 
   // Stack 2: Infrastructure (Batch, S3, IAM, CloudWatch)
   const infrastructureStack = new InfrastructureStack(app, 'AtxInfrastructureStack', {
     env,
-    imageUri: containerStack.imageUri,
+    imageUri,
     fargateVcpu,
     fargateMemory,
     jobTimeout,
@@ -96,7 +110,7 @@ if (useBaseInfra) {
     existingSecurityGroupId,
     description: 'AWS Transform CLI - Batch Infrastructure',
   });
-  infrastructureStack.addDependency(containerStack);
+  if (containerStack) infrastructureStack.addDependency(containerStack);
 
   // Stack 3: AgentCore + API (Orchestrator, Lambda, HTTP API)
   // ⚠️ EXPERIMENTAL: Uses @aws-cdk/aws-bedrock-agentcore-alpha
