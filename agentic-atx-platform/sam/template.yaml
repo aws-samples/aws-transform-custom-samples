@@ -14,7 +14,7 @@ Parameters:
     Description: S3 bucket for source code and custom definitions (from CDK InfrastructureStack)
   BedrockModelId:
     Type: String
-    Default: us.anthropic.claude-sonnet-4-20250514-v1:0
+    Default: us.anthropic.claude-sonnet-4-5-20250929-v1:0
     Description: Bedrock model ID for the orchestrator
   AwsRegion:
     Type: String

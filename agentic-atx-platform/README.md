@@ -55,7 +55,7 @@ Key settings:
 | Setting | Default | Description |
 |---------|---------|-------------|
 | `AWS_REGION` | `us-east-1` | AWS region for all services |
-| `BEDROCK_MODEL_ID` | `us.anthropic.claude-sonnet-4-20250514-v1:0` | AI model for orchestrator |
+| `BEDROCK_MODEL_ID` | `us.anthropic.claude-sonnet-4-5-20250929-v1:0` | AI model for orchestrator |
 | `FARGATE_VCPU` | `2` | vCPU for Batch jobs |
 | `FARGATE_MEMORY` | `4096` | Memory (MB) for Batch jobs |
 | `JOB_TIMEOUT` | `43200` | Max job duration (seconds) |

@@ -243,7 +243,7 @@ VITE_API_ENDPOINT=$API_URL npx vite build
    aws bedrock list-foundation-models --query "modelSummaries[?contains(modelId,'claude')].{id:modelId,status:modelLifecycle.status}" --output table
    
    # Recommended: Claude Sonnet 4
-   BEDROCK_MODEL_ID=us.anthropic.claude-sonnet-4-20250514-v1:0
+   BEDROCK_MODEL_ID=us.anthropic.claude-sonnet-4-5-20250929-v1:0
    ```
 2. Redeploy the AgentCore stack (Option B) or update the AgentCore runtime (Option A)
 
