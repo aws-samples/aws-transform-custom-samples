@@ -9,6 +9,7 @@ ENV TZ=UTC
 # Install base dependencies from dnf
 RUN dnf install -y \
     git \
+    which \
     tar \
     gzip \
     unzip \
