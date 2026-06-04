@@ -8,7 +8,12 @@ export function errorResponse(statusCode: number, message: string) {
 
 const DANGEROUS_PATTERNS = ['`', '$(', '${'];
 const SAFE_CHARS = /^[a-zA-Z0-9 \t\-_./=:,"'@[\]~+&><;|]+$/;
-const ALLOWED_COMMAND_PREFIXES = ['atx custom def exec', 'atx custom def list', 'atx custom def get'];
+const ALLOWED_COMMAND_PREFIXES = [
+  'atx custom def exec',
+  'atx custom def list',
+  'atx custom def get',
+  'atx ct ',
+];
 
 // Build command flags are rejected entirely — ATX auto-detects the build command.
 const BUILD_COMMAND_PATTERNS = [

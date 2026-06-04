@@ -1,157 +1,91 @@
 #!/bin/bash
-# upload-ct-artifacts.sh — uploads ATX Control Tower analysis/remediation
-# artifacts to S3. Runs inside the Batch container before exit.
 #
-# For each selected conversation directory under ~/.aws/atx/custom/, reads
-# its metadata.json to discover its repo path, and uploads:
-#   - code.zip — the working directory (TD-agnostic; mirrors upload-results.sh)
-#   - logs.zip — cherry-picked debug logs (mirrors upload-results.sh)
-# to s3://${CT_OUTPUT_BUCKET}/${ANALYSIS_ID}/<repo-slug>/.
+# upload-ct-artifacts.sh — Upload ATX CT analysis or remediation artifacts to S3.
 #
-# Differs from upload-results.sh in that:
-#   - upload-results.sh picks ONE conversation (ls -t | head -n 1).
-#     This script processes one or more conversations; ATX CT can produce
-#     multiple per container, and the caller can scope which ones to upload.
-#   - upload-results.sh zips /source/. This script zips each conversation's
-#     codeRepositoryPath (from metadata.json), since CT manages source dirs
-#     under ~/.atxct/sources/... not /source/.
+# Iterates analysis.repos[] (or remediation.repos.keys[]) for the given ID and
+# zips each repo's working directory directly to S3 at:
+#   s3://<bucket>/<id>/<source-name>::<repo-name>/code.zip
 #
-# Usage:
-#   upload-ct-artifacts.sh <analysis-id> <ct-output-bucket> [conv-id ...]
+# Self-contained: sources nvm and exports PATH so the script works whether
+# invoked from a chain that already set up env or fresh.
 #
-# When conv-ids are provided, only those conversations are uploaded. When no
-# conv-ids are provided, ALL conversations on disk are uploaded (legacy
-# behavior). The latter is safe for single-run containers but produces
-# cross-contamination when a long-running container has accumulated
-# conversations from prior analyses or remediations under the new run's
-# S3 prefix. Pass conv-ids when the caller knows which conversations belong
-# to the current run (e.g., from Analysis.summary's convId.* entries
-# populated by CR-278804433).
+# Usage: upload-ct-artifacts.sh <analysis-id-or-remediation-id> <ct-output-bucket>
 #
-# Exit code: always 0. Upload failures are logged but do not fail the job —
-# findings are already in FES (the primary deliverable for ATX CT analyses).
-
+# Notes:
+# - Tries the ID as an analysis first; falls back to remediation if not found.
+# - Path layout per provider:
+#     github / gitlab → /home/atxuser/.atxct/sources/<source>/repos/<full-slug>
+#     local           → /home/atxuser/repos/<repo-name>
+# - Findings are persisted to the CT backend during the analysis/remediation
+#   itself; this script only handles the working-dir code.zip upload.
+# - Exit code is always 0. Upload failures are logged but don't fail the job.
 set -u
 
 log() { echo "[$(date -u +"%Y-%m-%dT%H:%M:%SZ")] $1"; }
 
+# Self-setup: ensure atx ct gamma + Node 22 are available
+[ -s /home/atxuser/.nvm/nvm.sh ] && source /home/atxuser/.nvm/nvm.sh 2>/dev/null && nvm use 22 >/dev/null 2>&1
+export PATH=/home/atxuser/.local/bin:/usr/local/bin:/usr/bin:/bin
+
 ANALYSIS_ID="${1:-}"
 S3_BUCKET="${2:-}"
-shift 2 2>/dev/null || true
-SELECTED_CONV_IDS=("$@")
 
 if [[ -z "$ANALYSIS_ID" || -z "$S3_BUCKET" ]]; then
-  log "Error: usage: upload-ct-artifacts.sh <analysis-id> <ct-output-bucket> [conv-id ...]"
+  log "Error: usage: upload-ct-artifacts.sh <analysis-id-or-remediation-id> <ct-output-bucket>"
   exit 1
 fi
 
-CONV_BASE="$HOME/.aws/atx/custom"
-if [[ ! -d "$CONV_BASE" ]]; then
-  log "No conversation directory at $CONV_BASE — nothing to upload"
+# Try analysis first; fall back to remediation
+REPOS=$(atx ct analysis get --id "$ANALYSIS_ID" --json 2>/dev/null | jq -r '.repos[]?')
+if [[ -z "$REPOS" ]]; then
+  REPOS=$(atx ct remediation status --id "$ANALYSIS_ID" --json 2>/dev/null | jq -r '.repos | keys[]?')
+fi
+
+if [[ -z "$REPOS" ]]; then
+  log "No repos found for $ANALYSIS_ID (not an analysis or remediation, or has no repos)"
   exit 0
 fi
 
 UPLOADED=0
-SKIPPED=0
 FAILED=0
+SKIPPED=0
 
-# upload_conv: process a single conversation directory.
-# Caller increments UPLOADED/SKIPPED/FAILED counters via stdout-parse.
-upload_conv() {
-  local conv_dir="$1"
-  local CONV_ID
-  CONV_ID=$(basename "$conv_dir")
-  local META="$conv_dir/metadata.json"
+for slug in $REPOS; do
+  source_name=$(echo "$slug" | awk -F'::' '{print $1}')
+  repo_name=$(echo "$slug" | awk -F'::' '{print $2}')
 
-  if [[ ! -d "$conv_dir" ]]; then
-    log "Skipping $CONV_ID (directory not found)"
+  provider=$(atx ct source list --json 2>/dev/null | jq -r ".[] | select(.source==\"$source_name\") | .provider")
+  case "$provider" in
+    github|gitlab) repo_path="/home/atxuser/.atxct/sources/$source_name/repos/$slug" ;;
+    local)         repo_path="/home/atxuser/repos/$repo_name" ;;
+    *)
+      log "Skip $slug — unknown provider '$provider'"
+      SKIPPED=$((SKIPPED + 1))
+      continue
+      ;;
+  esac
+
+  if [[ ! -d "$repo_path" ]]; then
+    log "Skip $slug — path not found: $repo_path"
     SKIPPED=$((SKIPPED + 1))
-    return
+    continue
   fi
 
-  if [[ ! -f "$META" ]]; then
-    log "Skipping $CONV_ID (no metadata.json)"
-    SKIPPED=$((SKIPPED + 1))
-    return
-  fi
-
-  local REPO_PATH
-  REPO_PATH=$(jq -r '.codeRepositoryPath // empty' "$META" 2>/dev/null)
-  if [[ -z "$REPO_PATH" ]]; then
-    log "Skipping $CONV_ID (no codeRepositoryPath in metadata.json)"
-    SKIPPED=$((SKIPPED + 1))
-    return
-  fi
-
-  local REPO_SLUG
-  REPO_SLUG=$(basename "$REPO_PATH")
-  local S3_PREFIX="s3://${S3_BUCKET}/${ANALYSIS_ID}/${REPO_SLUG}"
-
-  # code.zip — the entire working directory (whatever the TD wrote there)
-  if [[ -d "$REPO_PATH" ]]; then
-    if (cd "$REPO_PATH" && zip -qr /tmp/code.zip . \
-        -x ".git/*" \
-        -x ".env*" \
-        -x "*.pem" \
-        -x "*.key" \
-        -x "node_modules/*" \
-        -x ".aws/*"); then
-      if aws s3 cp /tmp/code.zip "${S3_PREFIX}/code.zip" --quiet; then
-        log "Uploaded ${S3_PREFIX}/code.zip"
-      else
-        log "Warning: failed to upload code.zip for $CONV_ID"
-        FAILED=$((FAILED + 1))
-      fi
-      rm -f /tmp/code.zip
+  if (cd "$repo_path" && zip -qry /tmp/code.zip . -x '.env*' -x '*.pem' -x '*.key' -x 'node_modules/*' -x '.aws/*'); then
+    if aws s3 cp /tmp/code.zip "s3://${S3_BUCKET}/${ANALYSIS_ID}/${slug}/code.zip" --quiet; then
+      log "Uploaded $slug → s3://${S3_BUCKET}/${ANALYSIS_ID}/${slug}/code.zip"
+      UPLOADED=$((UPLOADED + 1))
     else
-      log "Warning: failed to zip $REPO_PATH for $CONV_ID"
+      log "Upload failed for $slug"
       FAILED=$((FAILED + 1))
     fi
   else
-    log "Warning: REPO_PATH $REPO_PATH does not exist for $CONV_ID"
+    log "Zip failed for $slug at $repo_path"
+    FAILED=$((FAILED + 1))
   fi
 
-  # logs.zip — cherry-pick the same files Custom's upload-results.sh picks
-  local LOGS_STAGING
-  LOGS_STAGING=$(mktemp -d /tmp/ct-logs-XXXX)
-  cp "$HOME/.aws/atx/logs/debug"*.log "$LOGS_STAGING/" 2>/dev/null || true
-  cp "$HOME/.aws/atx/logs/error.log" "$LOGS_STAGING/" 2>/dev/null || true
-  cp "$conv_dir"/logs/*.log "$LOGS_STAGING/" 2>/dev/null || true
-  cp "$conv_dir/plan.json" "$LOGS_STAGING/" 2>/dev/null || true
-  cp "$conv_dir/artifacts/validation_summary.md" "$LOGS_STAGING/" 2>/dev/null || true
-
-  if [[ -n "$(ls -A "$LOGS_STAGING" 2>/dev/null)" ]]; then
-    if (cd "$LOGS_STAGING" && zip -qr /tmp/logs.zip .); then
-      if aws s3 cp /tmp/logs.zip "${S3_PREFIX}/logs.zip" --quiet; then
-        log "Uploaded ${S3_PREFIX}/logs.zip"
-        UPLOADED=$((UPLOADED + 1))
-      else
-        log "Warning: failed to upload logs.zip for $CONV_ID"
-        FAILED=$((FAILED + 1))
-      fi
-      rm -f /tmp/logs.zip
-    else
-      log "Warning: failed to zip logs for $CONV_ID"
-      FAILED=$((FAILED + 1))
-    fi
-  else
-    log "No logs found for $CONV_ID — skipping logs.zip"
-  fi
-  rm -rf "$LOGS_STAGING"
-}
-
-if [[ "${#SELECTED_CONV_IDS[@]}" -gt 0 ]]; then
-  log "Processing ${#SELECTED_CONV_IDS[@]} explicitly-named conversation(s)"
-  for conv_id in "${SELECTED_CONV_IDS[@]}"; do
-    upload_conv "${CONV_BASE}/${conv_id}"
-  done
-else
-  log "No conversation IDs specified — processing ALL conversations under $CONV_BASE"
-  for conv_dir in "$CONV_BASE"/*/; do
-    [[ -d "$conv_dir" ]] || continue
-    upload_conv "$conv_dir"
-  done
-fi
+  rm -f /tmp/code.zip
+done
 
 log "ATX CT artifact upload complete: uploaded=$UPLOADED skipped=$SKIPPED failed=$FAILED analysis_id=$ANALYSIS_ID"
 exit 0
