@@ -25,7 +25,8 @@ log() { echo "[$(date -u +"%Y-%m-%dT%H:%M:%SZ")] $1"; }
 
 # Self-setup: ensure atx ct gamma + Node 22 are available
 [ -s /home/atxuser/.nvm/nvm.sh ] && source /home/atxuser/.nvm/nvm.sh 2>/dev/null && nvm use 22 >/dev/null 2>&1
-export PATH=/home/atxuser/.local/bin:/usr/local/bin:/usr/bin:/bin
+# Prepend atx's install location to PATH; do NOT overwrite — that loses nvm's Node 22 path
+export PATH=/home/atxuser/.local/bin:${PATH:-/usr/local/bin:/usr/bin:/bin}
 
 ANALYSIS_ID="${1:-}"
 S3_BUCKET="${2:-}"
