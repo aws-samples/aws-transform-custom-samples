@@ -36,10 +36,20 @@ if [[ -z "$ANALYSIS_ID" || -z "$S3_BUCKET" ]]; then
   exit 1
 fi
 
-# Try analysis first; fall back to remediation
+# Try analysis first via --json (supported)
 REPOS=$(atx ct analysis get --id "$ANALYSIS_ID" --json 2>/dev/null | jq -r '.repos[]?')
+
+# Fall back to remediation status (which does NOT support --json — parse text output).
+# Text format:
+#   ID:     01...
+#   Name:   ...
+#   Status: ...
+#     <source>::<repo>  <repo-status>  /path  (branch: ...)
+# We extract the source-qualified repo slugs (any token containing '::') and dedupe.
 if [[ -z "$REPOS" ]]; then
-  REPOS=$(atx ct remediation status --id "$ANALYSIS_ID" --json 2>/dev/null | jq -r '.repos | keys[]?')
+  REPOS=$(atx ct remediation status --id "$ANALYSIS_ID" 2>/dev/null \
+    | grep -oE '[a-zA-Z0-9_-]+::[a-zA-Z0-9_.-]+' \
+    | sort -u)
 fi
 
 if [[ -z "$REPOS" ]]; then
