@@ -82,7 +82,38 @@ for slug in $REPOS; do
     continue
   fi
 
-  if (cd "$repo_path" && zip -qry /tmp/code.zip . -x '.env*' -x '*.pem' -x '*.key' -x 'node_modules/*' -x '.aws/*'); then
+  # Build the file list to zip:
+  #   - Tracked files (already in git history)
+  #   - Untracked but not gitignored files (new files like atx-bot output, ATXDocumentation/, etc.)
+  # This respects the repo's .gitignore (so node_modules, build dirs, .env if gitignored, etc.
+  # are excluded automatically) and avoids creating phantom "deleted" files for files that
+  # ARE tracked but happened to match a hardcoded pattern (e.g., test certificates *.pem
+  # tracked in openapi-generator). After the file list, we explicitly add .git/ so customers
+  # can `git log` / `git diff` to review what the analysis or remediation bot changed.
+  #
+  # Fallback: if the repo isn't a git working tree (shouldn't happen post-clone, but defensive),
+  # zip the working directory with conservative exclusions.
+  if (cd "$repo_path" && git rev-parse --git-dir > /dev/null 2>&1); then
+    if (cd "$repo_path" && \
+        { git ls-files --recurse-submodules; \
+          git ls-files --others --exclude-standard; } | sort -u > /tmp/code-files.txt && \
+        zip -q /tmp/code.zip -@ < /tmp/code-files.txt && \
+        zip -qry /tmp/code.zip .git); then
+      ZIP_OK=1
+    else
+      ZIP_OK=0
+    fi
+    rm -f /tmp/code-files.txt
+  else
+    if (cd "$repo_path" && zip -qry /tmp/code.zip . \
+          -x 'node_modules/*' -x '.env*' -x '*.pem' -x '*.key' -x '.aws/*'); then
+      ZIP_OK=1
+    else
+      ZIP_OK=0
+    fi
+  fi
+
+  if [[ "$ZIP_OK" -eq 1 ]]; then
     if aws s3 cp /tmp/code.zip "s3://${S3_BUCKET}/${ANALYSIS_ID}/${slug}/code.zip" --quiet; then
       log "Uploaded $slug → s3://${S3_BUCKET}/${ANALYSIS_ID}/${slug}/code.zip"
       UPLOADED=$((UPLOADED + 1))
