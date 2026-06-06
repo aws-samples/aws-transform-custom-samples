@@ -14,8 +14,8 @@
 # Notes:
 # - Tries the ID as an analysis first; falls back to remediation if not found.
 # - Path layout per provider:
-#     github / gitlab → /home/atxuser/.atxct/sources/<source>/repos/<full-slug>
-#     local           → /home/atxuser/repos/<repo-name>
+#     github / gitlab / bitbucket → /home/atxuser/.atxct/sources/<source>/repos/<full-slug>
+#     local                       → /home/atxuser/repos/<repo-name>
 # - Findings are persisted to the CT backend during the analysis/remediation
 #   itself; this script only handles the working-dir code.zip upload.
 # - Exit code is always 0. Upload failures are logged but don't fail the job.
@@ -67,8 +67,8 @@ for slug in $REPOS; do
 
   provider=$(atx ct source list --json 2>/dev/null | jq -r ".[] | select(.source==\"$source_name\") | .provider")
   case "$provider" in
-    github|gitlab) repo_path="/home/atxuser/.atxct/sources/$source_name/repos/$slug" ;;
-    local)         repo_path="/home/atxuser/repos/$repo_name" ;;
+    github|gitlab|bitbucket) repo_path="/home/atxuser/.atxct/sources/$source_name/repos/$slug" ;;
+    local)                   repo_path="/home/atxuser/repos/$repo_name" ;;
     *)
       log "Skip $slug — unknown provider '$provider'"
       SKIPPED=$((SKIPPED + 1))
