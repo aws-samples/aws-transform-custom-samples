@@ -94,6 +94,7 @@ export class ApiStack extends cdk.Stack {
           'Action::s3:List*',
           'Resource::<OutputBucket7114EB27.Arn>/*',
           'Resource::<SourceBucketDDD2130A.Arn>/*',
+          `Resource::arn:aws:logs:${this.region}:${this.account}:log-group:/aws/batch/atx-transform:*`,
         ],
       },
     ], true);
