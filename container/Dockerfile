@@ -167,6 +167,10 @@ COPY --chown=atxuser:atxuser upload-ct-artifacts.sh /app/
 
 RUN chmod +x /app/*.sh
 
+# Workaround: ATX sub-agents resolve ~ to /home/user instead of /home/atxuser
+# Create symlink so writes to /home/user land in /home/atxuser
+RUN ln -s /home/atxuser /home/user
+
 # ============================================================================
 # AWS TRANSFORM CLI
 # ============================================================================
