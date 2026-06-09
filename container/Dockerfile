@@ -179,7 +179,7 @@ USER atxuser
 
 # Install AWS Transform CLI (only curl-based install allowed for ATX CLI)
 # Download over HTTPS from AWS-owned domain; verify binary exists after install
-RUN curl -fsSL https://transform-cli.awsstatic.com/install.sh | bash && \
+RUN curl -fsSL https://gamma.transform-cli.awsstatic.com/install.sh | bash && \
     test -f /home/atxuser/.local/bin/atx
 
 # Add ATX to PATH
