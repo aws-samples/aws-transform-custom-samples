@@ -256,7 +256,7 @@ export class InfrastructureStack extends cdk.Stack {
         ? vpc.privateSubnets.map(subnet => subnet.subnetId)
         : vpc.publicSubnets.map(subnet => subnet.subnetId);
 
-    // Batch Compute Environment
+    // Batch Compute Environment (general — all non-security analysis types)
     const computeEnvironment = new batch.CfnComputeEnvironment(this, 'ComputeEnvironment', {
       computeEnvironmentName: 'atx-fargate-compute',
       type: 'MANAGED',
@@ -269,7 +269,22 @@ export class InfrastructureStack extends cdk.Stack {
       },
     });
 
-    // Batch Job Queue
+    // Batch Compute Environment (security — capped at 5 concurrent tasks)
+    // The Security Agent backend limits concurrent code-review executions to 5.
+    // Each Fargate task uses fargateVcpu vCPUs, so maxvCpus = 5 * fargateVcpu.
+    const securityComputeEnvironment = new batch.CfnComputeEnvironment(this, 'SecurityComputeEnvironment', {
+      computeEnvironmentName: 'atx-fargate-security',
+      type: 'MANAGED',
+      state: 'ENABLED',
+      computeResources: {
+        type: 'FARGATE',
+        maxvCpus: 5 * props.fargateVcpu,
+        subnets: subnetIds,
+        securityGroupIds: [securityGroup.securityGroupId],
+      },
+    });
+
+    // Batch Job Queue (general)
     this.jobQueue = new batch.CfnJobQueue(this, 'JobQueue', {
       jobQueueName: 'atx-job-queue',
       state: 'ENABLED',
@@ -283,6 +298,21 @@ export class InfrastructureStack extends cdk.Stack {
     });
 
     this.jobQueue.addDependency(computeEnvironment);
+
+    // Batch Job Queue (security — uses the capped compute environment)
+    const securityJobQueue = new batch.CfnJobQueue(this, 'SecurityJobQueue', {
+      jobQueueName: 'atx-security-job-queue',
+      state: 'ENABLED',
+      priority: 1,
+      computeEnvironmentOrder: [
+        {
+          order: 1,
+          computeEnvironment: securityComputeEnvironment.attrComputeEnvironmentArn,
+        },
+      ],
+    });
+
+    securityJobQueue.addDependency(securityComputeEnvironment);
 
     // Batch Job Definition
     this.jobDefinition = new batch.CfnJobDefinition(this, 'JobDefinition', {
@@ -345,6 +375,7 @@ export class InfrastructureStack extends cdk.Stack {
       resources: [
         `arn:aws:batch:${this.region}:${this.account}:job-definition/${this.jobDefinition.jobDefinitionName}*`,
         `arn:aws:batch:${this.region}:${this.account}:job-queue/${this.jobQueue.jobQueueName}`,
+        `arn:aws:batch:${this.region}:${this.account}:job-queue/${securityJobQueue.jobQueueName}`,
       ],
     }));
     submitRole.addToPolicy(new iam.PolicyStatement({
@@ -413,6 +444,7 @@ export class InfrastructureStack extends cdk.Stack {
 
     const lambdaEnv = {
       JOB_QUEUE: 'atx-job-queue',
+      SECURITY_JOB_QUEUE: 'atx-security-job-queue',
       JOB_DEFINITION: 'atx-transform-job',
       OUTPUT_BUCKET: this.outputBucket.bucketName,
       CT_OUTPUT_BUCKET: this.ctOutputBucket.bucketName,
