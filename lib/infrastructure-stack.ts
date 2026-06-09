@@ -183,6 +183,7 @@ export class InfrastructureStack extends cdk.Stack {
           'Action::kms:ReEncrypt*',
           'Resource::<OutputBucket7114EB27.Arn>/*',
           'Resource::<SourceBucketDDD2130A.Arn>/*',
+          'Resource::<CtOutputBucket97C9D9C3.Arn>/*',
           `Resource::arn:aws:secretsmanager:${cdk.Stack.of(this).region}:${accountId}:secret:atx/*`,
         ],
       },
