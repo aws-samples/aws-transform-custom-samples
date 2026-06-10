@@ -39,6 +39,7 @@ export async function handler(event: TriggerBatchJobsRequest) {
     const batchId = `batch-${randomUUID()}`;
     const batchName = event.batchName || batchId;
     const jobQueue = getEnvOrThrow('JOB_QUEUE');
+    const securityJobQueue = process.env.SECURITY_JOB_QUEUE || jobQueue;
     const jobDefinition = getEnvOrThrow('JOB_DEFINITION');
     const outputBucket = getEnvOrThrow('OUTPUT_BUCKET');
     const sourceBucket = getEnvOrThrow('SOURCE_BUCKET');
@@ -89,7 +90,9 @@ export async function handler(event: TriggerBatchJobsRequest) {
         }
 
         const response = await batch.send(new SubmitJobCommand({
-          jobName: job.jobName, jobQueue, jobDefinition,
+          jobName: job.jobName,
+          jobQueue: job.command.includes('--type security') ? securityJobQueue : jobQueue,
+          jobDefinition,
           containerOverrides: {
             command: containerCommand,
             ...(environmentOverrides.length > 0 && { environment: environmentOverrides }),
