@@ -75,3 +75,5 @@ const infrastructureStack = new InfrastructureStack(app, 'AtxInfrastructureStack
 if (containerStack) {
   infrastructureStack.addDependency(containerStack);
 }
+
+cdk.Tags.of(app).add('atx-remote-infra', 'true');
