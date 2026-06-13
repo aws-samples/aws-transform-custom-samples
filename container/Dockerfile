@@ -118,10 +118,10 @@ RUN . $NVM_DIR/nvm.sh && \
     nvm install 20 && \
     nvm install 22 && \
     nvm install 24 && \
-    nvm alias default 20 && \
+    nvm alias default 22 && \
     nvm use default && \
     cd $NVM_DIR/versions/node && \
-    ln -sf $(ls -d v20.* | head -1) default
+    ln -sf $(ls -d v22.* | head -1) default
 
 # Add default Node.js to PATH (uses symlink)
 ENV PATH="$NVM_DIR/versions/node/default/bin:$PATH"
@@ -167,6 +167,10 @@ COPY --chown=atxuser:atxuser upload-results.sh /app/
 COPY --chown=atxuser:atxuser upload-ct-artifacts.sh /app/
 
 RUN chmod +x /app/*.sh
+
+# Workaround: ATX sub-agents resolve ~ to /home/user instead of /home/atxuser
+# Create symlink so writes to /home/user land in /home/atxuser
+RUN ln -s /home/atxuser /home/user
 
 # ============================================================================
 # AWS TRANSFORM CLI
