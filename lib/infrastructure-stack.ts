@@ -163,6 +163,34 @@ export class InfrastructureStack extends cdk.Stack {
       }, this)],
     }));
 
+    // Security Agent permissions for security analysis
+    jobRole.addToPolicy(new iam.PolicyStatement({
+      actions: [
+        'securityagent:ListAgentSpaces',
+        'securityagent:CreateAgentSpace',
+        'securityagent:CreateCodeReview',
+        'securityagent:StartCodeReviewJob',
+        'securityagent:ListCodeReviewJobsForCodeReview',
+        'securityagent:ListFindings',
+        'securityagent:BatchGetFindings',
+        'securityagent:StartCodeRemediation',
+      ],
+      resources: [`arn:aws:securityagent:*:${accountId}:agent-space*`],
+    }));
+
+    jobRole.addToPolicy(new iam.PolicyStatement({
+      actions: ['s3:PutObject'],
+      resources: ['arn:aws:s3:::kct-security-agent-*/*'],
+    }));
+
+    jobRole.addToPolicy(new iam.PolicyStatement({
+      actions: ['iam:PassRole'],
+      resources: [`arn:aws:iam::${accountId}:role/security-agent-kct-agent-space-*`],
+      conditions: {
+        StringEquals: { 'iam:PassedToService': 'securityagent.amazonaws.com' },
+      },
+    }));
+
     // Suppress cdk-nag findings for job role
     NagSuppressions.addResourceSuppressions(jobRole, [
       {
@@ -172,7 +200,7 @@ export class InfrastructureStack extends cdk.Stack {
       },
       {
         id: 'AwsSolutions-IAM5',
-        reason: 'S3 wildcard permissions are required for dynamic file operations. KMS GenerateDataKey*/ReEncrypt* are standard CDK grant patterns scoped to a single key. Secrets Manager wildcard is scoped to atx/* prefix for credential management.',
+        reason: 'S3 wildcard permissions are required for dynamic file operations. KMS GenerateDataKey*/ReEncrypt* are standard CDK grant patterns scoped to a single key. Secrets Manager wildcard is scoped to atx/* prefix for credential management. Security agent resources are scoped to account-owned agent spaces and kct-security-agent buckets.',
         appliesTo: [
           'Action::s3:Abort*',
           'Action::s3:DeleteObject*',
@@ -185,6 +213,9 @@ export class InfrastructureStack extends cdk.Stack {
           'Resource::<SourceBucketDDD2130A.Arn>/*',
           'Resource::<CtOutputBucket97C9D9C3.Arn>/*',
           `Resource::arn:aws:secretsmanager:${cdk.Stack.of(this).region}:${accountId}:secret:atx/*`,
+          `Resource::arn:aws:securityagent:*:${accountId}:agent-space*`,
+          'Resource::arn:aws:s3:::kct-security-agent-*/*',
+          `Resource::arn:aws:iam::${accountId}:role/security-agent-kct-agent-space-*`,
         ],
       },
     ], true);
