@@ -163,8 +163,15 @@ export class InfrastructureStack extends cdk.Stack {
       }, this)],
     }));
 
-    // Security Agent permissions — always present, scoped by account condition.
+    // Security Agent permissions — matches AWSTransformSecurityAgentExecutorAccess policy.
+    // Always present, scoped by account condition.
     // No-op if security analysis isn't configured; avoids manual post-deploy IAM changes.
+    jobRole.addToPolicy(new iam.PolicyStatement({
+      sid: 'STSIdentity',
+      actions: ['sts:GetCallerIdentity'],
+      resources: ['*'],
+    }));
+
     jobRole.addToPolicy(new iam.PolicyStatement({
       sid: 'SecurityAgentApi',
       actions: [
@@ -197,8 +204,8 @@ export class InfrastructureStack extends cdk.Stack {
     jobRole.addToPolicy(new iam.PolicyStatement({
       sid: 'IAMPassSecurityAgentRole',
       actions: ['iam:PassRole'],
-      resources: [`arn:aws:iam::${accountId}:role/security-agent-*`],
-      conditions: { StringEquals: { 'iam:PassedToService': 'securityagent.amazonaws.com' } },
+      resources: ['arn:aws:iam::*:role/security-agent-*'],
+      conditions: { StringEquals: { 'iam:PassedToService': 'securityagent.amazonaws.com', 'aws:ResourceAccount': accountId } },
     }));
 
     // Suppress cdk-nag findings for job role

@@ -133,8 +133,6 @@
             "Sid": "SecretsManagerATXSecrets",
             "Effect": "Allow",
             "Action": [
-                "secretsmanager:CreateSecret",
-                "secretsmanager:PutSecretValue",
                 "secretsmanager:DescribeSecret"
             ],
             "Resource": "arn:aws:secretsmanager:*:*:secret:atx/*",
@@ -207,4 +205,3 @@
         }
     ]
 }
-
