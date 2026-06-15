@@ -91,6 +91,7 @@
     "maxVcpus": 256,
     "existingOutputBucket": "",
     "existingSourceBucket": "",
+    "existingCtOutputBucket": "",
     "existingVpcId": "",
     "existingSubnetIds": [],
     "existingSecurityGroupId": "",

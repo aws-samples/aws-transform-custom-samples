@@ -8,7 +8,7 @@ set -euo pipefail
 # infrastructure to your AWS account:
 #   1. Checks prerequisites (Node.js, npm, Docker*, AWS CLI, credentials)
 #      *Docker is only required when building a custom container image
-#       (i.e., when prebuiltImageUri is empty in cdk.json)
+#       (i.e., when prebuiltImageUri is empty in npx cdk.json)
 #   2. Installs npm dependencies
 #   3. Compiles TypeScript
 #   4. Bootstraps CDK (if needed)
@@ -61,7 +61,7 @@ info "AWS CLI $(aws --version 2>&1 | head -1)"
 aws sts get-caller-identity >/dev/null 2>&1 || fail "AWS credentials not configured. Run: aws configure sso"
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 
-# Region resolution: match bin/cdk.ts precedence
+# Region resolution: match bin/npx cdk.ts precedence
 SUPPORTED_REGIONS=("us-east-1" "eu-central-1")
 REGION="${AWS_REGION:-${AWS_DEFAULT_REGION:-$(aws configure get region 2>/dev/null || echo "")}}"
 REGION="${REGION:-us-east-1}"
@@ -81,6 +81,62 @@ export CDK_DEFAULT_ACCOUNT="$ACCOUNT_ID"
 
 echo ""
 
+# --- Validate network configuration (mandatory) ---
+
+echo "Checking network configuration..."
+EXISTING_VPC_ID=$(node -e "console.log(require('./cdk.json').context.existingVpcId || '')" 2>/dev/null || echo "")
+EXISTING_SUBNET_IDS=$(node -e "const s=require('./cdk.json').context.existingSubnetIds||[];console.log(s.length?'ok':'')" 2>/dev/null || echo "")
+EXISTING_SG_ID=$(node -e "console.log(require('./cdk.json').context.existingSecurityGroupId || '')" 2>/dev/null || echo "")
+
+[ -z "$EXISTING_VPC_ID" ] && fail "existingVpcId is not set in cdk.json. You must provide a VPC ID before deploying. AWS Transform does NOT create VPCs — you provide one."
+[ -z "$EXISTING_SUBNET_IDS" ] && fail "existingSubnetIds is empty in cdk.json. You must provide at least two subnet IDs before deploying."
+[ -z "$EXISTING_SG_ID" ] && fail "existingSecurityGroupId is not set in cdk.json. You must provide a security group ID before deploying."
+info "Network: VPC=$EXISTING_VPC_ID, SG=$EXISTING_SG_ID"
+
+echo ""
+
+# --- Detect existing S3 buckets (auto-populate context to avoid CREATE conflict) ---
+
+echo "Checking for existing S3 buckets..."
+SOURCE_BUCKET="atx-source-code-${ACCOUNT_ID}"
+OUTPUT_BUCKET="atx-custom-output-${ACCOUNT_ID}"
+CT_OUTPUT_BUCKET="atx-ct-output-${ACCOUNT_ID}"
+
+UPDATED_CDK_JSON=false
+
+if aws s3api head-bucket --bucket "$SOURCE_BUCKET" --region "$REGION" 2>/dev/null; then
+  CURRENT_SOURCE=$(node -e "console.log(require('./cdk.json').context.existingSourceBucket || '')" 2>/dev/null || echo "")
+  if [ -z "$CURRENT_SOURCE" ]; then
+    node -e "const f='./cdk.json';const c=JSON.parse(require('fs').readFileSync(f));c.context.existingSourceBucket='${SOURCE_BUCKET}';require('fs').writeFileSync(f,JSON.stringify(c,null,2)+'\n')"
+    UPDATED_CDK_JSON=true
+  fi
+  info "Source bucket exists: $SOURCE_BUCKET (will import)"
+fi
+
+if aws s3api head-bucket --bucket "$OUTPUT_BUCKET" --region "$REGION" 2>/dev/null; then
+  CURRENT_OUTPUT=$(node -e "console.log(require('./cdk.json').context.existingOutputBucket || '')" 2>/dev/null || echo "")
+  if [ -z "$CURRENT_OUTPUT" ]; then
+    node -e "const f='./cdk.json';const c=JSON.parse(require('fs').readFileSync(f));c.context.existingOutputBucket='${OUTPUT_BUCKET}';require('fs').writeFileSync(f,JSON.stringify(c,null,2)+'\n')"
+    UPDATED_CDK_JSON=true
+  fi
+  info "Output bucket exists: $OUTPUT_BUCKET (will import)"
+fi
+
+if aws s3api head-bucket --bucket "$CT_OUTPUT_BUCKET" --region "$REGION" 2>/dev/null; then
+  CURRENT_CT_OUTPUT=$(node -e "console.log(require('./cdk.json').context.existingCtOutputBucket || '')" 2>/dev/null || echo "")
+  if [ -z "$CURRENT_CT_OUTPUT" ]; then
+    node -e "const f='./cdk.json';const c=JSON.parse(require('fs').readFileSync(f));c.context.existingCtOutputBucket='${CT_OUTPUT_BUCKET}';require('fs').writeFileSync(f,JSON.stringify(c,null,2)+'\n')"
+    UPDATED_CDK_JSON=true
+  fi
+  info "CT output bucket exists: $CT_OUTPUT_BUCKET (will import)"
+fi
+
+if $UPDATED_CDK_JSON; then
+  warn "Updated cdk.json to import pre-existing S3 buckets (avoids CREATE conflict)"
+fi
+
+echo ""
+
 # --- Install dependencies ---
 
 echo "Installing dependencies..."
@@ -97,7 +153,7 @@ echo "Compiling TypeScript..."
 npx tsc
 info "TypeScript compiled"
 
-CDK="cdk"
+CDK="npx cdk"
 info "CDK CLI $($CDK --version 2>&1 | head -1)"
 
 # --- Bootstrap CDK (idempotent) ---
@@ -133,14 +189,50 @@ for STACK_NAME in $STACKS_TO_VERIFY; do
   STACK_STATUS=$(aws cloudformation describe-stacks --stack-name "$STACK_NAME" \
     --region "$REGION" --query 'Stacks[0].StackStatus' --output text 2>/dev/null || echo "NOT_FOUND")
   case "$STACK_STATUS" in
-    CREATE_COMPLETE|UPDATE_COMPLETE)
+    CREATE_COMPLETE|UPDATE_COMPLETE|UPDATE_ROLLBACK_COMPLETE)
       info "$STACK_NAME: $STACK_STATUS"
       ;;
     *)
-      fail "$STACK_NAME deployment failed (status: $STACK_STATUS). Run 'cdk deploy --all' to retry."
+      fail "$STACK_NAME deployment failed (status: $STACK_STATUS). Run 'npx cdk deploy --all' to retry."
       ;;
   esac
 done
+
+# --- Scheduler role (idempotent) ---
+
+echo ""
+echo "Configuring scheduler role..."
+SCHEDULER_ROLE_NAME="AtxSchedulerInvocationRole"
+LAMBDA_POLICY_NAME="lambda-invoke-batch-trigger"
+LAMBDA_ARN="arn:aws:lambda:${REGION}:${ACCOUNT_ID}:function:atx-trigger-batch-jobs"
+
+if aws iam get-role --role-name "$SCHEDULER_ROLE_NAME" >/dev/null 2>&1; then
+  info "$SCHEDULER_ROLE_NAME exists"
+else
+  aws iam create-role --role-name "$SCHEDULER_ROLE_NAME" \
+    --assume-role-policy-document '{
+      "Version": "2012-10-17",
+      "Statement": [{
+        "Effect": "Allow",
+        "Principal": {"Service": "scheduler.amazonaws.com"},
+        "Action": "sts:AssumeRole"
+      }]
+    }' >/dev/null
+  info "$SCHEDULER_ROLE_NAME created"
+fi
+
+EXPECTED_POLICY="{\"Version\":\"2012-10-17\",\"Statement\":[{\"Effect\":\"Allow\",\"Action\":\"lambda:InvokeFunction\",\"Resource\":\"${LAMBDA_ARN}\"}]}"
+CURRENT_POLICY=$(aws iam get-role-policy --role-name "$SCHEDULER_ROLE_NAME" --policy-name "$LAMBDA_POLICY_NAME" \
+  --query 'PolicyDocument' --output json 2>/dev/null | jq -c '.' 2>/dev/null || echo "")
+
+if [ "$CURRENT_POLICY" != "$EXPECTED_POLICY" ]; then
+  aws iam put-role-policy --role-name "$SCHEDULER_ROLE_NAME" \
+    --policy-name "$LAMBDA_POLICY_NAME" \
+    --policy-document "$EXPECTED_POLICY"
+  info "$LAMBDA_POLICY_NAME policy attached"
+else
+  info "$LAMBDA_POLICY_NAME policy already correct"
+fi
 
 echo ""
 echo "═══════════════════════════════════════════════"

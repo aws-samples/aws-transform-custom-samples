@@ -16,6 +16,7 @@ const maxVcpus = app.node.tryGetContext('maxVcpus') || 256;
 
 const existingOutputBucket = app.node.tryGetContext('existingOutputBucket') || '';
 const existingSourceBucket = app.node.tryGetContext('existingSourceBucket') || '';
+const existingCtOutputBucket = app.node.tryGetContext('existingCtOutputBucket') || '';
 const existingVpcId = app.node.tryGetContext('existingVpcId') || '';
 const existingSubnetIds = app.node.tryGetContext('existingSubnetIds') || [];
 const existingSecurityGroupId = app.node.tryGetContext('existingSecurityGroupId') || '';
@@ -67,6 +68,7 @@ const infrastructureStack = new InfrastructureStack(app, 'AtxInfrastructureStack
   maxVcpus,
   existingOutputBucket,
   existingSourceBucket,
+  existingCtOutputBucket,
   existingVpcId,
   existingSubnetIds,
   existingSecurityGroupId,

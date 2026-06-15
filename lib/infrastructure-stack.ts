@@ -163,11 +163,12 @@ export class InfrastructureStack extends cdk.Stack {
       }, this)],
     }));
 
-    // Security Agent permissions for security analysis
+    // Security Agent permissions — always present, scoped by account condition.
+    // No-op if security analysis isn't configured; avoids manual post-deploy IAM changes.
     jobRole.addToPolicy(new iam.PolicyStatement({
+      sid: 'SecurityAgentApi',
       actions: [
         'securityagent:ListAgentSpaces',
-        'securityagent:CreateAgentSpace',
         'securityagent:CreateCodeReview',
         'securityagent:StartCodeReviewJob',
         'securityagent:ListCodeReviewJobsForCodeReview',
@@ -175,20 +176,29 @@ export class InfrastructureStack extends cdk.Stack {
         'securityagent:BatchGetFindings',
         'securityagent:StartCodeRemediation',
       ],
-      resources: [`arn:aws:securityagent:*:${accountId}:agent-space*`],
+      resources: ['arn:aws:securityagent:*:*:agent-space*'],
+      conditions: { StringEquals: { 'aws:ResourceAccount': accountId } },
     }));
 
     jobRole.addToPolicy(new iam.PolicyStatement({
+      sid: 'S3SecurityAgentBucketRead',
+      actions: ['s3:GetObject', 's3:ListBucket'],
+      resources: ['arn:aws:s3:::kct-security-agent-*', 'arn:aws:s3:::kct-security-agent-*/*'],
+      conditions: { StringEquals: { 's3:ResourceAccount': accountId } },
+    }));
+
+    jobRole.addToPolicy(new iam.PolicyStatement({
+      sid: 'S3SecurityAgentUpload',
       actions: ['s3:PutObject'],
-      resources: ['arn:aws:s3:::kct-security-agent-*/*'],
+      resources: ['arn:aws:s3:::kct-security-agent-*/security-scans/*'],
+      conditions: { StringEquals: { 's3:ResourceAccount': accountId } },
     }));
 
     jobRole.addToPolicy(new iam.PolicyStatement({
+      sid: 'IAMPassSecurityAgentRole',
       actions: ['iam:PassRole'],
-      resources: [`arn:aws:iam::${accountId}:role/security-agent-kct-agent-space-*`],
-      conditions: {
-        StringEquals: { 'iam:PassedToService': 'securityagent.amazonaws.com' },
-      },
+      resources: [`arn:aws:iam::${accountId}:role/security-agent-*`],
+      conditions: { StringEquals: { 'iam:PassedToService': 'securityagent.amazonaws.com' } },
     }));
 
     // Suppress cdk-nag findings for job role
@@ -209,13 +219,21 @@ export class InfrastructureStack extends cdk.Stack {
           'Action::s3:List*',
           'Action::kms:GenerateDataKey*',
           'Action::kms:ReEncrypt*',
+          // CDK-created buckets (token ARNs)
           'Resource::<OutputBucket7114EB27.Arn>/*',
           'Resource::<SourceBucketDDD2130A.Arn>/*',
           'Resource::<CtOutputBucket97C9D9C3.Arn>/*',
+          // Imported buckets (literal ARNs)
+          `Resource::arn:aws:s3:::atx-custom-output-${accountId}/*`,
+          `Resource::arn:aws:s3:::atx-source-code-${accountId}/*`,
+          `Resource::arn:aws:s3:::atx-ct-output-${accountId}/*`,
           `Resource::arn:aws:secretsmanager:${cdk.Stack.of(this).region}:${accountId}:secret:atx/*`,
-          `Resource::arn:aws:securityagent:*:${accountId}:agent-space*`,
+          // Security agent
+          'Resource::arn:aws:securityagent:*:*:agent-space*',
+          'Resource::arn:aws:s3:::kct-security-agent-*',
           'Resource::arn:aws:s3:::kct-security-agent-*/*',
-          `Resource::arn:aws:iam::${accountId}:role/security-agent-kct-agent-space-*`,
+          'Resource::arn:aws:s3:::kct-security-agent-*/security-scans/*',
+          `Resource::arn:aws:iam::${accountId}:role/security-agent-*`,
         ],
       },
     ], true);
@@ -466,8 +484,14 @@ export class InfrastructureStack extends cdk.Stack {
             'Action::s3:List*',
             'Action::kms:GenerateDataKey*',
             'Action::kms:ReEncrypt*',
+            // CDK-created buckets (token ARNs)
             'Resource::<OutputBucket7114EB27.Arn>/*',
             'Resource::<SourceBucketDDD2130A.Arn>/*',
+            'Resource::<CtOutputBucket97C9D9C3.Arn>/*',
+            // Imported buckets (literal ARNs)
+            `Resource::arn:aws:s3:::atx-custom-output-${accountId}/*`,
+            `Resource::arn:aws:s3:::atx-source-code-${accountId}/*`,
+            `Resource::arn:aws:s3:::atx-ct-output-${accountId}/*`,
             `Resource::arn:aws:batch:${this.region}:${this.account}:job-definition/${this.jobDefinition.jobDefinitionName}*`,
           ],
         },
@@ -509,6 +533,7 @@ export class InfrastructureStack extends cdk.Stack {
     makeFn('GetBatchStatusFunction', 'atx-get-batch-status', 'get-batch-status', statusRole);
     makeFn('TerminateBatchJobsFunction', 'atx-terminate-batch-jobs', 'terminate-batch-jobs', terminateRole);
     makeFn('ListBatchesFunction', 'atx-list-batches', 'list-batches', statusRole);
+
 
     // CloudWatch Dashboard
     const dashboard = new cloudwatch.Dashboard(this, 'Dashboard', {
@@ -625,5 +650,6 @@ export class InfrastructureStack extends cdk.Stack {
       description: 'KMS key ARN for S3 encryption',
       exportName: 'AtxKmsKeyArn',
     });
+
   }
 }
