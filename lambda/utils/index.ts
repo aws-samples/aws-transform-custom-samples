@@ -94,8 +94,13 @@ export function validateMcpConfig(config: Record<string, unknown>): string | nul
  * jobQueue is an immutable ARN set at submission time — cannot be spoofed.
  */
 export function assertJobQueue(jobQueueArn: string | undefined): void {
-  const expectedQueue = getEnvOrThrow('JOB_QUEUE');
-  if (!jobQueueArn || !jobQueueArn.endsWith(`/${expectedQueue}`)) {
+  const primaryQueue = getEnvOrThrow('JOB_QUEUE');
+  const rawSecurityQueue = (process.env.SECURITY_JOB_QUEUE || '').trim();
+  const securityQueue = rawSecurityQueue || primaryQueue;
+  if (
+    !jobQueueArn ||
+    (!jobQueueArn.endsWith(`/${primaryQueue}`) && !jobQueueArn.endsWith(`/${securityQueue}`))
+  ) {
     throw new JobQueueMismatchError(jobQueueArn);
   }
 }

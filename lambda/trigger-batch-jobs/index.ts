@@ -39,7 +39,8 @@ export async function handler(event: TriggerBatchJobsRequest) {
     const batchId = `batch-${randomUUID()}`;
     const batchName = event.batchName || batchId;
     const jobQueue = getEnvOrThrow('JOB_QUEUE');
-    const securityJobQueue = process.env.SECURITY_JOB_QUEUE || jobQueue;
+    const rawSecurityQueue = (process.env.SECURITY_JOB_QUEUE || '').trim();
+    const securityJobQueue = rawSecurityQueue || jobQueue;
     const jobDefinition = getEnvOrThrow('JOB_DEFINITION');
     const outputBucket = getEnvOrThrow('OUTPUT_BUCKET');
     const sourceBucket = getEnvOrThrow('SOURCE_BUCKET');

@@ -329,7 +329,7 @@ export class InfrastructureStack extends cdk.Stack {
       state: 'ENABLED',
       computeResources: {
         type: 'FARGATE',
-        maxvCpus: 5 * props.fargateVcpu,
+        maxvCpus: Math.max(1, Math.ceil(5 * props.fargateVcpu)),
         subnets: subnetIds,
         securityGroupIds: [securityGroup.securityGroupId],
       },

@@ -61,11 +61,13 @@ UPLOADED=0
 FAILED=0
 SKIPPED=0
 
+SOURCE_LIST=$(atx ct source list --json 2>/dev/null || echo '[]')
+
 for slug in $REPOS; do
   source_name=$(echo "$slug" | awk -F'::' '{print $1}')
   repo_name=$(echo "$slug" | awk -F'::' '{print $2}')
 
-  provider=$(atx ct source list --json 2>/dev/null | jq -r ".[] | select(.source==\"$source_name\") | .provider")
+  provider=$(echo "$SOURCE_LIST" | jq -r ".[] | select(.source==\"$source_name\") | .provider")
   case "$provider" in
     github|gitlab|bitbucket) repo_path="/home/atxuser/.atxct/sources/$source_name/repos/$slug" ;;
     local)                   repo_path="/home/atxuser/repos/$repo_name" ;;
