@@ -167,12 +167,6 @@ export class InfrastructureStack extends cdk.Stack {
     // Always present, scoped by account condition.
     // No-op if security analysis isn't configured; avoids manual post-deploy IAM changes.
     jobRole.addToPolicy(new iam.PolicyStatement({
-      sid: 'STSIdentity',
-      actions: ['sts:GetCallerIdentity'],
-      resources: ['*'],
-    }));
-
-    jobRole.addToPolicy(new iam.PolicyStatement({
       sid: 'SecurityAgentApi',
       actions: [
         'securityagent:ListAgentSpaces',
@@ -217,7 +211,7 @@ export class InfrastructureStack extends cdk.Stack {
       },
       {
         id: 'AwsSolutions-IAM5',
-        reason: 'S3 wildcard permissions are required for dynamic file operations. KMS GenerateDataKey*/ReEncrypt* are standard CDK grant patterns scoped to a single key. Secrets Manager wildcard is scoped to atx/* prefix for credential management. Security agent resources are scoped to account-owned agent spaces and kct-security-agent buckets.',
+        reason: 'S3 wildcard permissions are required for dynamic file operations. KMS GenerateDataKey*/ReEncrypt* are standard CDK grant patterns scoped to a single key. Secrets Manager wildcard is scoped to atx/* prefix for credential management. Security agent resources are scoped to account-owned agent spaces and kct-security-agent buckets. IAM PassRole uses account wildcard in ARN but is constrained by aws:ResourceAccount condition to the deploying account.',
         appliesTo: [
           'Action::s3:Abort*',
           'Action::s3:DeleteObject*',
@@ -240,7 +234,7 @@ export class InfrastructureStack extends cdk.Stack {
           'Resource::arn:aws:s3:::kct-security-agent-*',
           'Resource::arn:aws:s3:::kct-security-agent-*/*',
           'Resource::arn:aws:s3:::kct-security-agent-*/security-scans/*',
-          `Resource::arn:aws:iam::${accountId}:role/security-agent-*`,
+          'Resource::arn:aws:iam::*:role/security-agent-*',
         ],
       },
     ], true);
