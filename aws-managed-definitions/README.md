@@ -18,7 +18,6 @@ Out-of-box transformation definitions provided by AWS for common migration and u
 | Readiness | [Agentic Readiness Analysis](readiness-analysis/agentic-readiness-analysis.md) | Evaluates whether systems are ready to be safely called by AI agents — covering APIs, identity, state management, human-in-the-loop, and observability |
 | Readiness | [Portfolio Modernization Readiness](readiness-analysis/portfolio-modernization-readiness.md) | Aggregates per-repo MOD reports into portfolio-level roadmap and cross-cutting analysis |
 | Readiness | [Portfolio Agentic Readiness](readiness-analysis/portfolio-agentic-readiness.md) | Aggregates per-repo ARA reports into portfolio-level cross-cutting analysis |
-| AWS DevOps Agent | [Release Readiness Code Review](devops-agent-release-readiness-code-review/README.md) | Runs a Release Readiness Review on transformation code changes to catch deployment risks before completion |
 
 ## Directory Structure
 
@@ -42,11 +41,6 @@ aws-managed-definitions/
 ├── python/
 │   ├── version-upgrade.md
 │   └── boto2-to-boto3.md
-├── devops-agent-release-readiness-code-review/
-│   ├── README.md
-│   ├── SKILL.md
-│   └── scripts/
-│       └── run_release_readiness_review.sh
 └── readiness-analysis/
     ├── modernization-readiness-analysis.md
     ├── agentic-readiness-analysis.md
