@@ -131,7 +131,7 @@ def _deploy():
 
     env_vars = {
         'AWS_REGION': REGION,
-        'BEDROCK_MODEL_ID': os.environ.get('BEDROCK_MODEL_ID', 'us.anthropic.claude-sonnet-4-20250514-v1:0'),
+        'BEDROCK_MODEL_ID': os.environ.get('BEDROCK_MODEL_ID', 'us.anthropic.claude-sonnet-4-5-20250929-v1:0'),
     }
 
     if existing_runtime_id:

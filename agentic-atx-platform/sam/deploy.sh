@@ -24,6 +24,12 @@ REGION=${AWS_REGION:-us-east-1}
 OUTPUT_BUCKET="atx-custom-output-${ACCOUNT_ID}"
 SOURCE_BUCKET="atx-source-code-${ACCOUNT_ID}"
 
+# Load model id (and region) from shared config if present
+[ -f ../deployment/config.env ] && source ../deployment/config.env
+# Override the model only if explicitly configured; otherwise the SAM template default applies
+MODEL_OVERRIDE=""
+[ -n "$BEDROCK_MODEL_ID" ] && MODEL_OVERRIDE="BedrockModelId=$BEDROCK_MODEL_ID"
+
 echo "Account: ${ACCOUNT_ID}"
 echo "Region: ${REGION}"
 echo "Output Bucket: ${OUTPUT_BUCKET}"
@@ -75,6 +81,7 @@ sam deploy \
         OutputBucketName="${OUTPUT_BUCKET}" \
         SourceBucketName="${SOURCE_BUCKET}" \
         AwsRegion="${REGION}" \
+        ${MODEL_OVERRIDE} \
         OrchestratorContainerUri="${ORCH_ECR_URI}:latest" \
     --no-confirm-changeset \
     --no-fail-on-empty-changeset \

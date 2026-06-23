@@ -249,7 +249,7 @@ Return JSON with these fields:
 Example: {{"action": "execute", "transformation": "AWS/python-version-upgrade", "source": "https://github.com/user/repo", "configuration": "validationCommands=pytest", "job_id": ""}}"""
 
         response = bedrock_rt.invoke_model(
-            modelId=os.getenv("BEDROCK_MODEL_ID", "us.anthropic.claude-sonnet-4-20250514-v1:0"),
+            modelId=os.getenv("BEDROCK_MODEL_ID", "us.anthropic.claude-sonnet-4-5-20250929-v1:0"),
             body=json.dumps({
                 "anthropic_version": "bedrock-2023-05-31",
                 "max_tokens": 2048, "temperature": 0.1,

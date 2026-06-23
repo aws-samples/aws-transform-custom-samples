@@ -199,7 +199,7 @@ Output ONLY the markdown content, no code fences."""
 
     try:
         response = bedrock_runtime.invoke_model(
-            modelId=os.getenv("BEDROCK_MODEL_ID", "us.anthropic.claude-sonnet-4-20250514-v1:0"),
+            modelId=os.getenv("BEDROCK_MODEL_ID", "us.anthropic.claude-sonnet-4-5-20250929-v1:0"),
             body=json.dumps({
                 "anthropic_version": "bedrock-2023-05-31",
                 "max_tokens": 8192,
@@ -335,7 +335,7 @@ Return JSON with these fields:
 Example: {{"action": "create", "name": "add-logging", "description": "Add logging", "requirements": "Add structured logging to all functions", "source_url": "https://github.com/user/repo"}}"""
 
         response = bedrock_runtime.invoke_model(
-            modelId=os.getenv("BEDROCK_MODEL_ID", "us.anthropic.claude-sonnet-4-20250514-v1:0"),
+            modelId=os.getenv("BEDROCK_MODEL_ID", "us.anthropic.claude-sonnet-4-5-20250929-v1:0"),
             body=json.dumps({
                 "anthropic_version": "bedrock-2023-05-31",
                 "max_tokens": 2048, "temperature": 0.1,
@@ -416,7 +416,7 @@ Files:
 {json.dumps(file_paths, indent=2)}"""
 
                         select_response = bedrock_runtime.invoke_model(
-                            modelId=os.getenv("BEDROCK_MODEL_ID", "us.anthropic.claude-sonnet-4-20250514-v1:0"),
+                            modelId=os.getenv("BEDROCK_MODEL_ID", "us.anthropic.claude-sonnet-4-5-20250929-v1:0"),
                             body=json.dumps({
                                 "anthropic_version": "bedrock-2023-05-31",
                                 "max_tokens": 4096, "temperature": 0.1,

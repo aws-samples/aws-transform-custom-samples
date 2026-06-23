@@ -127,7 +127,7 @@ def create_orchestrator(session_id: str = None, actor_id: str = None) -> Agent:
     _load_tools()
 
     region = os.getenv("AWS_REGION", "us-east-1")
-    model_id = os.getenv("BEDROCK_MODEL_ID", "us.anthropic.claude-sonnet-4-20250514-v1:0")
+    model_id = os.getenv("BEDROCK_MODEL_ID", "us.anthropic.claude-sonnet-4-5-20250929-v1:0")
 
     bedrock_model = BedrockModel(
         model_id=model_id,
