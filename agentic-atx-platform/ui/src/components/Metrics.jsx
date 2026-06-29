@@ -119,7 +119,7 @@ export default function Metrics() {
 
   // Execution status / type doughnuts (from per-execution detail)
   const statusData = statusSplit(executions)
-  const statusColorMap = { Success: COLORS.green, Failure: COLORS.red, InProgress: COLORS.blue }
+  const statusColorMap = { Success: COLORS.green, Failed: COLORS.red, Failure: COLORS.red, InProgress: COLORS.blue }
   const statusChart = {
     labels: statusData.map(d => d.key),
     datasets: [{

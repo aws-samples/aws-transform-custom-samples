@@ -87,12 +87,26 @@ export function rankBy(group, metric = 'TransformationExecutionCompleted', limit
     .slice(0, limit)
 }
 
-// Execution status split derived from per-execution detail (ExecutionStatus dimension).
+// Execution status split, derived from each execution's metrics rather than the raw
+// ExecutionStatus dimension. ATX stamps ExecutionStatus at emit time and doesn't always
+// reconcile it to a terminal value (e.g. comprehensive-codebase-analysis emits final
+// metrics while still tagged "InProgress"). So we treat presence of
+// TransformationExecutionCompleted as the source of truth:
+//   - completed + Failure dimension      -> Failed
+//   - completed (any other status)       -> Success
+//   - no completion metric               -> fall back to the raw status (e.g. InProgress)
 export function statusSplit(executions = []) {
   const counts = {}
   for (const e of executions) {
-    const s = e?.dimensions?.ExecutionStatus
-    if (s) counts[s] = (counts[s] || 0) + 1
+    const rawStatus = e?.dimensions?.ExecutionStatus
+    const completed = !!e?.metrics?.TransformationExecutionCompleted
+    let bucket
+    if (completed) {
+      bucket = rawStatus === 'Failure' ? 'Failed' : 'Success'
+    } else {
+      bucket = rawStatus || 'InProgress'
+    }
+    counts[bucket] = (counts[bucket] || 0) + 1
   }
   return Object.entries(counts).map(([key, value]) => ({ key, value }))
 }
@@ -155,7 +169,10 @@ function mockExecutions() {
       TransformationName: transform, RepositoryName: repo,
       ConversationId: '2026' + Math.random().toString().slice(2, 10),
     },
-    metrics: { AgentExecutionMinutes: mins },
+    // Terminal runs carry a completion metric; InProgress runs don't (mirrors real ATX data).
+    metrics: status === 'InProgress'
+      ? { AgentExecutionMinutes: mins }
+      : { AgentExecutionMinutes: mins, TransformationExecutionCompleted: 1 },
   })
   return {
     startTime: new Date(Date.now() - 168 * 3600_000).toISOString(),
