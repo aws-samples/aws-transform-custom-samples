@@ -3,17 +3,12 @@ import {
   readCachedKnowledgeItems, refreshKnowledgeItems,
   setKnowledgeItemStatus, deleteKnowledgeItem, exportKnowledgeItems,
 } from '../knowledgeApi'
+import { MANAGED_TRANSFORMATION_NAMES } from '../transformations'
 
-// Transformations that can have knowledge items (managed catalog + custom go here).
-const TRANSFORMATIONS = [
-  'AWS/java-version-upgrade',
-  'AWS/python-version-upgrade',
-  'AWS/nodejs-version-upgrade',
-  'AWS/python-boto2-to-boto3',
-  'AWS/java-aws-sdk-v1-to-v2',
-  'AWS/nodejs-aws-sdk-v2-to-v3',
-  'AWS/comprehensive-codebase-analysis',
-]
+const API_BASE = import.meta.env.VITE_API_ENDPOINT || '/api'
+
+// Knowledge items can exist for any AWS-managed transformation (shared catalog)
+// plus any published custom transformations (fetched via the list_custom op).
 
 const preStyle = {
   background: '#0d1117', border: '1px solid #30363d', borderRadius: 6,
@@ -183,7 +178,8 @@ function KnowledgeItemCard({ item, transformationName, onChanged }) {
 }
 
 export default function KnowledgeItems() {
-  const [transformation, setTransformation] = useState(TRANSFORMATIONS[0])
+  const [transformations, setTransformations] = useState(MANAGED_TRANSFORMATION_NAMES)
+  const [transformation, setTransformation] = useState(MANAGED_TRANSFORMATION_NAMES[0])
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
@@ -227,6 +223,35 @@ export default function KnowledgeItems() {
 
   useEffect(() => { loadCache() }, [transformation])
 
+  // Fetch published custom transformations once and append them to the dropdown.
+  useEffect(() => {
+    let cancelled = false
+    async function loadCustoms() {
+      try {
+        const res = await fetch(`${API_BASE}/orchestrate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'direct', op: 'list_custom' }),
+        })
+        const data = await res.json()
+        const customNames = (data.customs || [])
+          .filter(c => c.status === 'published' && c.name)
+          .map(c => c.name)
+        if (!cancelled && customNames.length > 0) {
+          setTransformations(prev => {
+            const merged = [...prev]
+            for (const n of customNames) if (!merged.includes(n)) merged.push(n)
+            return merged
+          })
+        }
+      } catch (e) {
+        console.error('Failed to load custom transformations:', e)
+      }
+    }
+    loadCustoms()
+    return () => { cancelled = true }
+  }, [])
+
   async function handleExport() {
     setExporting(true)
     setBanner(null)
@@ -261,7 +286,7 @@ export default function KnowledgeItems() {
           <div className="form-group" style={{ marginBottom: 0, flex: 1, minWidth: 240 }}>
             <label htmlFor="ki-transform">Transformation</label>
             <select id="ki-transform" value={transformation} onChange={e => setTransformation(e.target.value)}>
-              {TRANSFORMATIONS.map(t => <option key={t} value={t}>{t}</option>)}
+              {transformations.map(t => <option key={t} value={t}>{t}</option>)}
             </select>
           </div>
           <button className="btn btn-secondary" onClick={refresh} disabled={loading || refreshing}>
