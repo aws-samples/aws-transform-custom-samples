@@ -85,7 +85,7 @@ UI → /orchestrate (submit) → Lambda (async) → AgentCore
 
   Step 4: Read selected files from S3 (up to 400K chars / ~100K tokens)
   Step 5: Generate definition (Bedrock with full source code context)
-    → Uploads transformation_definition.md to S3
+    → Uploads SKILL.md (ATX skill format) to S3
   Step 6: Publish (Batch job: atx custom def publish)
     → status.json written to S3
 

@@ -31,6 +31,7 @@ async function directCall(op, extra = {}) {
 
 function CustomTransformCard({ name, description }) {
   const [preview, setPreview] = useState(null)
+  const [previewKey, setPreviewKey] = useState('')
   const [loading, setLoading] = useState(false)
 
   async function viewDefinition() {
@@ -43,6 +44,7 @@ function CustomTransformCard({ name, description }) {
         body: JSON.stringify({ action: 'direct', op: 'get_file', definition_name: normalized })
       })
       const data = await res.json()
+      setPreviewKey(data.key ? data.key.replace('custom-definitions/', '') : `${normalized}/SKILL.md`)
       if (data.content) setPreview(data.content)
       else setPreview(`Could not load: ${data.error || 'Unknown error'}`)
     } catch (e) { setPreview(`Error: ${e.message}`) }
@@ -67,7 +69,7 @@ function CustomTransformCard({ name, description }) {
           <div style={{ background: '#161b22', border: '1px solid #30363d', borderRadius: 8, width: '80%', maxWidth: 900, maxHeight: '80vh', display: 'flex', flexDirection: 'column' }}
             onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderBottom: '1px solid #21262d' }}>
-              <span style={{ fontFamily: 'monospace', fontSize: 13, color: '#c9d1d9' }}>{name}/transformation_definition.md</span>
+              <span style={{ fontFamily: 'monospace', fontSize: 13, color: '#c9d1d9' }}>{previewKey || `${name}/SKILL.md`}</span>
               <button className="btn btn-secondary btn-sm" onClick={() => setPreview(null)}>✕ Close</button>
             </div>
             <pre style={{ padding: 16, margin: 0, overflow: 'auto', flex: 1, fontSize: 12, lineHeight: 1.5, color: '#c9d1d9', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>

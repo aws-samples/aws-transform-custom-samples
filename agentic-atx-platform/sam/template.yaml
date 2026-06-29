@@ -23,6 +23,10 @@ Parameters:
     Type: String
     Default: ""
     Description: ECR URI for the orchestrator container (built by deploy.sh)
+  AgentRuntimeArn:
+    Type: String
+    Default: ""
+    Description: AgentCore runtime ARN (set after the orchestrator is deployed). Preserved across redeploys.
 
 Globals:
   Function:
@@ -189,6 +193,21 @@ Resources:
                 Action: batch:DescribeJobs
                 Resource: "*"
               - Effect: Allow
+                Action: batch:ListJobs
+                Resource: "*"
+              - Effect: Allow
+                Action: batch:SubmitJob
+                Resource: "*"
+              - Effect: Allow
+                Action:
+                  - cloudwatch:GetMetricStatistics
+                  - cloudwatch:ListMetrics
+                  - cloudwatch:GetMetricData
+                Resource: "*"
+              - Effect: Allow
+                Action: logs:GetLogEvents
+                Resource: !Sub "arn:aws:logs:${AwsRegion}:${AWS::AccountId}:log-group:/aws/batch/atx-transform:*"
+              - Effect: Allow
                 Action: sts:GetCallerIdentity
                 Resource: "*"
               - Effect: Allow
@@ -221,8 +240,10 @@ Resources:
       Tracing: Active
       Environment:
         Variables:
-          AGENT_RUNTIME_ARN: ""  # Updated after deploy-agent is invoked
+          AGENT_RUNTIME_ARN: !Ref AgentRuntimeArn
           RESULT_BUCKET: !Ref OutputBucketName
+          JOB_QUEUE_NAME: atx-job-queue
+          JOB_DEFINITION_NAME: atx-transform-job
       Events:
         Orchestrate:
           Type: HttpApi
