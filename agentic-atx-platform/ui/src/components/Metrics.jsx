@@ -45,6 +45,28 @@ export default function Metrics() {
   const [detail, setDetail] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [lastUpdated, setLastUpdated] = useState(null)
+  const [refreshing, setRefreshing] = useState(false)
+
+  // Load metrics for the current range. `isManual` distinguishes a user-triggered
+  // refresh (keeps existing charts visible, shows a small spinner) from the initial
+  // load (full-screen loading state).
+  async function load({ isManual = false } = {}) {
+    if (isManual) setRefreshing(true)
+    else setLoading(true)
+    setError(null)
+    try {
+      const [agg, det] = await Promise.all([fetchMetrics({ range }), fetchExecutions({ range })])
+      setData(agg)
+      setDetail(det)
+      setLastUpdated(new Date())
+    } catch (e) {
+      setError(e.message)
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
+    }
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -52,7 +74,7 @@ export default function Metrics() {
     setError(null)
     Promise.all([fetchMetrics({ range }), fetchExecutions({ range })])
       .then(([agg, det]) => {
-        if (!cancelled) { setData(agg); setDetail(det) }
+        if (!cancelled) { setData(agg); setDetail(det); setLastUpdated(new Date()) }
       })
       .catch(e => { if (!cancelled) setError(e.message) })
       .finally(() => { if (!cancelled) setLoading(false) })
@@ -127,7 +149,15 @@ export default function Metrics() {
             From the <code>AWS/TransformCustom</code> CloudWatch namespace.
           </p>
         </div>
-        <div className="filter-bar" style={{ margin: 0 }}>
+        <div className="filter-bar" style={{ margin: 0, alignItems: 'center', gap: 12 }}>
+          {lastUpdated && (
+            <span style={{ color: '#8b949e', fontSize: 12 }}>
+              Updated {lastUpdated.toLocaleTimeString()}
+            </span>
+          )}
+          <button className="btn btn-secondary btn-sm" onClick={() => load({ isManual: true })} disabled={loading || refreshing} title="Refresh metrics">
+            {refreshing ? <><span className="spinner" /> Refreshing...</> : '↻ Refresh'}
+          </button>
           <select value={range} onChange={e => setRange(e.target.value)}>
             {RANGES.map(r => <option key={r.id} value={r.id}>{r.label}</option>)}
           </select>
