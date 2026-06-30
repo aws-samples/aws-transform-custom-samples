@@ -559,7 +559,7 @@ Use the `[ARA-anchor]`, `[ARA]`, and `[ARA+MOD]`-tagged programs in the library 
 - **A dimension "showing problems"** → that ARA category has 2+ `Medium`/`High` findings (e.g., SHIP triggers when `Authentication & Authorization` has 2+ Medium/High findings; Well-Architected Review when `Engineering Maturity` or `Observability` has 2+ Medium+ findings).
 - **Customer segment** (Enterprise / SMB / ISV / Startup / WWPS) → infer from the portfolio `context` and `service_inventory`.
 
-Apply the library's selection rules: cap recommendations at **3–5**, prioritize by direct finding match → segment fit → entry-point-before-follow-on, group as **Funded Programs → Engagement Models → GTM Motions**, sequence logically (Assessment → Funding → Execution → Optimization, and for the anchor programs AI DLC → AXE → Innovation EBA), and never recommend `Retiring` or not-yet-imminent `Launching` programs. Run the library's reasoning checklist before finalizing.
+Apply the library's selection rules: cap recommendations at **3–5**, prioritize by direct finding match → segment fit → entry-point-before-follow-on, group as **Funded Programs → Engagement Models**, sequence logically (Assessment → Funding → Execution → Optimization, and for the anchor programs AI DLC → AXE → Innovation EBA), and never recommend `Retiring` or not-yet-imminent `Launching` programs. Run the library's reasoning checklist before finalizing.
 
 #### 7.2 Program Recommendations Output
 
@@ -572,7 +572,7 @@ For each triggered program:
 - **Suggested timing** — When to run relative to other programs or analysis phases
 - **Next step** — Recommended action (e.g., "Request engagement via AWS Solutions Architect")
 
-Group the rendered output under **Funded Programs → Engagement Models → GTM Motions** (the three agentic anchor programs are Engagement Models). Cap at 3–5 total. Do not expose any internal numeric maturity score.
+Group the rendered output under **Funded Programs → Engagement Models** (the three agentic anchor programs are Engagement Models). Cap at 3–5 total. Do not expose any internal numeric maturity score.
 
 If no programs are triggered, include a brief note: "No specific agentic program recommendations based on current findings. As the portfolio's agentic readiness improves, re-assess to identify program eligibility."
 
@@ -913,12 +913,6 @@ Group related BLOCKERs that can be addressed together.>
 | <Program name> | <Why recommended> | <Specific metrics> | <When to run> | <Action> |
 
 #### Engagement Models
-
-| Program | Relevance | Trigger Findings | Suggested Timing | Next Step |
-|---------|-----------|-----------------|------------------|-----------|
-| <Program name> | <Why recommended> | <Specific metrics> | <When to run> | <Action> |
-
-#### GTM Motions
 
 | Program | Relevance | Trigger Findings | Suggested Timing | Next Step |
 |---------|-----------|-----------------|------------------|-----------|
@@ -1283,9 +1277,9 @@ Each entry carries:
 }
 ```
 
-`group` ∈ {Funded Programs, Engagement Models, GTM Motions}. `status` ∈ {Triggered, Applicable, Not Triggered}. `trigger_reason` is non-empty prose explaining why the program fires (using ARA profile/severity language, never an internal numeric score). The total triggered set is capped at 3–5 per the library's selection rules; library entries carry `acronym: null` where the program has no acronym.
+`group` ∈ {Funded Programs, Engagement Models}. `status` ∈ {Triggered, Applicable, Not Triggered}. `trigger_reason` is non-empty prose explaining why the program fires (using ARA profile/severity language, never an internal numeric score). The total triggered set is capped at 3–5 per the library's selection rules; library entries carry `acronym: null` where the program has no acronym.
 
-The MD artifact renders this under an H2 heading **"## Recommended Actions"**, grouped Funded Programs → Engagement Models → GTM Motions. The "## Agentic Program Recommendations" label is retained as an H3 subheading under that H2 to preserve rich program prose without creating duplicate H2s.
+The MD artifact renders this under an H2 heading **"## Recommended Actions"**, grouped Funded Programs → Engagement Models. The "## Agentic Program Recommendations" label is retained as an H3 subheading under that H2 to preserve rich program prose without creating duplicate H2s.
 
 ---
 
@@ -1363,8 +1357,8 @@ Source: `remediation_roadmap.items[]` grouped by phase
 Table columns: `Program`, `Group`, `Description`, `Why Recommended`, `Duration`
 
 - Source: `recommended_actions[]` filtered to `status == "Triggered"`
-- Group values: `Funded Programs`, `Engagement Models`, `GTM Motions` — render as grouped sections in that order (or a Group column), omitting any group with no triggered programs
-- The triggered set can include ANY `[ARA]` / `[ARA+MOD]` / `[ARA-anchor]` program from the AWS Program & GTM Library — not just the agentic anchors. Examples that may appear from ARA findings: MAP / MAP for AI Modernization (Funded), AI Assessment Program (Funded), SHIP (Non-Funded → grouped under Funded Programs per the library's grouping rule), Well-Architected Review, AI DLC / AXE / Innovation EBA / ACP / GenAI Innovation Center (Engagement Models), AgentStorming Workshop, Agentic-led Modernization Sales Play (GTM Motions)
+- Group values: `Funded Programs`, `Engagement Models` — render as grouped sections in that order (or a Group column), omitting any group with no triggered programs
+- The triggered set can include ANY `[ARA]` / `[ARA+MOD]` / `[ARA-anchor]` program from the AWS Program & GTM Library — not just the agentic anchors. Examples that may appear from ARA findings: MAP / MAP for AI Modernization (Funded), AI Assessment Program (Funded), SHIP (Funded), Well-Architected Review (Funded), AI DLC / AXE / Innovation EBA / ACP / GenAI Innovation Center (Engagement Models), AgentStorming Workshop (Engagement Models)
 - Capped at 3–5 total per the library's selection rules. Do not display any internal numeric maturity score.
 
 #### Footer

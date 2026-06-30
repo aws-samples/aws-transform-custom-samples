@@ -18,7 +18,7 @@ After the portfolio analysis has produced its findings (cross-cutting BLOCKERs/R
    1. Direct finding match (the strongest signal pattern matches an actual finding)
    2. Customer segment fit (Enterprise / SMB / ISV / Startup / WWPS — inferred from portfolio `context` and `service_inventory`)
    3. Entry-point programs (no prerequisites) before follow-on programs (with prerequisites)
-4. **Group recommendations under three headings, in this order:** `Funded Programs` → `Engagement Models` → `GTM Motions`. Assessments and tools map under Funded Programs; hands-on engagements, workshops, and training map under Engagement Models; sales plays and positioning map under GTM Motions.
+4. **Group recommendations under two headings, in this order:** `Funded Programs` → `Engagement Models`. Assessments, credits, tools, and self-service resources map under Funded Programs; hands-on engagements, workshops, and training map under Engagement Models.
 5. **Never recommend programs marked `Retiring`** and never recommend programs marked `Launching` unless the launch is imminent (see Status Key below).
 6. **Sequence logically:** Assessment → Funding → Execution → Optimization. Do not recommend a follow-on program without surfacing its prerequisite.
 7. **Do not expose internal scoring.** The MOD internal 1–4 maturity score is internal only. When citing MOD evidence in a recommendation, reference unified severity (`High` / `Medium` / `Low`), `severity_status` (`Ready` / `Needs Work` / `Critical`), `score_rating` (`Mature` / `Partial` / `Needs Work` / `Not Ready`), or pathway/profile names — never the numeric score.
@@ -367,9 +367,9 @@ This library is consumed by two different analyses with different finding vocabu
 
 ---
 
-## GTM MOTIONS
+## SELF-SERVICE TOOLS
 
-> Sales plays, positioning motions, and tools that help customers take immediate action. Self-service tools map here.
+> These are customer-facing, no-cost tools that customers can use immediately. They group under **Funded Programs** in the rendered output.
 
 ### AWS Transform Custom (ARA/MODA) `[ARA+MOD]` `Active`
 - **Signal patterns:** Customer has additional repositories not yet analyzed; wants to expand assessment scope.
@@ -475,7 +475,7 @@ Before finalizing the recommendation list, verify each item:
 1. ☐ Does every recommended program meet its qualification criteria based on actual findings?
 2. ☐ Have I checked the "DO NOT recommend when" exclusions for each selected program?
 3. ☐ Is the total count between 3 and 5 recommendations?
-4. ☐ Are recommendations grouped correctly? (`Funded Programs` → `Engagement Models` → `GTM Motions`)
+4. ☐ Are recommendations grouped correctly? (`Funded Programs` → `Engagement Models`)
 5. ☐ Did I check workload-specific programs (VMware, Windows, Oracle, SAP, Kafka, Mainframe)?
 6. ☐ Did I check customer segment (Startup → Activate/IW; ISV → ACP/Booster/SaaS Factory; SMB → self-service options)?
 7. ☐ Did I include at least one entry-point program (no prerequisites)?

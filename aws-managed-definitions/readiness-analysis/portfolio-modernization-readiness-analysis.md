@@ -1032,7 +1032,7 @@ Use the `[MOD]` / `[ARA+MOD]`-tagged programs in the library and map MOD's vocab
 - **On-prem / migration triggers** (MAP, OLA, Migration Evaluator, VMCCO) → MOD scope is AWS-targeting workloads and excludes on-prem. Trigger these from portfolio/service `context` references (on-prem, data center, VMware estate, "migrating from…") or IaC evidence of non-AWS/VMware providers (`vsphere_*`, bare-metal) — NOT from MOD findings about workloads already on AWS. A legacy app already on EC2 does not qualify for MAP.
 - **Customer segment** (Enterprise / SMB / ISV / Startup / WWPS) → infer from portfolio `context` and `service_inventory`.
 
-Apply the library's selection rules: cap recommendations at **3–5**, prioritize by direct finding match → segment fit → entry-point-before-follow-on, group as **Funded Programs → Engagement Models → GTM Motions**, sequence logically (Assessment → Funding → Execution → Optimization), and never recommend `Retiring` or not-yet-imminent `Launching` programs. Run the library's reasoning checklist before finalizing.
+Apply the library's selection rules: cap recommendations at **3–5**, prioritize by direct finding match → segment fit → entry-point-before-follow-on, group as **Funded Programs → Engagement Models**, sequence logically (Assessment → Funding → Execution → Optimization), and never recommend `Retiring` or not-yet-imminent `Launching` programs. Run the library's reasoning checklist before finalizing.
 
 #### 9.2 Program Recommendations Output
 
@@ -1044,7 +1044,7 @@ For each triggered program:
 - **What it provides** — Brief description of the program's value
 - **Next step** — Recommended action (e.g., "Request MAP engagement via AWS Solutions Architect")
 
-Group the rendered output under **Funded Programs → Engagement Models → GTM Motions**. Cap at 3–5 total.
+Group the rendered output under **Funded Programs → Engagement Models**. Cap at 3–5 total.
 
 If no programs are triggered, include: "No specific AWS program recommendations based on current findings. As the portfolio evolves, re-assess to identify program eligibility."
 
@@ -1743,11 +1743,6 @@ in exactly one column per pathway row.
 |---------|---------|-----------|-----------------|-----------|
 | <program name> | <acronym> | <why recommended> | <specific findings> | <recommended action> |
 
-#### GTM Motions
-
-| Program | Acronym | Relevance | Trigger Findings | Next Step |
-|---------|---------|-----------|-----------------|-----------|
-| <program name> | <acronym> | <why recommended> | <specific findings> | <recommended action> |
 
 > Omit any group heading that has no triggered programs.
 > If no programs are triggered at all:
@@ -2221,7 +2216,7 @@ MD rendering under an H2 heading **"## Remediation Roadmap"** matching the webap
 
 ### Recommended Actions
 
-The Portfolio MOD JSON emits `recommended_actions[]`. Programs are drawn from the AWS Program & GTM Library (`references/program-library.md`); each entry carries a `group` field (`Funded Programs` / `Engagement Models` / `GTM Motions`) so the webapp can render the grouped output. The library is the authoritative source for the program set, trigger logic, and grouping.
+The Portfolio MOD JSON emits `recommended_actions[]`. Programs are drawn from the AWS Program & GTM Library (`references/program-library.md`); each entry carries a `group` field (`Funded Programs` / `Engagement Models`) so the webapp can render the grouped output. The library is the authoritative source for the program set, trigger logic, and grouping.
 
 Each entry envelope:
 
@@ -2231,7 +2226,7 @@ Each entry envelope:
 | `name` | Full program name (e.g., Migration Acceleration Program) |
 | `acronym` | Program acronym where one exists, else `null` |
 | `type` | `program` |
-| `group` | `Funded Programs` / `Engagement Models` / `GTM Motions` |
+| `group` | `Funded Programs` / `Engagement Models` |
 | `status` | `Triggered` / `Applicable` / `Not Triggered` |
 | `trigger_reason` | Non-empty prose stating the finding(s) that triggered (or did not trigger) the program — using severity/classification language, never the internal 1–4 score |
 
@@ -2358,9 +2353,9 @@ Source: `remediation_roadmap.items[]` grouped by phase + `roadmap_phases[]`
 Table columns: `Program`, `Group`, `Relevance`, `What You Get`, `Suggested Timing`
 
 - Source: `recommended_actions[]`
-- Group values: `Funded Programs`, `Engagement Models`, `GTM Motions` — render as grouped sections in that order (or a Group column), omitting any group with no triggered programs
+- Group values: `Funded Programs`, `Engagement Models` — render as grouped sections in that order (or a Group column), omitting any group with no triggered programs
 - Relevance values: `Triggered`, `Applicable`, `Not Triggered`
-- The triggered set can include ANY `[MOD]` / `[ARA+MOD]` program from the AWS Program & GTM Library. Examples that may appear from MOD findings: MAP, OLA, AMA, AppMod Assessment / PoC Funding (Funded), VMCCO, Well-Architected Review (Non-Funded → grouped under Funded Programs per the library's grouping rule), AML / Immersion Days / ProServe Residency (Engagement Models), ModNet / Agentic-led Modernization Sales Play (GTM Motions)
+- The triggered set can include ANY `[MOD]` / `[ARA+MOD]` program from the AWS Program & GTM Library. Examples that may appear from MOD findings: MAP, OLA, AMA, AppMod PoC Funding, Well-Architected Review, AWS Transform tools (Funded Programs); AML, Immersion Days, ProServe Residency, MMA Workshop (Engagement Models)
 - Show the recommended set only (capped at 3–5 per the library's selection rules) — do NOT render the full program catalog (88 programs). Do not display any internal numeric maturity score.
 
 #### Pathways Tab (MOD-only — ARA does not have this)
