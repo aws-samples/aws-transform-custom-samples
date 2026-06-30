@@ -1,3 +1,4 @@
+import { authedFetch } from "../auth"
 import { useState } from 'react'
 
 const API_BASE = import.meta.env.VITE_API_ENDPOINT || '/api'
@@ -106,7 +107,7 @@ export default function CreateCustom({ submitAsync, onJobCreated, orchestrate })
     try {
       // Upload the edited definition back to S3
       const normalized = name.trim().toLowerCase().replace(/\s+/g, '-')
-      const accountRes = await fetch(`${API_BASE}/orchestrate`, {
+      const accountRes = await authedFetch(`${API_BASE}/orchestrate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'direct', op: 'list_custom' })

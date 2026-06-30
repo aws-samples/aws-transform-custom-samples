@@ -1,3 +1,4 @@
+import { authedFetch } from "./auth"
 // Metrics API client for the AWS/TransformCustom CloudWatch namespace.
 //
 // Backend: the metrics logic from scaled-execution-containers PR #41 (get_metrics.py)
@@ -40,7 +41,7 @@ export async function fetchMetrics({ range = '7d' } = {}) {
     return mockMetrics(range)
   }
 
-  const res = await fetch(`${API_BASE}/orchestrate`, {
+  const res = await authedFetch(`${API_BASE}/orchestrate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'direct', op: 'metrics', type: 'all', period: RANGE_HOURS[range] || 168 }),
@@ -60,7 +61,7 @@ export async function fetchExecutions({ range = '7d' } = {}) {
     await new Promise(r => setTimeout(r, 300))
     return mockExecutions()
   }
-  const res = await fetch(`${API_BASE}/orchestrate`, {
+  const res = await authedFetch(`${API_BASE}/orchestrate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'direct', op: 'metrics', type: 'transform_detail', period: RANGE_HOURS[range] || 168 }),

@@ -1,3 +1,4 @@
+import { authedFetch } from "../auth"
 import React, { useState, useEffect } from 'react'
 
 export default function TransformationForm({ orchestrate, onJobCreated }) {
@@ -34,7 +35,7 @@ export default function TransformationForm({ orchestrate, onJobCreated }) {
     async function loadCustom() {
       try {
         const API = import.meta.env.VITE_API_ENDPOINT || '/api'
-        const res = await fetch(`${API}/orchestrate`, {
+        const res = await authedFetch(`${API}/orchestrate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'direct', op: 'list_custom' })

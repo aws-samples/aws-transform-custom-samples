@@ -1,3 +1,4 @@
+import { authedFetch } from "../auth"
 import { useState, useRef, useEffect } from 'react'
 
 const API_BASE = import.meta.env.VITE_API_ENDPOINT || '/api'
@@ -38,7 +39,7 @@ export default function Chat({ orchestrate, jobs }) {
           // If job succeeded, try to get result file list
           if (job.status === 'SUCCEEDED' && job.type !== 'create') {
             try {
-              const res = await fetch(`${API_BASE}/orchestrate`, {
+              const res = await authedFetch(`${API_BASE}/orchestrate`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ action: 'direct', op: 'results', job_id: job.id })
