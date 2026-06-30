@@ -358,10 +358,10 @@ This library is consumed by two different analyses with different finding vocabu
 - **Self-paced links:** [SQL Server](https://catalog.workshops.aws/mma-mssql-pg/en-US) | [Oracle](https://catalog.workshops.aws/mma-oracle-pg/en-US) | [Sybase](https://catalog.workshops.aws/mma-sybase-pg)
 - **Pairs with:** DBC, DBOLA, AWS Transform for SQL Server, EBA, MAP.
 
-### SHIP (Security Health Improvement Program) `[ARA]` `Active`
-- **Signal patterns:** ARA `Authentication & Authorization` dimension has 2+ `Medium`/`High` findings indicating security posture gaps.
-- **DO NOT recommend when:** Security findings are isolated (single finding); customer already has a security improvement plan.
-- **What the customer gets:** Free security posture assessment with personalized improvement roadmap.
+### SHIP (Security Health Improvement Program) `[MOD]` `Active`
+- **Signal patterns:** MOD findings indicate AWS security infrastructure gaps: missing CloudTrail, no encryption at rest, no GuardDuty/Security Hub, missing IAM best practices, no VPC flow logs. Multiple security-category findings with `severity_status` of `Needs Work` or `Critical`.
+- **DO NOT recommend when:** Security findings are application-level auth/authz only (those are ARA concerns, not SHIP); customer already has a security improvement plan; findings are isolated (single finding).
+- **What the customer gets:** Free AWS security posture assessment with personalized improvement roadmap covering identity, detection, infrastructure protection, data protection, and incident response.
 - **How to engage:** Talk to your AWS account team about the Security Health Improvement Program.
 - **Pairs with:** Well-Architected Review, MAP.
 

@@ -2060,7 +2060,7 @@ The Portfolio MOD JSON artifact MUST emit these top-level keys in the order show
 | `repositories[]` | Per-repo roll-up |
 | `findings[]` | Lightweight portfolio finding index. See "Portfolio `findings[]` entry shape" below. |
 | `remediation_roadmap` | See §"Remediation Roadmap" — grouping `pathway` |
-| `recommended_actions[]` | Triggered AWS programs from the AWS Program & GTM Library (`references/program-library.md`), grouped Funded → Engagement → GTM |
+| `recommended_actions[]` | Triggered AWS programs from the AWS Program & GTM Library (`references/program-library.md`), grouped Funded → Engagement |
 | `pathways[]` | All 7 AWS Modernization Pathways with JSON-pointer back-references; see §"Pathways Aggregation" |
 | `dependency_map` | Portfolio dependency map |
 | `roadmap_phases[]` | Optional, additive |
