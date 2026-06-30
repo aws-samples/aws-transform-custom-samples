@@ -64,38 +64,37 @@ Security considerations and best practices for the AWS Transform CLI container.
 - Enable VPC Flow Logs for audit
 - Monitor network traffic patterns with CloudWatch
 
-## REST API Security
+## API Security
 
-### IAM Authentication
+### Agentic Platform HTTP API (Cognito JWT)
+
+The agentic platform exposes a single HTTP API (`POST /orchestrate`). It is
+**secure by default** (`EnableAuth=true`).
 
 ✅ **Implemented:**
-- AWS IAM authentication (AWS Signature V4)
-- No API keys or shared secrets
-- IAM user/role permissions with `execute-api:Invoke`
-- Full CloudTrail audit trail
+- Cognito User Pool authentication; UI signs in via the Hosted UI (OAuth2
+  authorization-code + PKCE)
+- The `atx-async-invoke-agent` Lambda verifies the Cognito JWT on every request
+  (JWKS signature, issuer, audience, expiry, token_use, client_id) and rejects
+  unauthenticated calls with `401`
+- Fails closed: if auth is enabled but misconfigured, requests are denied
+- CORS restricted to the configured UI origin (`AllowedOrigin`)
+- Internal async self-invokes (Lambda→Lambda) and CORS preflight bypass the gate
 
-⚠️ **Recommendations:**
-- Grant users `execute-api:Invoke` permission on the API
-- Use temporary credentials (AWS SSO or STS)
-- Monitor API access via CloudTrail
-- Set up CloudWatch Alarms for unusual activity
+⚠️ **Notes / recommendations:**
+- Auth is enforced in the Lambda rather than an API Gateway JWT authorizer
+  (SAM cannot conditionally toggle a default authorizer on one HTTP API).
+  Unauthenticated requests reach the function but are rejected before any
+  Batch/AgentCore work runs.
+- `ENABLE_AUTH=false` deploys an **open** API for the blog/demo walkthrough only —
+  do not use open mode for shared or internet-reachable environments.
+- Self-signup is disabled; create users via `admin-create-user`.
+- Restrict `AllowedOrigin` to the exact UI URL (avoid `*`) when auth is enabled.
 
-**Grant API access:**
-```bash
-aws iam put-user-policy \
-  --user-name YOUR_USERNAME \
-  --policy-name InvokeATXApi \
-  --policy-document '{
-    "Version": "2012-10-17",
-    "Statement": [{
-      "Effect": "Allow",
-      "Action": "execute-api:Invoke",
-      "Resource": "arn:aws:execute-api:*:*:*/prod/*"
-    }]
-  }'
-```
+### Container REST API (scaled-execution-containers)
 
-**See:** The orchestrator handles API authentication via AgentCore IAM roles.
+The separate `scaled-execution-containers` REST API uses **IAM authentication**
+(AWS Signature V4); callers need `execute-api:Invoke`. See that project's docs.
 
 ## Secrets Management
 
@@ -283,6 +282,9 @@ aws ecr start-image-scan \
 ### Before Deployment
 
 - [ ] Review and customize IAM policies
+- [ ] Keep `EnableAuth=true` (default) for any shared/reachable environment
+- [ ] Set `AllowedOrigin` to the exact UI URL (not `*`) when auth is enabled
+- [ ] Create Cognito users via `admin-create-user` (self-signup is disabled)
 - [ ] Configure VPC and subnets
 - [ ] Set up security groups
 - [ ] Enable ECR image scanning

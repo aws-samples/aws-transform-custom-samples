@@ -151,6 +151,24 @@ Knowledge items are generated DISABLED by ATX after a run; the UI lists them
 cache-first and only triggers the Batch refresh on an explicit "Pull from registry".
 ```
 
+### Authentication
+```
+Secure by default (EnableAuth=true).
+
+UI (Cognito Hosted UI, OAuth2 auth-code + PKCE)
+  → user signs in → app exchanges ?code= for an access token (sessionStorage)
+  → authedFetch attaches Authorization: Bearer <token> to every /orchestrate call
+
+async_invoke_agent Lambda (auth.py)
+  → ENABLE_AUTH=true: verify Cognito JWT (JWKS signature, issuer, audience,
+    expiry, token_use, client_id) before routing any action; 401 on failure
+  → ENABLE_AUTH=false: open (blog/demo mode)
+  → internal async self-invokes and CORS preflight bypass the gate
+
+Note: auth is enforced in the Lambda (not an API Gateway JWT authorizer) because
+SAM cannot conditionally toggle a default authorizer on one HTTP API.
+```
+
 ## Components
 
 | Component | Path | Purpose |
@@ -163,6 +181,7 @@ cache-first and only triggers the Batch refresh on an explicit "Pull from regist
 | Async Lambda | `api/lambda/async_invoke_agent.py` | Submit/poll/direct bridge |
 | Metrics | `api/lambda/metrics.py` | CloudWatch AWS/TransformCustom metrics (direct op) |
 | Knowledge Items | `api/lambda/knowledge_items.py` | List/enable/disable/delete/export KIs (direct op) |
+| Auth | `api/lambda/auth.py` | Cognito JWT verification (secure-by-default, fails closed) |
 | UI | `ui/src/` | React app (8 tabs) |
 | Infrastructure | `cdk/` | Batch, S3, VPC, CloudFront, AgentCore |
 | SAM Layer | `sam/` | AgentCore deploy Lambda + API (Option A) |
@@ -181,6 +200,7 @@ cache-first and only triggers the Batch refresh on an explicit "Pull from regist
 | API Gateway v2 (HTTP) | Single /orchestrate endpoint |
 | Lambda | Async bridge (submit/poll/direct) |
 | DynamoDB | Job tracking (persisted across sessions) |
+| Cognito (User Pool) | UI authentication — JWT verified in Lambda (when EnableAuth=true) |
 
 ## Project Structure
 
@@ -192,8 +212,10 @@ cache-first and only triggers the Batch refresh on an explicit "Pull from regist
 │   └── requirements.txt
 ├── api/lambda/                 # Async bridge Lambda
 │   ├── async_invoke_agent.py
+│   ├── auth.py                 # Cognito JWT verification (secure by default)
 │   ├── metrics.py              # CloudWatch metrics (op: metrics)
-│   └── knowledge_items.py      # Knowledge items (op: knowledge_items)
+│   ├── knowledge_items.py      # Knowledge items (op: knowledge_items)
+│   └── tests/                  # unittest suite (auth enforcement, no open endpoints)
 ├── ui/                         # React frontend (8 tabs)
 │   └── src/components/         # TransformationList, Form, CreateCustom, CsvUpload, JobTracker, Metrics, KnowledgeItems, Chat
 ├── cdk/                        # CDK stacks (Container, Infrastructure, AgentCore, UI)
