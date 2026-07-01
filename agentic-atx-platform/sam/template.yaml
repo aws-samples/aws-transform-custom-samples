@@ -273,27 +273,30 @@ Resources:
           ALLOWED_ORIGIN: !Ref AllowedOrigin
           COGNITO_USER_POOL_ID: !If [AuthEnabled, !Ref UserPool, ""]
           COGNITO_APP_CLIENT_ID: !If [AuthEnabled, !Ref UserPoolClient, ""]
-      Events:
-        Orchestrate:
-          Type: HttpApi
-          Properties:
-            Path: /orchestrate
-            Method: POST
-            ApiId: !Ref HttpApi
+
+  # Allow API Gateway to invoke the async function (explicit, since the HttpApi
+  # event is replaced by raw ApiGatewayV2 resources below).
+  AsyncInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref AsyncInvokeFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AwsRegion}:${AWS::AccountId}:${HttpApi}/*/*/orchestrate"
 
   # ========================================
-  # 3. HTTP API Gateway
+  # 3. HTTP API Gateway (raw ApiGatewayV2 so the JWT authorizer can be conditional)
   # ========================================
-  # A single HTTP API. Authentication is enforced inside the Lambda (auth.py) based
-  # on the EnableAuth parameter, rather than via a gateway JWT authorizer — SAM does
-  # not support toggling a default authorizer on/off on one HttpApi, and Lambda-side
-  # verification keeps a single clean toggle. When EnableAuth=true the function
-  # cryptographically validates the Cognito JWT (issuer/audience/signature/expiry)
-  # and rejects anything unauthenticated with 401.
+  # When EnableAuth=true, a JWT authorizer (Cognito) is created and attached to the
+  # /orchestrate route (AuthorizationType: JWT). When false, the route is open
+  # (AuthorizationType: NONE). Using raw ApiGatewayV2 resources lets these properties
+  # be conditional via !If — which SAM's HttpApi `Auth` shorthand does not allow.
+  # The Lambda (auth.py) still verifies the JWT as defense-in-depth.
   HttpApi:
-    Type: AWS::Serverless::HttpApi
+    Type: AWS::ApiGatewayV2::Api
     Properties:
-      StageName: prod
+      Name: AtxAgentCoreSAM
+      ProtocolType: HTTP
       CorsConfiguration:
         AllowOrigins:
           - !Ref AllowedOrigin
@@ -304,6 +307,45 @@ Resources:
           - content-type
           - authorization
         MaxAge: 86400
+
+  HttpApiIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref HttpApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !GetAtt AsyncInvokeFunction.Arn
+      PayloadFormatVersion: "2.0"
+
+  # Cognito JWT authorizer — only created when auth is enabled.
+  HttpApiJwtAuthorizer:
+    Type: AWS::ApiGatewayV2::Authorizer
+    Condition: AuthEnabled
+    Properties:
+      ApiId: !Ref HttpApi
+      AuthorizerType: JWT
+      Name: CognitoJwtAuthorizer
+      IdentitySource:
+        - "$request.header.Authorization"
+      JwtConfiguration:
+        Issuer: !Sub "https://cognito-idp.${AwsRegion}.amazonaws.com/${UserPool}"
+        Audience:
+          - !Ref UserPoolClient
+
+  HttpApiRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "POST /orchestrate"
+      Target: !Sub "integrations/${HttpApiIntegration}"
+      AuthorizationType: !If [AuthEnabled, "JWT", "NONE"]
+      AuthorizerId: !If [AuthEnabled, !Ref HttpApiJwtAuthorizer, !Ref "AWS::NoValue"]
+
+  HttpApiStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref HttpApi
+      StageName: prod
+      AutoDeploy: true
 
   # ========================================
   # 4. Cognito (created only when EnableAuth=true)

@@ -73,6 +73,18 @@ def _bearer_token(event) -> str:
     return auth_header.strip()
 
 
+def _gateway_claims(event) -> dict:
+    """Claims attached by the API Gateway JWT authorizer (HTTP API payload v2)."""
+    authorizer = event.get('requestContext', {}).get('authorizer', {})
+    jwt_claims = authorizer.get('jwt', {})
+    claims = jwt_claims.get('claims') if isinstance(jwt_claims, dict) else None
+    if claims:
+        return claims
+    if isinstance(authorizer.get('claims'), dict):
+        return authorizer['claims']
+    return {}
+
+
 def authorize(event):
     """
     Returns (ok: bool, error: str|None, claims: dict).
@@ -80,10 +92,20 @@ def authorize(event):
     - Auth disabled              -> (True, None, {})            [open mode]
     - Auth enabled + valid token -> (True, None, <claims>)
     - Auth enabled + bad/missing -> (False, reason, {})
+
+    When the API Gateway JWT authorizer is attached it has already validated the
+    token and populated requestContext.authorizer.jwt.claims; we trust those.
+    Otherwise (or as defense-in-depth) we verify the bearer token in-process.
     """
     if not auth_enabled():
         return True, None, {}
 
+    # 1. Trust gateway-validated claims if present (authorizer already verified sig/exp).
+    gw = _gateway_claims(event)
+    if gw:
+        return True, None, gw
+
+    # 2. Fallback: verify the bearer token ourselves.
     if not _JWT_AVAILABLE:
         # Fail closed: if the crypto library is missing while auth is on, do not serve.
         return False, 'Unauthorized: auth library unavailable', {}

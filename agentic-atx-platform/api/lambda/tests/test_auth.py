@@ -111,6 +111,22 @@ class TestAuthEnabled(unittest.TestCase):
                 self.assertIn('client_id', err)
 
 
+class TestGatewayClaims(unittest.TestCase):
+    def test_gateway_validated_claims_trusted(self):
+        # When the API Gateway JWT authorizer has validated and attached claims,
+        # authorize() trusts them without re-verifying the token.
+        with mock.patch.dict(os.environ, POOL_ENV, clear=False):
+            ev = {
+                'requestContext': {'http': {'method': 'POST'},
+                                   'authorizer': {'jwt': {'claims': {'sub': 'gw-user', 'token_use': 'access'}}}},
+                'headers': {},
+                'body': '{}',
+            }
+            ok, err, claims = auth.authorize(ev)
+            self.assertTrue(ok, err)
+            self.assertEqual(claims['sub'], 'gw-user')
+
+
 class TestBearerExtraction(unittest.TestCase):
     def test_case_insensitive_header(self):
         ev = {'headers': {'authorization': 'Bearer abc'}}

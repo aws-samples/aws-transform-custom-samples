@@ -48,10 +48,21 @@ class TestTemplateSecurity(unittest.TestCase):
             self.assertIn(res, self.text)
         self.assertGreaterEqual(self.text.count('Condition: AuthEnabled'), 2)
 
-    def test_single_httpapi_route(self):
-        events = re.findall(r'Type:\s*HttpApi\b', self.text)
-        self.assertEqual(len(events), 1, f"expected exactly 1 HttpApi event, found {len(events)}")
-        self.assertIn('Path: /orchestrate', self.text)
+    def test_jwt_authorizer_conditional(self):
+        # A JWT authorizer is declared and gated on AuthEnabled.
+        self.assertRegex(self.text, r'HttpApiJwtAuthorizer:\s*\n\s*Type:\s*AWS::ApiGatewayV2::Authorizer\s*\n\s*Condition:\s*AuthEnabled')
+        self.assertIn('AuthorizerType: JWT', self.text)
+        self.assertIn('cognito-idp.', self.text)
+
+    def test_route_auth_is_conditional(self):
+        # The route's AuthorizationType flips JWT/NONE and AuthorizerId is conditional.
+        self.assertRegex(self.text, r'AuthorizationType:\s*!If\s*\[\s*AuthEnabled,\s*"JWT",\s*"NONE"\s*\]')
+        self.assertRegex(self.text, r'AuthorizerId:\s*!If\s*\[\s*AuthEnabled,\s*!Ref HttpApiJwtAuthorizer,\s*!Ref "AWS::NoValue"\s*\]')
+
+    def test_single_route(self):
+        # Exactly one route, and it's POST /orchestrate.
+        routes = re.findall(r'RouteKey:\s*"POST /orchestrate"', self.text)
+        self.assertEqual(len(routes), 1, f"expected exactly 1 /orchestrate route, found {len(routes)}")
 
     def test_no_public_function_urls(self):
         self.assertNotIn('AWS::Lambda::Url', self.text)
