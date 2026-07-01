@@ -64,38 +64,62 @@ Security considerations and best practices for the AWS Transform CLI container.
 - Enable VPC Flow Logs for audit
 - Monitor network traffic patterns with CloudWatch
 
-## REST API Security
+## API Security
 
-### IAM Authentication
+### Agentic Platform HTTP API (Cognito JWT)
+
+The agentic platform exposes a single HTTP API (`POST /orchestrate`). It is
+**secure by default** (`EnableAuth=true`).
 
 ✅ **Implemented:**
-- AWS IAM authentication (AWS Signature V4)
-- No API keys or shared secrets
-- IAM user/role permissions with `execute-api:Invoke`
-- Full CloudTrail audit trail
+- Cognito User Pool authentication; UI signs in via the Hosted UI (OAuth2
+  authorization-code + PKCE)
+- **API Gateway JWT authorizer** on the `/orchestrate` route: unauthenticated or
+  invalid tokens are rejected with `401` at the edge, before the Lambda is invoked
+- Defense-in-depth: the `atx-async-invoke-agent` Lambda (`auth.py`) also verifies
+  the Cognito JWT (JWKS signature, issuer, audience, expiry, token_use, client_id),
+  trusting gateway-validated claims when present
+- Fails closed: if auth is enabled but misconfigured, requests are denied
+- CORS restricted to the configured UI origin (`AllowedOrigin`)
+- Internal async self-invokes (Lambda→Lambda) and CORS preflight bypass the gate
 
-⚠️ **Recommendations:**
-- Grant users `execute-api:Invoke` permission on the API
-- Use temporary credentials (AWS SSO or STS)
-- Monitor API access via CloudTrail
-- Set up CloudWatch Alarms for unusual activity
+⚠️ **Notes / recommendations:**
+- The authorizer is implemented with raw `AWS::ApiGatewayV2` resources (not SAM's
+  HttpApi `Auth` shorthand) so it can be attached conditionally on `EnableAuth`.
+- `ENABLE_AUTH=false` deploys an **open** API for the blog/demo walkthrough only —
+  do not use open mode for shared or internet-reachable environments.
+- Self-signup is disabled; create users via `admin-create-user`.
+- Restrict `AllowedOrigin` to the exact UI URL (avoid `*`) when auth is enabled.
 
-**Grant API access:**
-```bash
-aws iam put-user-policy \
-  --user-name YOUR_USERNAME \
-  --policy-name InvokeATXApi \
-  --policy-document '{
-    "Version": "2012-10-17",
-    "Statement": [{
-      "Effect": "Allow",
-      "Action": "execute-api:Invoke",
-      "Resource": "arn:aws:execute-api:*:*:*/prod/*"
-    }]
-  }'
-```
+### Private API endpoint (network isolation)
 
-**See:** The orchestrator handles API authentication via AgentCore IAM roles.
+The `/orchestrate` API is a **public** regional endpoint protected by the Cognito
+JWT authorizer. If you have private network access to AWS (VPN, Direct Connect, or
+in-VPC clients) and want to remove public internet exposure entirely, consider a
+private API. Important trade-offs:
+
+- **HTTP API (API Gateway v2) does not support private endpoints.** Private API is
+  a REST API (v1) feature — it uses an interface VPC endpoint (`execute-api`) plus a
+  resource policy that restricts access to your VPC/VPCe. Making this API private is
+  therefore a migration from HTTP API → REST API, not a config toggle.
+- **A browser UI cannot reach a private endpoint** over the public internet. Going
+  private only makes sense if the UI is also internal (VPN, WorkSpaces, or an
+  in-VPC/internal ALB front end). For a public browser SPA, keep the public endpoint
+  and rely on the JWT authorizer (and optionally WAF — see below).
+- **WAF caveat:** AWS WAF cannot be associated with an HTTP API. To add WAF
+  (e.g. rate-based rules, IP allowlists) you would either route the API through
+  CloudFront as an origin and attach WAF to the distribution, or migrate to REST API
+  and attach WAF directly. WAF can also be attached to the Cognito user pool to
+  protect the login/token endpoints.
+
+**Recommendation:** for the public-UI deployment, keep the public HTTP API + Cognito
+JWT auth; add CloudFront-fronted WAF for rate limiting/IP restriction if needed. Use
+a private REST API only when the entire access path (including the UI) is internal.
+
+### Container REST API (scaled-execution-containers)
+
+The separate `scaled-execution-containers` REST API uses **IAM authentication**
+(AWS Signature V4); callers need `execute-api:Invoke`. See that project's docs.
 
 ## Secrets Management
 
@@ -283,6 +307,9 @@ aws ecr start-image-scan \
 ### Before Deployment
 
 - [ ] Review and customize IAM policies
+- [ ] Keep `EnableAuth=true` (default) for any shared/reachable environment
+- [ ] Set `AllowedOrigin` to the exact UI URL (not `*`) when auth is enabled
+- [ ] Create Cognito users via `admin-create-user` (self-signup is disabled)
 - [ ] Configure VPC and subnets
 - [ ] Set up security groups
 - [ ] Enable ECR image scanning

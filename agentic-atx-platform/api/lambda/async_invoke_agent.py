@@ -46,6 +46,13 @@ def lambda_handler(event, context):
     if event.get('requestContext', {}).get('http', {}).get('method') == 'OPTIONS':
         return cors_response(200, '')
 
+    # Enforce auth at the function boundary (defense-in-depth). No-op when
+    # ENABLE_AUTH != "true"; otherwise requires API Gateway-validated JWT claims.
+    from auth import authorize
+    ok, auth_error, _claims = authorize(event)
+    if not ok:
+        return cors_response(401, json.dumps({'error': auth_error}))
+
     try:
         body = json.loads(event.get('body', '{}'))
         action = body.get('action', 'submit')
@@ -583,9 +590,9 @@ def cors_response(status_code, body):
         'statusCode': status_code,
         'headers': {
             'Content-Type': 'application/json',
-            'Access-Control-Allow-Origin': '*',
+            'Access-Control-Allow-Origin': os.environ.get('ALLOWED_ORIGIN', '*'),
             'Access-Control-Allow-Methods': 'POST, OPTIONS',
-            'Access-Control-Allow-Headers': 'Content-Type',
+            'Access-Control-Allow-Headers': 'Content-Type, Authorization',
         },
         'body': body
     }

@@ -58,6 +58,7 @@ Key settings:
 | `BEDROCK_MODEL_ID` | `us.anthropic.claude-sonnet-4-5-20250929-v1:0` | AI model for orchestrator |
 | `FARGATE_VCPU` | `2` | vCPU for Batch jobs |
 | `FARGATE_MEMORY` | `4096` | Memory (MB) for Batch jobs |
+| `ENABLE_AUTH` | `true` | Secure by default. `true` requires Cognito JWT auth; set `false` for the open blog/demo walkthrough |
 | `JOB_TIMEOUT` | `43200` | Max job duration (seconds) |
 
 See `deployment/config.env.template` for all options.
@@ -292,6 +293,75 @@ Create via the "Create Custom" tab. Published to the ATX registry via `atx custo
 | **Metrics** | CloudWatch dashboard for the `AWS/TransformCustom` namespace (Chart.js) |
 | **Knowledge** | Review/enable/disable/delete knowledge items per transformation |
 | **Chat** | Conversational interface to the orchestrator |
+
+---
+
+## Authentication
+
+The HTTP API is **secure by default** (`EnableAuth=true`). It requires a Cognito
+JWT access token; the `atx-async-invoke-agent` Lambda verifies the token
+(signature via the user pool JWKS, plus issuer/audience/expiry) and rejects
+unauthenticated calls with `401`. The React UI signs in through the Cognito
+Hosted UI (OAuth2 authorization-code + PKCE) and attaches the token to every
+API call.
+
+> **Open demo mode:** for the blog/demo walkthrough where no login is desired,
+> deploy with `ENABLE_AUTH=false` and build the UI without `VITE_AUTH_ENABLED`.
+
+### Enabling auth (default)
+
+1. **Deploy the stack** (creates the Cognito User Pool, app client, and hosted UI domain):
+   ```bash
+   cd sam && ./deploy.sh          # ENABLE_AUTH defaults to true
+   ```
+   Note the stack outputs: `UserPoolId`, `UserPoolClientId`, `CognitoHostedUiDomain`.
+
+2. **Create a user** (self-signup is disabled — admin-create only):
+   ```bash
+   aws cognito-idp admin-create-user \
+     --user-pool-id <UserPoolId> \
+     --username you@example.com \
+     --user-attributes Name=email,Value=you@example.com Name=email_verified,Value=true
+   # then set a permanent password:
+   aws cognito-idp admin-set-user-password \
+     --user-pool-id <UserPoolId> --username you@example.com \
+     --password '<StrongPassw0rd!>' --permanent
+   ```
+
+3. **Build + deploy the UI** with auth config from the stack outputs:
+   ```bash
+   cd ui && npm install
+   VITE_API_ENDPOINT=$API_URL \
+   VITE_AUTH_ENABLED=true \
+   VITE_COGNITO_DOMAIN=<CognitoHostedUiDomain> \
+   VITE_COGNITO_CLIENT_ID=<UserPoolClientId> \
+   VITE_AUTH_REDIRECT_URI=<your CloudFront URL> \
+   npx vite build
+   ./deploy-aws.sh
+   ```
+
+4. **Verify:** an unauthenticated call returns 401; the UI redirects to the
+   Cognito Hosted UI for login.
+   ```bash
+   curl -s -o /dev/null -w "%{http_code}\n" -X POST $API_URL/orchestrate \
+     -H 'Content-Type: application/json' -d '{"action":"direct","op":"list_jobs"}'   # -> 401
+   ```
+
+### UI auth build flags
+
+| Flag | Description |
+|------|-------------|
+| `VITE_AUTH_ENABLED` | `true` to enable the Hosted UI login flow |
+| `VITE_COGNITO_DOMAIN` | Cognito hosted UI domain (stack output `CognitoHostedUiDomain`) |
+| `VITE_COGNITO_CLIENT_ID` | App client id (stack output `UserPoolClientId`) |
+| `VITE_AUTH_REDIRECT_URI` | OAuth redirect URI (defaults to `window.location.origin`) |
+
+> **Design note:** auth is enforced at the **API Gateway JWT authorizer** — the
+> `/orchestrate` route rejects unauthenticated/invalid tokens with `401` at the edge,
+> before the Lambda is invoked. The Lambda (`auth.py`) additionally verifies the JWT
+> as defense-in-depth (and trusts gateway-validated claims when present). Raw
+> `AWS::ApiGatewayV2` resources are used (instead of SAM's HttpApi `Auth` shorthand)
+> so the authorizer can be attached conditionally on `EnableAuth`.
 
 ---
 

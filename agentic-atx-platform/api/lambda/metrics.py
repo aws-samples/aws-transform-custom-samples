@@ -282,8 +282,8 @@ def _get_job_counts():
                 token = resp.get('nextToken')
                 if not token:
                     break
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"Error counting {status} jobs: {e}")
         counts[status] = total
     return counts
 

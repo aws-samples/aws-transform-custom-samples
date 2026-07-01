@@ -1,3 +1,4 @@
+import { authedFetch } from "./auth"
 // Knowledge Items API client.
 //
 // Backend: get_knowledge_items.py logic ported into the agentic platform's
@@ -14,7 +15,7 @@ const API_BASE = import.meta.env.VITE_API_ENDPOINT || '/api'
 const USE_MOCK = (import.meta.env.VITE_KI_MOCK ?? 'true') !== 'false'
 
 async function ki(payload) {
-  const res = await fetch(`${API_BASE}/orchestrate`, {
+  const res = await authedFetch(`${API_BASE}/orchestrate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'direct', op: 'knowledge_items', ...payload }),

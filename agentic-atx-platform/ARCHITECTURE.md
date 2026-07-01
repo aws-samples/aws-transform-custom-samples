@@ -151,6 +151,28 @@ Knowledge items are generated DISABLED by ATX after a run; the UI lists them
 cache-first and only triggers the Batch refresh on an explicit "Pull from registry".
 ```
 
+### Authentication
+```
+Secure by default (EnableAuth=true).
+
+UI (Cognito Hosted UI, OAuth2 auth-code + PKCE)
+  → user signs in → app exchanges ?code= for an access token (sessionStorage)
+  → authedFetch attaches Authorization: Bearer <token> to every /orchestrate call
+
+API Gateway (raw ApiGatewayV2 + Cognito JWT authorizer)
+  → EnableAuth=true: /orchestrate route requires a valid Cognito JWT; rejects
+    unauthenticated/invalid tokens with 401 at the edge (Lambda not invoked)
+  → EnableAuth=false: route is open (AuthorizationType NONE) for blog/demo mode
+
+async_invoke_agent Lambda (auth.py) — defense-in-depth
+  → trusts gateway-validated claims when present; otherwise re-verifies the JWT
+    (JWKS signature, issuer, audience, expiry, token_use, client_id)
+  → internal async self-invokes and CORS preflight bypass the gate
+
+Note: raw ApiGatewayV2 resources are used (not SAM's HttpApi `Auth` shorthand) so
+the JWT authorizer can be attached conditionally via !If on EnableAuth.
+```
+
 ## Components
 
 | Component | Path | Purpose |
@@ -163,6 +185,7 @@ cache-first and only triggers the Batch refresh on an explicit "Pull from regist
 | Async Lambda | `api/lambda/async_invoke_agent.py` | Submit/poll/direct bridge |
 | Metrics | `api/lambda/metrics.py` | CloudWatch AWS/TransformCustom metrics (direct op) |
 | Knowledge Items | `api/lambda/knowledge_items.py` | List/enable/disable/delete/export KIs (direct op) |
+| Auth | `api/lambda/auth.py` | Cognito JWT verification (secure-by-default, fails closed) |
 | UI | `ui/src/` | React app (8 tabs) |
 | Infrastructure | `cdk/` | Batch, S3, VPC, CloudFront, AgentCore |
 | SAM Layer | `sam/` | AgentCore deploy Lambda + API (Option A) |
@@ -181,6 +204,7 @@ cache-first and only triggers the Batch refresh on an explicit "Pull from regist
 | API Gateway v2 (HTTP) | Single /orchestrate endpoint |
 | Lambda | Async bridge (submit/poll/direct) |
 | DynamoDB | Job tracking (persisted across sessions) |
+| Cognito (User Pool) | UI authentication — JWT verified in Lambda (when EnableAuth=true) |
 
 ## Project Structure
 
@@ -192,8 +216,10 @@ cache-first and only triggers the Batch refresh on an explicit "Pull from regist
 │   └── requirements.txt
 ├── api/lambda/                 # Async bridge Lambda
 │   ├── async_invoke_agent.py
+│   ├── auth.py                 # Cognito JWT verification (secure by default)
 │   ├── metrics.py              # CloudWatch metrics (op: metrics)
-│   └── knowledge_items.py      # Knowledge items (op: knowledge_items)
+│   ├── knowledge_items.py      # Knowledge items (op: knowledge_items)
+│   └── tests/                  # unittest suite (auth enforcement, no open endpoints)
 ├── ui/                         # React frontend (8 tabs)
 │   └── src/components/         # TransformationList, Form, CreateCustom, CsvUpload, JobTracker, Metrics, KnowledgeItems, Chat
 ├── cdk/                        # CDK stacks (Container, Infrastructure, AgentCore, UI)
