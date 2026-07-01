@@ -358,12 +358,26 @@ This library is consumed by two different analyses with different finding vocabu
 - **Self-paced links:** [SQL Server](https://catalog.workshops.aws/mma-mssql-pg/en-US) | [Oracle](https://catalog.workshops.aws/mma-oracle-pg/en-US) | [Sybase](https://catalog.workshops.aws/mma-sybase-pg)
 - **Pairs with:** DBC, DBOLA, AWS Transform for SQL Server, EBA, MAP.
 
-### SHIP (Security Health Improvement Program) `[MOD]` `Active`
-- **Signal patterns:** MOD findings indicate AWS security infrastructure gaps: missing CloudTrail, no encryption at rest, no GuardDuty/Security Hub, missing IAM best practices, no VPC flow logs. Multiple security-category findings with `severity_status` of `Needs Work` or `Critical`.
-- **DO NOT recommend when:** Security findings are application-level auth/authz only (those are ARA concerns, not SHIP); customer already has a security improvement plan; findings are isolated (single finding).
-- **What the customer gets:** Free AWS security posture assessment with personalized improvement roadmap covering identity, detection, infrastructure protection, data protection, and incident response.
-- **How to engage:** Talk to your AWS account team about the Security Health Improvement Program.
-- **Pairs with:** Well-Architected Review, MAP.
+### SHIP (Security Health Improvement Program) `[ARA+MOD]` `Active`
+- **Signal patterns:** ARA findings reference hardcoded credentials, missing secrets management, no CloudTrail/audit trail, unmonitored network exposure, missing encryption, or lack of vulnerability scanning. Also relevant when MOD identifies modernization pathways and the target AWS environment lacks foundational security services.
+- **DO NOT recommend when:** ARA Auth findings are purely application-layer agent readiness gaps (machine identity for agents, scoped agent permissions, agent identity suspension, on-behalf-of flows). These require application code changes, not AWS service enablement. Also skip if customer already has GuardDuty, Security Hub, Config, and IAM Access Analyzer active.
+- **Important distinction:** SHIP = infrastructure-layer security (are the right AWS security services enabled and operationalized?). ARA Auth dimension = application-layer agent readiness (can your app safely interact with autonomous agents?). Different layers. Don't conflate them.
+- **What the customer gets:** Free security posture assessment covering 9 foundational use cases (threat detection, CSPM, vulnerability management, configuration monitoring, application firewall, application security testing, credentials protection, network protection, key management). Establishes a baseline, delivers a prioritized improvement roadmap, and routes to deeper engagements as needed. Repeatable unlimited times.
+- **How to engage:** Talk to your AWS account team about the Security Health Improvement Program. Based on the security infrastructure findings in this report, SHIP maps your gaps to specific AWS services and provides a prioritized remediation roadmap at no cost.
+- **Time to value:** 2 weeks (Discovery Call → Delivery Meeting → Actionable Roadmap).
+- **Prerequisite:** None. Any customer, any size, any support tier.
+- **Directly resolves these findings:**
+  - "Hardcoded credentials / no secrets management" → Credentials Protection (Secrets Manager)
+  - "No audit logging / no CloudTrail" → Configuration Monitoring + Threat Detection
+  - "Missing encryption / no key management" → Key Management (KMS)
+  - "Unmonitored network exposure" → Network Protection + Vulnerability Management
+- **Does NOT resolve these ARA findings (recommend EBA or ProServe instead):**
+  - "No machine identity authentication for agents"
+  - "No scoped permissions per agent"
+  - "No agent identity suspension mechanism"
+  - "No action-level authorization"
+- **Inline remediation note:** For simple findings like "missing encryption at rest", the report should first recommend the direct fix (e.g., enable KMS encryption on the resource) in the remediation section. SHIP is recommended when there are **multiple** infrastructure security gaps that suggest a systemic posture problem, not for isolated single-service fixes.
+- **Pairs with:** Well-Architected Review, MAP (if remediation needs funding), Immersion Days (go deeper on specific services).
 
 ---
 

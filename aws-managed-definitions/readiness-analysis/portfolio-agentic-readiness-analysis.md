@@ -1358,7 +1358,7 @@ Table columns: `Program`, `Group`, `Description`, `Why Recommended`, `Duration`
 
 - Source: `recommended_actions[]` filtered to `status == "Triggered"`
 - Group values: `Funded Programs`, `Engagement Models` — render as grouped sections in that order (or a Group column), omitting any group with no triggered programs
-- The triggered set can include ANY `[ARA]` / `[ARA+MOD]` / `[ARA-anchor]` program from the AWS Program & GTM Library — not just the agentic anchors. Examples that may appear from ARA findings: MAP / MAP for AI Modernization (Funded), AI Assessment Program (Funded), Well-Architected Review (Funded), AI DLC / AXE / Innovation EBA / ACP / GenAI Innovation Center (Engagement Models), AgentStorming Workshop (Engagement Models)
+- The triggered set can include ANY `[ARA]` / `[ARA+MOD]` / `[ARA-anchor]` program from the AWS Program & GTM Library — not just the agentic anchors. Examples that may appear from ARA findings: MAP / MAP for AI Modernization (Funded), AI Assessment Program (Funded), SHIP (Funded — only for infrastructure security gaps like missing CloudTrail/encryption/secrets management, NOT for app-layer agent auth), Well-Architected Review (Funded), AI DLC / AXE / Innovation EBA / ACP / GenAI Innovation Center (Engagement Models), AgentStorming Workshop (Engagement Models)
 - Capped at 3–5 total per the library's selection rules. Do not display any internal numeric maturity score.
 
 #### Footer
