@@ -292,6 +292,7 @@ Create via the "Create Custom" tab. Published to the ATX registry via `atx custo
 | **Jobs** | Track job status, view results |
 | **Metrics** | CloudWatch dashboard for the `AWS/TransformCustom` namespace (Chart.js) |
 | **Knowledge** | Review/enable/disable/delete knowledge items per transformation |
+| **Chat** | Conversational interface to the orchestrator |
 
 ---
 
@@ -379,7 +380,7 @@ API call.
 │   ├── template.yaml           # SAM resources
 │   ├── deploy_agentcore.py     # Deploy Lambda (SDK-based)
 │   └── deploy.sh               # One-command SAM deploy
-├── ui/                         # React frontend (7 tabs)
+├── ui/                         # React frontend (8 tabs)
 │   └── src/components/
 ├── cdk/                        # CDK stacks
 │   └── lib/

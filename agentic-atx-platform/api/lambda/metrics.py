@@ -15,7 +15,8 @@ Entry point: get_metrics(params: dict) -> dict
   jobId:     required when type=job_detail
 """
 import os
-from datetime import datetime, timedelta
+import re
+from datetime import datetime, timezone, timedelta
 
 import boto3
 
@@ -23,6 +24,38 @@ batch = boto3.client('batch')
 cloudwatch = boto3.client('cloudwatch')
 
 VALID_TYPES = {'jobs', 'transform', 'transform_detail', 'lambda', 'api', 'all', 'job_list', 'job_detail'}
+
+
+def _utcnow():
+    """Naive UTC now (faithful replacement for the deprecated datetime.utcnow())."""
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
+
+def _utc_from_ms(ms):
+    """Naive UTC datetime from epoch ms (replacement for deprecated utcfromtimestamp)."""
+    return datetime.fromtimestamp(ms / 1000, timezone.utc).replace(tzinfo=None)
+
+
+def _iso_z(dt):
+    """ISO-8601 string with a trailing 'Z', matching the API's original format."""
+    return dt.isoformat() + 'Z'
+
+
+def _job_s3_output(job):
+    """Extract (s3_bucket, output_prefix) from a Batch job's container env/command."""
+    s3_bucket = None
+    for v in job.get('container', {}).get('environment', []):
+        if v.get('name') == 'S3_BUCKET':
+            s3_bucket = v.get('value')
+    output_prefix = 'transformations/'
+    cmd = job.get('container', {}).get('command', [])
+    try:
+        idx = cmd.index('--output')
+        if idx + 1 < len(cmd):
+            output_prefix = cmd[idx + 1]
+    except (ValueError, IndexError):
+        pass
+    return s3_bucket, output_prefix
 
 
 def get_metrics(params):
@@ -39,10 +72,10 @@ def get_metrics(params):
         end_time = datetime.fromisoformat(str(params['endDate']).replace('Z', ''))
     elif params.get('startDate'):
         start_time = datetime.fromisoformat(str(params['startDate']).replace('Z', ''))
-        end_time = datetime.utcnow()
+        end_time = _utcnow()
     else:
         period_hours = min(int(params.get('period', 24)), 720)
-        end_time = datetime.utcnow()
+        end_time = _utcnow()
         start_time = end_time - timedelta(hours=period_hours)
 
     if metric_type == 'job_list':
@@ -56,15 +89,15 @@ def get_metrics(params):
 
     if metric_type == 'transform_detail':
         return {
-            'startTime': start_time.isoformat() + 'Z',
-            'endTime': end_time.isoformat() + 'Z',
+            'startTime': _iso_z(start_time),
+            'endTime': _iso_z(end_time),
             'executions': _get_transform_executions(start_time, end_time),
         }
 
     fetch_all = metric_type == 'all'
     result = {
-        'startTime': start_time.isoformat() + 'Z',
-        'endTime': end_time.isoformat() + 'Z',
+        'startTime': _iso_z(start_time),
+        'endTime': _iso_z(end_time),
     }
     if fetch_all or metric_type == 'jobs':
         result['jobs'] = _get_job_counts()
@@ -143,7 +176,6 @@ def _get_job_detail(job_id):
                 logGroupName=log_group, logStreamName=log_stream,
                 limit=200, startFromHead=False,
             )
-            import re
             for ev in log_resp.get('events', []):
                 msg = ev.get('message', '')
                 m = re.search(r'/atx/custom/(\d{8}_\d{6}_[a-f0-9]+)/', msg)
@@ -154,22 +186,10 @@ def _get_job_detail(job_id):
             print(f"Error reading logs: {e}")
 
     if not conversation_id:
-        s3_bucket = None
-        for v in job.get('container', {}).get('environment', []):
-            if v.get('name') == 'S3_BUCKET':
-                s3_bucket = v.get('value')
-        cmd = job.get('container', {}).get('command', [])
-        output_prefix = 'transformations/'
-        try:
-            idx = cmd.index('--output')
-            if idx + 1 < len(cmd):
-                output_prefix = cmd[idx + 1]
-        except (ValueError, IndexError):
-            pass
+        s3_bucket, output_prefix = _job_s3_output(job)
         if s3_bucket:
             try:
                 s3_resp = s3_client.list_objects_v2(Bucket=s3_bucket, Prefix=output_prefix, MaxKeys=5)
-                import re
                 for obj in s3_resp.get('Contents', []):
                     m = re.search(r'/(\d{8}_\d{6}_[a-f0-9]+)/', obj['Key'])
                     if m:
@@ -180,26 +200,15 @@ def _get_job_detail(job_id):
 
     result['conversationId'] = conversation_id
     if conversation_id:
-        s3_bucket = None
-        for v in job.get('container', {}).get('environment', []):
-            if v.get('name') == 'S3_BUCKET':
-                s3_bucket = v.get('value')
-        cmd = job.get('container', {}).get('command', [])
-        output_prefix = 'transformations/'
-        try:
-            idx = cmd.index('--output')
-            if idx + 1 < len(cmd):
-                output_prefix = cmd[idx + 1]
-        except (ValueError, IndexError):
-            pass
+        s3_bucket, output_prefix = _job_s3_output(job)
         if s3_bucket:
             result['s3OutputPath'] = f"s3://{s3_bucket}/{output_prefix}{conversation_id}/"
 
     start_ms = job.get('createdAt') or job.get('startedAt')
     stop_ms = job.get('stoppedAt')
     if start_ms:
-        m_start = datetime.utcfromtimestamp(start_ms / 1000) - timedelta(minutes=5)
-        m_end = datetime.utcfromtimestamp(stop_ms / 1000) + timedelta(minutes=5) if stop_ms else datetime.utcnow()
+        m_start = _utc_from_ms(start_ms) - timedelta(minutes=5)
+        m_end = _utc_from_ms(stop_ms) + timedelta(minutes=5) if stop_ms else _utcnow()
 
         for fn in ['atx-trigger-job', 'atx-trigger-batch-jobs', 'atx-async-invoke-agent']:
             inv = _get_stat('AWS/Lambda', 'Invocations', 'FunctionName', fn, m_start, m_end, 'Sum')
@@ -247,7 +256,7 @@ def _get_job_transform_metrics(job_name, conversation_id, start_time, end_time):
 
 def _fmt_ts(ts_ms):
     if ts_ms:
-        return datetime.utcfromtimestamp(ts_ms / 1000).isoformat() + 'Z'
+        return _iso_z(_utc_from_ms(ts_ms))
     return None
 
 

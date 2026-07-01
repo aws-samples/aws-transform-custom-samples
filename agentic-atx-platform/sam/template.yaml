@@ -213,15 +213,20 @@ Resources:
                   - !Sub "arn:aws:s3:::${OutputBucketName}/*"
                   - !Sub "arn:aws:s3:::${SourceBucketName}"
                   - !Sub "arn:aws:s3:::${SourceBucketName}/*"
+              # DescribeJobs has no resource-level ARN support in AWS Batch
+              # (jobs are described by dynamic job id), so it requires "*".
               - Effect: Allow
                 Action: batch:DescribeJobs
                 Resource: "*"
               - Effect: Allow
                 Action: batch:ListJobs
-                Resource: "*"
+                Resource: !Sub "arn:aws:batch:${AwsRegion}:${AWS::AccountId}:job-queue/atx-job-queue"
               - Effect: Allow
                 Action: batch:SubmitJob
-                Resource: "*"
+                Resource:
+                  - !Sub "arn:aws:batch:${AwsRegion}:${AWS::AccountId}:job-queue/atx-job-queue"
+                  - !Sub "arn:aws:batch:${AwsRegion}:${AWS::AccountId}:job-definition/atx-transform-job"
+                  - !Sub "arn:aws:batch:${AwsRegion}:${AWS::AccountId}:job-definition/atx-transform-job:*"
               - Effect: Allow
                 Action:
                   - cloudwatch:GetMetricStatistics

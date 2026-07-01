@@ -12,6 +12,7 @@ import os
 import json
 import time
 import logging
+import re
 import boto3
 from typing import Any, Dict
 
@@ -41,7 +42,6 @@ def _get_source_bucket():
 # single hyphens, 1-64 chars, no leading/trailing/consecutive hyphens. Must match
 # the parent directory name. Normalize so `atx custom def publish` won't reject it.
 def _normalize_skill_name(name: str) -> str:
-    import re
     n = (name or "").strip().lower()
     n = re.sub(r'[^a-z0-9]+', '-', n)   # non-alphanumeric runs -> single hyphen
     n = re.sub(r'-{2,}', '-', n)         # collapse consecutive hyphens
