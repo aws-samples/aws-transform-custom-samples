@@ -91,6 +91,31 @@ The agentic platform exposes a single HTTP API (`POST /orchestrate`). It is
 - Self-signup is disabled; create users via `admin-create-user`.
 - Restrict `AllowedOrigin` to the exact UI URL (avoid `*`) when auth is enabled.
 
+### Private API endpoint (network isolation)
+
+The `/orchestrate` API is a **public** regional endpoint protected by the Cognito
+JWT authorizer. If you have private network access to AWS (VPN, Direct Connect, or
+in-VPC clients) and want to remove public internet exposure entirely, consider a
+private API. Important trade-offs:
+
+- **HTTP API (API Gateway v2) does not support private endpoints.** Private API is
+  a REST API (v1) feature — it uses an interface VPC endpoint (`execute-api`) plus a
+  resource policy that restricts access to your VPC/VPCe. Making this API private is
+  therefore a migration from HTTP API → REST API, not a config toggle.
+- **A browser UI cannot reach a private endpoint** over the public internet. Going
+  private only makes sense if the UI is also internal (VPN, WorkSpaces, or an
+  in-VPC/internal ALB front end). For a public browser SPA, keep the public endpoint
+  and rely on the JWT authorizer (and optionally WAF — see below).
+- **WAF caveat:** AWS WAF cannot be associated with an HTTP API. To add WAF
+  (e.g. rate-based rules, IP allowlists) you would either route the API through
+  CloudFront as an origin and attach WAF to the distribution, or migrate to REST API
+  and attach WAF directly. WAF can also be attached to the Cognito user pool to
+  protect the login/token endpoints.
+
+**Recommendation:** for the public-UI deployment, keep the public HTTP API + Cognito
+JWT auth; add CloudFront-fronted WAF for rate limiting/IP restriction if needed. Use
+a private REST API only when the entire access path (including the UI) is internal.
+
 ### Container REST API (scaled-execution-containers)
 
 The separate `scaled-execution-containers` REST API uses **IAM authentication**
