@@ -219,14 +219,15 @@ Resources:
                   - !Sub "arn:aws:s3:::${OutputBucketName}/*"
                   - !Sub "arn:aws:s3:::${SourceBucketName}"
                   - !Sub "arn:aws:s3:::${SourceBucketName}/*"
-              # DescribeJobs has no resource-level ARN support in AWS Batch
-              # (jobs are described by dynamic job id), so it requires "*".
+              # ListJobs and DescribeJobs do NOT support resource-level permissions
+              # in AWS Batch — scoping them to an ARN silently denies the call, so
+              # they must use "*". Only SubmitJob supports queue/definition ARNs.
               - Effect: Allow
                 Action: batch:DescribeJobs
                 Resource: "*"
               - Effect: Allow
                 Action: batch:ListJobs
-                Resource: !Sub "arn:aws:batch:${AwsRegion}:${AWS::AccountId}:job-queue/atx-job-queue"
+                Resource: "*"
               - Effect: Allow
                 Action: batch:SubmitJob
                 Resource:
