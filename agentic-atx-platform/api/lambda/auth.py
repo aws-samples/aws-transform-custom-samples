@@ -1,12 +1,14 @@
 """
-Auth enforcement for the async invoke Lambda.
+Defense-in-depth auth verification for the async invoke Lambda.
 
-Authentication is enforced here (not at the API Gateway) so a single EnableAuth
-toggle controls it cleanly — SAM cannot conditionally attach/detach a default JWT
-authorizer on one HTTP API. When ENABLE_AUTH=true, every HTTP request must carry a
-valid Cognito JWT in the Authorization header; the token is cryptographically
-verified (signature via the user pool JWKS, plus issuer/audience/expiry) before any
-action runs. When ENABLE_AUTH!=true the API is open (blog/demo mode).
+Primary enforcement is the API Gateway JWT authorizer on the /orchestrate route
+(raw ApiGatewayV2, attached conditionally on EnableAuth) — it rejects
+unauthenticated/invalid requests with 401 at the edge before this function runs.
+This module is the second layer: when API Gateway has validated the token it
+attaches the claims to the request, which we trust; otherwise (or as a safety net)
+we cryptographically verify the Cognito JWT ourselves (signature via the user pool
+JWKS, plus issuer/audience/expiry/token_use/client_id). When ENABLE_AUTH!=true the
+API is open (blog/demo mode). Fails closed if enabled but misconfigured.
 
 Verification uses PyJWT. The JWKS is fetched once per cold start and cached.
 """

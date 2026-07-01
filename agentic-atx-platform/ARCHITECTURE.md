@@ -159,14 +159,18 @@ UI (Cognito Hosted UI, OAuth2 auth-code + PKCE)
   → user signs in → app exchanges ?code= for an access token (sessionStorage)
   → authedFetch attaches Authorization: Bearer <token> to every /orchestrate call
 
-async_invoke_agent Lambda (auth.py)
-  → ENABLE_AUTH=true: verify Cognito JWT (JWKS signature, issuer, audience,
-    expiry, token_use, client_id) before routing any action; 401 on failure
-  → ENABLE_AUTH=false: open (blog/demo mode)
+API Gateway (raw ApiGatewayV2 + Cognito JWT authorizer)
+  → EnableAuth=true: /orchestrate route requires a valid Cognito JWT; rejects
+    unauthenticated/invalid tokens with 401 at the edge (Lambda not invoked)
+  → EnableAuth=false: route is open (AuthorizationType NONE) for blog/demo mode
+
+async_invoke_agent Lambda (auth.py) — defense-in-depth
+  → trusts gateway-validated claims when present; otherwise re-verifies the JWT
+    (JWKS signature, issuer, audience, expiry, token_use, client_id)
   → internal async self-invokes and CORS preflight bypass the gate
 
-Note: auth is enforced in the Lambda (not an API Gateway JWT authorizer) because
-SAM cannot conditionally toggle a default authorizer on one HTTP API.
+Note: raw ApiGatewayV2 resources are used (not SAM's HttpApi `Auth` shorthand) so
+the JWT authorizer can be attached conditionally via !If on EnableAuth.
 ```
 
 ## Components

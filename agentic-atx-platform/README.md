@@ -356,11 +356,12 @@ API call.
 | `VITE_COGNITO_CLIENT_ID` | App client id (stack output `UserPoolClientId`) |
 | `VITE_AUTH_REDIRECT_URI` | OAuth redirect URI (defaults to `window.location.origin`) |
 
-> **Design note:** auth is enforced in the Lambda rather than via an API Gateway
-> JWT authorizer. AWS SAM cannot conditionally toggle a default authorizer on a
-> single HTTP API, so the function performs full JWT verification and fails closed.
-> Unauthenticated requests reach the function but are rejected with 401 before any
-> Batch/AgentCore work runs.
+> **Design note:** auth is enforced at the **API Gateway JWT authorizer** — the
+> `/orchestrate` route rejects unauthenticated/invalid tokens with `401` at the edge,
+> before the Lambda is invoked. The Lambda (`auth.py`) additionally verifies the JWT
+> as defense-in-depth (and trusts gateway-validated claims when present). Raw
+> `AWS::ApiGatewayV2` resources are used (instead of SAM's HttpApi `Auth` shorthand)
+> so the authorizer can be attached conditionally on `EnableAuth`.
 
 ---
 

@@ -74,18 +74,18 @@ The agentic platform exposes a single HTTP API (`POST /orchestrate`). It is
 ✅ **Implemented:**
 - Cognito User Pool authentication; UI signs in via the Hosted UI (OAuth2
   authorization-code + PKCE)
-- The `atx-async-invoke-agent` Lambda verifies the Cognito JWT on every request
-  (JWKS signature, issuer, audience, expiry, token_use, client_id) and rejects
-  unauthenticated calls with `401`
+- **API Gateway JWT authorizer** on the `/orchestrate` route: unauthenticated or
+  invalid tokens are rejected with `401` at the edge, before the Lambda is invoked
+- Defense-in-depth: the `atx-async-invoke-agent` Lambda (`auth.py`) also verifies
+  the Cognito JWT (JWKS signature, issuer, audience, expiry, token_use, client_id),
+  trusting gateway-validated claims when present
 - Fails closed: if auth is enabled but misconfigured, requests are denied
 - CORS restricted to the configured UI origin (`AllowedOrigin`)
 - Internal async self-invokes (Lambda→Lambda) and CORS preflight bypass the gate
 
 ⚠️ **Notes / recommendations:**
-- Auth is enforced in the Lambda rather than an API Gateway JWT authorizer
-  (SAM cannot conditionally toggle a default authorizer on one HTTP API).
-  Unauthenticated requests reach the function but are rejected before any
-  Batch/AgentCore work runs.
+- The authorizer is implemented with raw `AWS::ApiGatewayV2` resources (not SAM's
+  HttpApi `Auth` shorthand) so it can be attached conditionally on `EnableAuth`.
 - `ENABLE_AUTH=false` deploys an **open** API for the blog/demo walkthrough only —
   do not use open mode for shared or internet-reachable environments.
 - Self-signup is disabled; create users via `admin-create-user`.
