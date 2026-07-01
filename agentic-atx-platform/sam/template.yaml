@@ -139,10 +139,16 @@ Resources:
                   - bedrock:InvokeModel
                   - bedrock:InvokeModelWithResponseStream
                 Resource: "*"
+              # SubmitJob scoped to the ATX job queue + definition; DescribeJobs
+              # has no resource-level support in AWS Batch, so it requires "*".
               - Effect: Allow
-                Action:
-                  - batch:SubmitJob
-                  - batch:DescribeJobs
+                Action: batch:SubmitJob
+                Resource:
+                  - !Sub "arn:aws:batch:${AwsRegion}:${AWS::AccountId}:job-queue/atx-job-queue"
+                  - !Sub "arn:aws:batch:${AwsRegion}:${AWS::AccountId}:job-definition/atx-transform-job"
+                  - !Sub "arn:aws:batch:${AwsRegion}:${AWS::AccountId}:job-definition/atx-transform-job:*"
+              - Effect: Allow
+                Action: batch:DescribeJobs
                 Resource: "*"
               - Effect: Allow
                 Action:
