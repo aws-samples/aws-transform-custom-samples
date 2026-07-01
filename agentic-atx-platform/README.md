@@ -286,9 +286,12 @@ Create via the "Create Custom" tab. Published to the ATX registry via `atx custo
 |-----|---------|
 | **Transformations** | Browse AWS-managed + published custom transforms |
 | **Execute** | Run a single transformation on a repository |
-| **Create Custom** | Define and publish custom transformations |
+| **Create Custom** | Define and publish custom transformations (SKILL.md format) |
 | **CSV Batch** | Upload CSV to process multiple repos |
 | **Jobs** | Track job status, view results |
+| **Metrics** | CloudWatch dashboard for the `AWS/TransformCustom` namespace (Chart.js) |
+| **Knowledge** | Review/enable/disable/delete knowledge items per transformation |
+| **Chat** | Conversational interface to the orchestrator |
 
 ---
 
@@ -301,12 +304,14 @@ Create via the "Create Custom" tab. Published to the ATX registry via `atx custo
 │   ├── Dockerfile              # Container image for CDK deployment
 │   └── requirements.txt
 ├── api/lambda/
-│   └── async_invoke_agent.py   # Async bridge (submit/poll/direct)
+│   ├── async_invoke_agent.py   # Async bridge (submit/poll/direct)
+│   ├── metrics.py              # CloudWatch AWS/TransformCustom metrics (op: metrics)
+│   └── knowledge_items.py      # Knowledge item ops (op: knowledge_items)
 ├── sam/                        # SAM template for AgentCore + API (Option A)
 │   ├── template.yaml           # SAM resources
 │   ├── deploy_agentcore.py     # Deploy Lambda (SDK-based)
 │   └── deploy.sh               # One-command SAM deploy
-├── ui/                         # React frontend (5 tabs)
+├── ui/                         # React frontend (8 tabs)
 │   └── src/components/
 ├── cdk/                        # CDK stacks
 │   └── lib/

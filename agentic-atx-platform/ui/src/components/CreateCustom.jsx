@@ -200,7 +200,7 @@ export default function CreateCustom({ submitAsync, onJobCreated, orchestrate })
         <div className="card">
           <div className="flex-between" style={{ marginBottom: 12 }}>
             <span style={{ color: '#c9d1d9', fontSize: 14, fontWeight: 500 }}>
-              Review: {name} — transformation_definition.md
+              Review: {name} — SKILL.md
             </span>
             <button className="btn btn-secondary btn-sm" onClick={() => setReviewMode(false)}>← Back</button>
           </div>
@@ -227,7 +227,7 @@ export default function CreateCustom({ submitAsync, onJobCreated, orchestrate })
         <h3 style={{ fontSize: 14, marginBottom: 8 }}>How it works</h3>
         <ol style={{ color: '#8b949e', fontSize: 12, lineHeight: 1.8, paddingLeft: 20 }}>
           <li>If a source repo is provided, a Batch job clones and analyzes the code</li>
-          <li>AI generates a <code>transformation_definition.md</code> based on your requirements and the code analysis</li>
+          <li>AI generates a <code>SKILL.md</code> (ATX skill format) based on your requirements and the code analysis</li>
           <li><strong>Create & Publish</strong>: auto-publishes immediately | <strong>Generate & Review</strong>: lets you edit before publishing</li>
           <li>A Batch job runs <code>atx custom def publish</code> to register it</li>
           <li>Once published, use it like any other transformation</li>

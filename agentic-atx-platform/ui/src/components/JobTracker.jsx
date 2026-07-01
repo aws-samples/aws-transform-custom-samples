@@ -396,13 +396,14 @@ function ViewDefinitionButton({ name }) {
         body: JSON.stringify({ action: 'direct', op: 'get_file', definition_name: name })
       })
       const result = await res.json()
+      const label = result.key ? result.key.replace('custom-definitions/', '') : `${name}/SKILL.md`
       if (result.content) {
-        setPreview({ name: `${name}/transformation_definition.md`, content: result.content })
+        setPreview({ name: label, content: result.content })
       } else {
-        setPreview({ name: `${name}/transformation_definition.md`, content: `Could not load: ${result.error || 'Unknown error'}` })
+        setPreview({ name: label, content: `Could not load: ${result.error || 'Unknown error'}` })
       }
     } catch (e) {
-      setPreview({ name: `${name}/transformation_definition.md`, content: `Error: ${e.message}` })
+      setPreview({ name: `${name}/SKILL.md`, content: `Error: ${e.message}` })
     }
     setLoading(false)
   }

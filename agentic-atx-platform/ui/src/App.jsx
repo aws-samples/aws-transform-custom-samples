@@ -5,8 +5,10 @@ import CreateCustom from './components/CreateCustom'
 import CsvUpload from './components/CsvUpload'
 import JobTracker from './components/JobTracker'
 import Chat from './components/Chat'
+import Metrics from './components/Metrics'
+import KnowledgeItems from './components/KnowledgeItems'
 
-const TABS = ['Transformations', 'Execute', 'Create Custom', 'CSV Batch', 'Jobs', 'Chat']
+const TABS = ['Transformations', 'Execute', 'Create Custom', 'CSV Batch', 'Jobs', 'Metrics', 'Knowledge', 'Chat']
 const API_BASE = import.meta.env.VITE_API_ENDPOINT || '/api'
 
 // Async orchestrator for AI operations
@@ -133,6 +135,8 @@ export default function App() {
         {tab === 'Create Custom' && <CreateCustom submitAsync={submitAsync} onJobCreated={addJob} orchestrate={orchestrate} />}
         {tab === 'CSV Batch' && <CsvUpload orchestrate={orchestrate} onJobsCreated={addJobs} />}
         {tab === 'Jobs' && <JobTracker orchestrate={orchestrate} directCall={directCall} jobs={jobs} setJobs={updateJobs} />}
+        {tab === 'Metrics' && <Metrics />}
+        {tab === 'Knowledge' && <KnowledgeItems />}
         {tab === 'Chat' && <Chat orchestrate={orchestrate} jobs={jobs} />}
       </main>
     </div>

@@ -4,7 +4,7 @@ CreateTransform Sub-Agent
 Creates custom transformation definitions by:
 1. Cloning repo to S3 via Batch job
 2. AI-driven file selection: list files → pick relevant ones → read them
-3. Generating transformation_definition.md using Bedrock with full source context
+3. Generating SKILL.md (ATX skill format) using Bedrock with full source context
 4. Publishing to ATX registry via Batch job
 """
 
@@ -12,6 +12,7 @@ import os
 import json
 import time
 import logging
+import re
 import boto3
 from typing import Any, Dict
 
@@ -35,6 +36,26 @@ def _get_account():
 
 def _get_source_bucket():
     return f"atx-source-code-{_get_account()}"
+
+
+# SKILL.md name rules (from ATX CLI skill discovery): lowercase alphanumeric +
+# single hyphens, 1-64 chars, no leading/trailing/consecutive hyphens. Must match
+# the parent directory name. Normalize so `atx custom def publish` won't reject it.
+def _normalize_skill_name(name: str) -> str:
+    n = (name or "").strip().lower()
+    n = re.sub(r'[^a-z0-9]+', '-', n)   # non-alphanumeric runs -> single hyphen
+    n = re.sub(r'-{2,}', '-', n)         # collapse consecutive hyphens
+    n = n.strip('-')                      # no leading/trailing hyphen
+    if not n:
+        n = "custom-transformation"
+    return n[:64].rstrip('-')
+
+
+# YAML-escape a value for the SKILL.md frontmatter (handles quotes/colons/newlines).
+def _yaml_escape(value: str) -> str:
+    s = (value or "").replace('\n', ' ').strip()
+    s = s.replace('\\', '\\\\').replace('"', '\\"')
+    return f'"{s}"'
 
 
 @tool
@@ -158,7 +179,7 @@ def read_repo_file(name: str, file_path: str) -> Dict[str, Any]:
 def generate_transformation_definition(name: str, description: str, requirements: str,
                                         source_context: str = "") -> Dict[str, Any]:
     """
-    Generate a transformation_definition.md file using Bedrock AI and upload to S3.
+    Generate a SKILL.md file (ATX skill format) using Bedrock AI and upload to S3.
 
     Args:
         name: Name for the transformation (e.g., 'add-structured-logging')
@@ -170,24 +191,25 @@ def generate_transformation_definition(name: str, description: str, requirements
         Dictionary with the generated definition and S3 location
     """
     bucket = _get_source_bucket()
+    skill_name = _normalize_skill_name(name)
 
-    prompt = f"""Create a transformation_definition.md file for AWS Transform custom.
+    prompt = f"""Create the instructions body for an AWS Transform custom SKILL.md file.
 
-Name: {name}
+Name: {skill_name}
 Description: {description}
 Requirements: {requirements}
 """
     if source_context:
         prompt += f"""
 The following is the actual source code from the target repository.
-Use this to make the transformation definition specific and accurate for this codebase.
+Use this to make the transformation instructions specific and accurate for this codebase.
 Reference actual file names, function names, class names, and patterns you see.
 
 {source_context}
 """
 
     prompt += """
-The file should contain clear, detailed instructions that an AI agent will follow to transform code.
+The content should contain clear, detailed instructions that an AI agent will follow to transform code.
 Include:
 - What changes to make (be specific based on the actual code patterns found)
 - Specific files and functions to modify
@@ -195,7 +217,8 @@ Include:
 - How to validate the changes
 - Edge cases to handle
 
-Output ONLY the markdown content, no code fences."""
+Output ONLY the markdown instructions body (no YAML frontmatter, no code fences).
+Do not include a top-level title line; it will be added automatically."""
 
     try:
         response = bedrock_runtime.invoke_model(
@@ -208,21 +231,35 @@ Output ONLY the markdown content, no code fences."""
             })
         )
         body = json.loads(response['body'].read())
-        definition_md = body['content'][0]['text'].strip()
+        instructions = body['content'][0]['text'].strip()
 
-        s3_key = f"custom-definitions/{name}/transformation_definition.md"
+        # Assemble SKILL.md: YAML frontmatter (name + description) + instructions.
+        # ATX requires `name` to match the parent directory and `description` to be 1-1024 chars.
+        desc = (description or skill_name).strip()
+        if len(desc) > 1024:
+            desc = desc[:1021] + '...'
+        skill_md = (
+            "---\n"
+            f"name: {skill_name}\n"
+            f"description: {_yaml_escape(desc)}\n"
+            "---\n"
+            f"# {skill_name}\n\n"
+            f"{instructions}\n"
+        )
+
+        s3_key = f"custom-definitions/{skill_name}/SKILL.md"
         s3_client.put_object(
             Bucket=bucket, Key=s3_key,
-            Body=definition_md.encode('utf-8'),
+            Body=skill_md.encode('utf-8'),
             ContentType='text/markdown'
         )
 
         return {
             "status": "success",
-            "name": name,
+            "name": skill_name,
             "s3_uri": f"s3://{bucket}/{s3_key}",
             "source_analyzed": bool(source_context),
-            "definition_preview": definition_md[:500] + "..." if len(definition_md) > 500 else definition_md,
+            "definition_preview": skill_md[:500] + "..." if len(skill_md) > 500 else skill_md,
         }
     except Exception as e:
         return {"status": "error", "error": str(e)}
@@ -241,20 +278,33 @@ def publish_transformation(name: str, description: str) -> Dict[str, Any]:
         Dictionary with the Batch job ID for the publish operation
     """
     bucket = _get_source_bucket()
-    s3_key = f"custom-definitions/{name}/transformation_definition.md"
+    skill_name = _normalize_skill_name(name)
 
-    try:
-        s3_client.head_object(Bucket=bucket, Key=s3_key)
-    except Exception:
-        return {"status": "error", "error": f"Definition not found: s3://{bucket}/{s3_key}. Generate it first."}
+    # Prefer the new SKILL.md format; fall back to the legacy transformation_definition.md
+    # so previously-generated definitions can still be published.
+    skill_key = f"custom-definitions/{skill_name}/SKILL.md"
+    legacy_key = f"custom-definitions/{skill_name}/transformation_definition.md"
+    staged_file = None
+    for candidate in (skill_key, legacy_key):
+        try:
+            s3_client.head_object(Bucket=bucket, Key=candidate)
+            staged_file = candidate
+            break
+        except Exception:
+            continue
+    if not staged_file:
+        return {"status": "error",
+                "error": f"Definition not found: s3://{bucket}/{skill_key} (or legacy transformation_definition.md). Generate it first."}
 
+    name = skill_name
     job_name = f"publish-{name}-{int(time.time())}"
     job_queue = os.environ.get('JOB_QUEUE_NAME', 'atx-job-queue')
     job_definition = os.environ.get('JOB_DEFINITION_NAME', 'atx-transform-job')
 
+    filename = staged_file.split('/')[-1]
     cmd = (
         f"mkdir -p /tmp/{name} && "
-        f"aws s3 cp s3://{bucket}/custom-definitions/{name}/transformation_definition.md /tmp/{name}/transformation_definition.md && "
+        f"aws s3 cp s3://{bucket}/{staged_file} /tmp/{name}/{filename} && "
         f"atx custom def publish -n {name} --description '{description}' --sd /tmp/{name}"
     )
 

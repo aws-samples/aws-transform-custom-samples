@@ -240,6 +240,28 @@ def _handle_direct(body):
         except Exception as e:
             return cors_response(500, json.dumps({'error': str(e)}))
 
+    elif op == 'metrics':
+        try:
+            from metrics import get_metrics
+            # Accept either a nested `params` object or flat keys on the body.
+            params = body.get('params') or {
+                k: body[k] for k in ('type', 'period', 'startDate', 'endDate', 'jobId')
+                if k in body
+            }
+            return cors_response(200, json.dumps(get_metrics(params)))
+        except ValueError as e:
+            return cors_response(400, json.dumps({'error': str(e)}))
+        except Exception as e:
+            return cors_response(500, json.dumps({'error': str(e)}))
+
+    elif op == 'knowledge_items':
+        try:
+            from knowledge_items import handle as _handle_ki
+            status_code, payload = _handle_ki(body)
+            return cors_response(status_code, json.dumps(payload))
+        except Exception as e:
+            return cors_response(500, json.dumps({'error': str(e)}))
+
     elif op in ('save_job', 'list_jobs', 'delete_job', 'update_job'):
         return _handle_jobs_ops(op, body)
 
@@ -254,7 +276,21 @@ def _handle_direct(body):
                 bucket = f"atx-source-code-{account}"
                 # Normalize name to lowercase-hyphenated (matches how create agent stores it)
                 normalized = def_name.lower().replace(' ', '-')
-                key = f"custom-definitions/{normalized}/transformation_definition.md"
+                # Prefer the new SKILL.md format; fall back to legacy transformation_definition.md
+                candidates = [
+                    f"custom-definitions/{normalized}/SKILL.md",
+                    f"custom-definitions/{normalized}/transformation_definition.md",
+                ]
+                key = ''
+                for cand in candidates:
+                    try:
+                        s3_client.head_object(Bucket=bucket, Key=cand)
+                        key = cand
+                        break
+                    except Exception:
+                        continue
+                if not key:
+                    key = candidates[0]  # report the expected new path if neither exists
             if not bucket or not key:
                 return cors_response(400, json.dumps({'error': 'Missing bucket/key or definition_name'}))
             obj = s3_client.get_object(Bucket=bucket, Key=key)
@@ -336,7 +372,7 @@ def _handle_direct(body):
         except Exception as e:
             return cors_response(500, json.dumps({'error': str(e)}))
 
-    return cors_response(400, json.dumps({'error': f'Unknown op: {op}. Use status, results, list_custom, check_publish, save_job, list_jobs, or delete_job'}))
+    return cors_response(400, json.dumps({'error': f'Unknown op: {op}. Use status, results, list_custom, check_publish, metrics, knowledge_items, save_job, list_jobs, or delete_job'}))
 
 
 def _handle_jobs_ops(op, body):

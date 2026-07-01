@@ -9,7 +9,7 @@ AI-powered code transformation platform built on Amazon Bedrock AgentCore and AW
 ```
 ┌──────────────────────────────────────────────────────────────┐
 │  UI (React + CloudFront)                                     │
-│  Tabs: Transformations | Execute | Create Custom | CSV Batch | Jobs │
+│  Tabs: Transformations | Execute | Create Custom | CSV Batch | Jobs | Metrics | Knowledge | Chat │
 └──────────────────────┬───────────────────────────────────────┘
                        │
               POST /orchestrate
@@ -85,7 +85,7 @@ UI → /orchestrate (submit) → Lambda (async) → AgentCore
 
   Step 4: Read selected files from S3 (up to 400K chars / ~100K tokens)
   Step 5: Generate definition (Bedrock with full source code context)
-    → Uploads transformation_definition.md to S3
+    → Uploads SKILL.md (ATX skill format) to S3
   Step 6: Publish (Batch job: atx custom def publish)
     → status.json written to S3
 
@@ -127,6 +127,30 @@ Rows without transformation: orchestrator follows find → create → execute ch
   → execute_transform_agent runs the transformation
 ```
 
+### Metrics
+```
+UI Metrics tab → /orchestrate (direct, op: metrics) → Lambda metrics.py
+  → CloudWatch ListMetrics + GetMetricData on AWS/TransformCustom namespace
+  → Aggregates totals, byTransformation, byRepository, per-execution detail
+  → Batch ListJobs for job-status counts
+No AI/AgentCore involved — deterministic CloudWatch query. Ported from
+scaled-execution-containers get_metrics.py. The dashboard (Chart.js) reads
+type=all + type=transform_detail and derives execution status from the
+TransformationExecutionCompleted metric (not the raw ExecutionStatus dimension).
+```
+
+### Knowledge Items
+```
+UI Knowledge tab → /orchestrate (direct, op: knowledge_items) → Lambda knowledge_items.py
+  Read (cache):   kiAction=get      → S3 cache (instant)
+  Refresh:        kiAction=submit   → Batch job (atx custom def list-ki --json)
+                  kiAction=poll     → scrape job logs → write S3 cache → return items
+  Write:          kiAction=update-ki-status | delete-ki | update-ki-config | export-ki-markdown
+                  → Batch job (atx custom def ...)
+Knowledge items are generated DISABLED by ATX after a run; the UI lists them
+cache-first and only triggers the Batch refresh on an explicit "Pull from registry".
+```
+
 ## Components
 
 | Component | Path | Purpose |
@@ -137,7 +161,9 @@ Rows without transformation: orchestrator follows find → create → execute ch
 | Create tool | `orchestrator/tools/createtransform.py` | Analyze source, generate definition, publish |
 | Memory | `orchestrator/tools/memory_*.py` | AgentCore short-term memory |
 | Async Lambda | `api/lambda/async_invoke_agent.py` | Submit/poll/direct bridge |
-| UI | `ui/src/` | React app (5 tabs) |
+| Metrics | `api/lambda/metrics.py` | CloudWatch AWS/TransformCustom metrics (direct op) |
+| Knowledge Items | `api/lambda/knowledge_items.py` | List/enable/disable/delete/export KIs (direct op) |
+| UI | `ui/src/` | React app (8 tabs) |
 | Infrastructure | `cdk/` | Batch, S3, VPC, CloudFront, AgentCore |
 | SAM Layer | `sam/` | AgentCore deploy Lambda + API (Option A) |
 | Container | `../scaled-execution-containers/container/` | ATX CLI Docker image (shared) |
@@ -165,9 +191,11 @@ Rows without transformation: orchestrator follows find → create → execute ch
 │   ├── Dockerfile              # Container image for CDK deployment
 │   └── requirements.txt
 ├── api/lambda/                 # Async bridge Lambda
-│   └── async_invoke_agent.py
-├── ui/                         # React frontend (5 tabs)
-│   └── src/components/         # TransformationList, Form, CreateCustom, CsvUpload, JobTracker
+│   ├── async_invoke_agent.py
+│   ├── metrics.py              # CloudWatch metrics (op: metrics)
+│   └── knowledge_items.py      # Knowledge items (op: knowledge_items)
+├── ui/                         # React frontend (8 tabs)
+│   └── src/components/         # TransformationList, Form, CreateCustom, CsvUpload, JobTracker, Metrics, KnowledgeItems, Chat
 ├── cdk/                        # CDK stacks (Container, Infrastructure, AgentCore, UI)
 │   └── lib/
 │       ├── container-stack.ts      # ECR + Docker image (builds from ../../../scaled-execution-containers/container/)

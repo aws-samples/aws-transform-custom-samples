@@ -23,6 +23,10 @@ Parameters:
     Type: String
     Default: ""
     Description: ECR URI for the orchestrator container (built by deploy.sh)
+  AgentRuntimeArn:
+    Type: String
+    Default: ""
+    Description: AgentCore runtime ARN (set after the orchestrator is deployed). Preserved across redeploys.
 
 Globals:
   Function:
@@ -185,9 +189,29 @@ Resources:
                   - !Sub "arn:aws:s3:::${OutputBucketName}/*"
                   - !Sub "arn:aws:s3:::${SourceBucketName}"
                   - !Sub "arn:aws:s3:::${SourceBucketName}/*"
+              # DescribeJobs has no resource-level ARN support in AWS Batch
+              # (jobs are described by dynamic job id), so it requires "*".
               - Effect: Allow
                 Action: batch:DescribeJobs
                 Resource: "*"
+              - Effect: Allow
+                Action: batch:ListJobs
+                Resource: !Sub "arn:aws:batch:${AwsRegion}:${AWS::AccountId}:job-queue/atx-job-queue"
+              - Effect: Allow
+                Action: batch:SubmitJob
+                Resource:
+                  - !Sub "arn:aws:batch:${AwsRegion}:${AWS::AccountId}:job-queue/atx-job-queue"
+                  - !Sub "arn:aws:batch:${AwsRegion}:${AWS::AccountId}:job-definition/atx-transform-job"
+                  - !Sub "arn:aws:batch:${AwsRegion}:${AWS::AccountId}:job-definition/atx-transform-job:*"
+              - Effect: Allow
+                Action:
+                  - cloudwatch:GetMetricStatistics
+                  - cloudwatch:ListMetrics
+                  - cloudwatch:GetMetricData
+                Resource: "*"
+              - Effect: Allow
+                Action: logs:GetLogEvents
+                Resource: !Sub "arn:aws:logs:${AwsRegion}:${AWS::AccountId}:log-group:/aws/batch/atx-transform:*"
               - Effect: Allow
                 Action: sts:GetCallerIdentity
                 Resource: "*"
@@ -221,8 +245,10 @@ Resources:
       Tracing: Active
       Environment:
         Variables:
-          AGENT_RUNTIME_ARN: ""  # Updated after deploy-agent is invoked
+          AGENT_RUNTIME_ARN: !Ref AgentRuntimeArn
           RESULT_BUCKET: !Ref OutputBucketName
+          JOB_QUEUE_NAME: atx-job-queue
+          JOB_DEFINITION_NAME: atx-transform-job
       Events:
         Orchestrate:
           Type: HttpApi
