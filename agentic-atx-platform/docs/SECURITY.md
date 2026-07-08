@@ -91,6 +91,32 @@ The agentic platform exposes a single HTTP API (`POST /orchestrate`). It is
 - Self-signup is disabled; create users via `admin-create-user`.
 - Restrict `AllowedOrigin` to the exact UI URL (avoid `*`) when auth is enabled.
 
+### Extending auth: federation (SAML / OIDC / SSO)
+
+Auth is intentionally built on Cognito + the Hosted UI so it can be extended to an
+organization's existing identity provider **without changing the UI or API** — both
+already redirect to the Hosted UI and consume Cognito-issued JWTs, so the token the
+gateway authorizer validates is identical regardless of how the user signed in.
+
+To federate with a corporate IdP:
+
+- **SAML 2.0** (Okta, Microsoft Entra ID / Azure AD, PingFederate, ADFS, etc.):
+  add an `AWS::Cognito::UserPoolIdentityProvider` with `ProviderType: SAML` pointing
+  at the IdP metadata (URL or file), map SAML assertion attributes (email, name,
+  groups) to Cognito attributes, and add the provider to the app client's
+  `SupportedIdentityProviders`. Register Cognito's ACS URL + entity ID as a relying
+  party on the IdP side.
+- **OIDC** (if the IdP speaks OpenID Connect): same pattern with
+  `ProviderType: OIDC` — often simpler than SAML.
+- **AWS workforce SSO:** IAM Identity Center is an option for AWS-centric orgs.
+
+Notes:
+- No app changes are required — federation is a Cognito-side configuration.
+- For **authorization** (roles/permissions), map the IdP's group/role claims into
+  the token and gate actions in the app (see the scopes/groups discussion).
+- This sample ships with Cognito-native users by default; federation is left as a
+  documented extension point so teams can wire in their own IdP for their use case.
+
 ### Private API endpoint (network isolation)
 
 The `/orchestrate` API is a **public** regional endpoint protected by the Cognito
