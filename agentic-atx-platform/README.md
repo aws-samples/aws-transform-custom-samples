@@ -316,7 +316,10 @@ API call.
    ```
    Note the stack outputs: `UserPoolId`, `UserPoolClientId`, `CognitoHostedUiDomain`.
 
-2. **Create a user** (self-signup is disabled — admin-create only):
+2. **Create a user** — required to access the app. Only users you add to the
+   Cognito User Pool can sign in; self-signup is disabled (admin-create only), so
+   no one can reach the UI until at least one user exists. Repeat for each person
+   who needs access.
    ```bash
    aws cognito-idp admin-create-user \
      --user-pool-id <UserPoolId> \
@@ -327,6 +330,9 @@ API call.
      --user-pool-id <UserPoolId> --username you@example.com \
      --password '<StrongPassw0rd!>' --permanent
    ```
+   > Without `--permanent`, an admin-created user is left in `FORCE_CHANGE_PASSWORD`
+   > and will be prompted to set a new password on first sign-in. You can also create
+   > users from the Cognito console (User pools → your pool → Users → Create user).
 
 3. **Build + deploy the UI** with auth config from the stack outputs:
    ```bash
@@ -340,8 +346,9 @@ API call.
    ./deploy-aws.sh
    ```
 
-4. **Verify:** an unauthenticated call returns 401; the UI redirects to the
-   Cognito Hosted UI for login.
+4. **Verify:** an unauthenticated call returns 401; opening the UI redirects to the
+   Cognito Hosted UI, where you sign in as the user created in step 2. After login
+   the app loads and API calls carry the bearer token.
    ```bash
    curl -s -o /dev/null -w "%{http_code}\n" -X POST $API_URL/orchestrate \
      -H 'Content-Type: application/json' -d '{"action":"direct","op":"list_jobs"}'   # -> 401
