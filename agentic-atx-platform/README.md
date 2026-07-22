@@ -370,6 +370,36 @@ API call.
 > `AWS::ApiGatewayV2` resources are used (instead of SAM's HttpApi `Auth` shorthand)
 > so the authorizer can be attached conditionally on `EnableAuth`.
 
+### Upgrading from the pre-auth version
+
+Updating an existing (pre-auth) deployment introduces **two breaking changes** —
+plan for them:
+
+1. **The API endpoint URL changes.** The API moved from `AWS::Serverless::HttpApi`
+   to raw `AWS::ApiGatewayV2::Api` (so the JWT authorizer can be conditional).
+   CloudFormation replaces the API, so its ID/URL changes on update. You must rebuild
+   the UI with the new `VITE_API_ENDPOINT` (from the `ApiEndpoint` stack output) and
+   repoint any external integrations.
+2. **Auth is on by default.** `EnableAuth` defaults to `true`, so after the update the
+   API requires a Cognito login. Open deployments will stop working until you create
+   users and rebuild the UI with the `VITE_AUTH_*` flags. To intentionally keep the
+   old open behavior, deploy with `ENABLE_AUTH=false` (you still get the new endpoint).
+
+**Upgrade runbook:**
+```
+1. Deploy the stack (sam/deploy.sh) — note the new ApiEndpoint + Cognito outputs
+2. Create user(s):  aws cognito-idp admin-create-user ...  (see "Create a user" above)
+3. Rebuild + redeploy the UI with VITE_API_ENDPOINT (new) + VITE_AUTH_* flags
+4. Verify: unauthenticated call -> 401; UI login works
+```
+
+> **Hardening notes:** the UI sets a Content-Security-Policy (`script-src 'self'`) as
+> the primary XSS mitigation, since the short-lived access token lives in
+> `sessionStorage` (no refresh token is stored in the browser). For stronger coverage,
+> set CSP and `frame-ancestors`/HSTS via a CloudFront response-headers policy, and
+> consider a backend-for-frontend with HttpOnly cookies if browser token storage must
+> be eliminated. See `docs/SECURITY.md`.
+
 ---
 
 ## Project Structure

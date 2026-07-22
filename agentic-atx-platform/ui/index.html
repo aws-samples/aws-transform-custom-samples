@@ -3,6 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      Content-Security-Policy: primary XSS mitigation. `script-src 'self'` blocks
+      injected/remote scripts (which is what would read the access token from
+      sessionStorage), and connect-src limits where the page can send data to
+      same-origin + AWS API Gateway + Cognito. Note: frame-ancestors and some
+      directives only take effect as a real HTTP header — set those via the
+      CloudFront response-headers policy for full coverage (see docs/SECURITY.md).
+    -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://*.execute-api.*.amazonaws.com https://*.amazoncognito.com https://cognito-idp.*.amazonaws.com; base-uri 'self'; object-src 'none'; frame-ancestors 'none'" />
     <title>ATX Transform</title>
   </head>
   <body>

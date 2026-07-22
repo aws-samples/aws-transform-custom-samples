@@ -91,6 +91,24 @@ The agentic platform exposes a single HTTP API (`POST /orchestrate`). It is
 - Self-signup is disabled; create users via `admin-create-user`.
 - Restrict `AllowedOrigin` to the exact UI URL (avoid `*`) when auth is enabled.
 
+### Browser token storage & XSS
+
+The UI holds the **access token** in `sessionStorage` (cleared on tab close) and
+does **not** store a refresh token in the browser — on expiry the user re-auths via
+the Hosted UI, so there is no long-lived credential to steal. Access tokens are
+short-lived (60 min). Mitigations against token theft via XSS:
+
+- The UI ships a **Content-Security-Policy** (`script-src 'self'`, restricted
+  `connect-src`) as a `<meta>` tag — this blocks injected/remote scripts, the primary
+  vector for reading the token.
+- For stronger enforcement, also serve CSP as a real **HTTP header** via a CloudFront
+  response-headers policy (some directives, e.g. `frame-ancestors`, only take effect
+  as a header), along with `Strict-Transport-Security` and `X-Content-Type-Options`.
+- To eliminate browser token storage entirely, use a **backend-for-frontend (BFF)**:
+  exchange the code server-side and keep the session in an `HttpOnly`, `Secure`,
+  `SameSite` cookie. This is a larger change (the API Gateway JWT authorizer expects an
+  `Authorization` header, not a cookie) and is left as a documented hardening option.
+
 ### Extending auth: federation (SAML / OIDC / SSO)
 
 Auth is intentionally built on Cognito + the Hosted UI so it can be extended to an
