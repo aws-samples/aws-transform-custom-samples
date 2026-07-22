@@ -75,10 +75,9 @@ class TestHandlerAuthEnabled(unittest.TestCase):
                 self.assertEqual(resp, {'ok': True})
 
     def test_valid_token_passes_auth_gate(self):
-        # Mock the auth module the handler imports so a valid token passes the gate.
+        # authorize is imported at module top, so patch the handler's bound reference.
         with mock.patch.dict(os.environ, {'ENABLE_AUTH': 'true'}, clear=False):
-            import auth as auth_mod
-            with mock.patch.object(auth_mod, 'authorize', return_value=(True, None, {'sub': 'u'})), \
+            with mock.patch.object(self.handler, 'authorize', return_value=(True, None, {'sub': 'u'})), \
                  mock.patch.object(self.handler, '_handle_submit', return_value=self.handler.cors_response(200, '{"status":"SUBMITTED"}')) as m:
                 ev = http_event(action='submit', token='good')
                 resp = self.handler.lambda_handler(ev, None)

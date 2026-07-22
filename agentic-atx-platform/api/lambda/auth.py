@@ -59,7 +59,12 @@ def _get_jwk_client():
 
 
 def _bearer_token(event) -> str:
-    """Extract the bearer token from the Authorization header (case-insensitive)."""
+    """Extract the token from a well-formed 'Authorization: Bearer <token>' header.
+
+    Requires the RFC 6750 Bearer scheme (case-insensitive on the scheme name).
+    Anything else — a raw token without the scheme, a different scheme, or a
+    malformed header — returns '' and is rejected.
+    """
     headers = event.get('headers') or {}
     auth_header = ''
     for k, v in headers.items():
@@ -71,8 +76,7 @@ def _bearer_token(event) -> str:
     parts = auth_header.split()
     if len(parts) == 2 and parts[0].lower() == 'bearer':
         return parts[1]
-    # Some clients send the raw token without the Bearer prefix.
-    return auth_header.strip()
+    return ''
 
 
 def _gateway_claims(event) -> dict:

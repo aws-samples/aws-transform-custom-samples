@@ -132,9 +132,14 @@ class TestBearerExtraction(unittest.TestCase):
         ev = {'headers': {'authorization': 'Bearer abc'}}
         self.assertEqual(auth._bearer_token(ev), 'abc')
 
-    def test_raw_token_without_prefix(self):
+    def test_raw_token_without_prefix_rejected(self):
+        # Raw token without the Bearer scheme is not accepted (RFC 6750).
         ev = {'headers': {'Authorization': 'abc'}}
-        self.assertEqual(auth._bearer_token(ev), 'abc')
+        self.assertEqual(auth._bearer_token(ev), '')
+
+    def test_non_bearer_scheme_rejected(self):
+        ev = {'headers': {'Authorization': 'Basic dXNlcjpwYXNz'}}
+        self.assertEqual(auth._bearer_token(ev), '')
 
     def test_no_header(self):
         self.assertEqual(auth._bearer_token({'headers': {}}), '')

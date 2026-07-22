@@ -11,6 +11,8 @@ import os
 import logging
 import boto3
 
+from auth import authorize
+
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
 
@@ -48,7 +50,6 @@ def lambda_handler(event, context):
 
     # Enforce auth at the function boundary (defense-in-depth). No-op when
     # ENABLE_AUTH != "true"; otherwise requires API Gateway-validated JWT claims.
-    from auth import authorize
     ok, auth_error, _claims = authorize(event)
     if not ok:
         return cors_response(401, json.dumps({'error': auth_error}))
