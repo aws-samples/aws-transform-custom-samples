@@ -137,6 +137,15 @@ No AI/AgentCore involved — deterministic CloudWatch query. Ported from
 scaled-execution-containers get_metrics.py. The dashboard (Chart.js) reads
 type=all + type=transform_detail and derives execution status from the
 TransformationExecutionCompleted metric (not the raw ExecutionStatus dimension).
+
+Limitation — ~14-day window: metrics.py discovers which metrics/dimensions exist
+via cloudwatch:ListMetrics, which only returns metrics that published data in the
+last ~2 weeks. So the dashboard reflects only ~the last 14 days of activity
+regardless of the selected range, and shows empty if nothing has run recently
+(the underlying data points persist in CloudWatch but aren't rediscovered). The UI
+range selector is capped at 14 days for this reason. Longer historical lookback
+would require discovering metrics another way (e.g. cached dimension sets,
+CloudWatch Metrics Insights, or a per-run metrics snapshot in DynamoDB/S3).
 ```
 
 ### Knowledge Items

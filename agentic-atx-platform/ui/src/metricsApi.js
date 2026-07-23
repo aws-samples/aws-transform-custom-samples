@@ -26,13 +26,15 @@ import { authedFetch } from "./auth"
 const API_BASE = import.meta.env.VITE_API_ENDPOINT || '/api'
 const USE_MOCK = (import.meta.env.VITE_METRICS_MOCK ?? 'true') !== 'false'
 
-// period (hours) for each UI range option
-const RANGE_HOURS = { '24h': 24, '7d': 168, '30d': 720 }
+// period (hours) for each UI range option. Capped at 14 days because CloudWatch
+// ListMetrics (used to discover metrics) only returns metrics active in the last
+// ~14 days — longer windows would always come back empty.
+const RANGE_HOURS = { '24h': 24, '7d': 168, '14d': 336 }
 
 /**
  * Fetch aggregate metrics (type=all) for a UI range.
  * @param {Object} opts
- * @param {string} opts.range - '24h' | '7d' | '30d'
+ * @param {string} opts.range - '24h' | '7d' | '14d'
  * @returns raw get_metrics.py response (see shape above)
  */
 export async function fetchMetrics({ range = '7d' } = {}) {
@@ -124,7 +126,7 @@ export function typeSplit(executions = []) {
 // ---- Mock data (shaped identically to get_metrics.py) ----
 
 function mockMetrics(range) {
-  const scale = range === '24h' ? 0.3 : range === '30d' ? 3 : 1
+  const scale = range === '24h' ? 0.3 : range === '14d' ? 2 : 1
   const r = (n) => Math.round(n * scale)
   return {
     startTime: new Date(Date.now() - (RANGE_HOURS[range] || 168) * 3600_000).toISOString(),

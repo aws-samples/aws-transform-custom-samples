@@ -334,17 +334,22 @@ API call.
    > and will be prompted to set a new password on first sign-in. You can also create
    > users from the Cognito console (User pools → your pool → Users → Create user).
 
-3. **Build + deploy the UI** with auth config from the stack outputs:
+3. **Build + deploy the UI** with auth config from the stack outputs. Copy
+   `ui/.env.example` to `ui/.env` and fill in the values (Vite auto-loads `.env`):
    ```bash
    cd ui && npm install
-   VITE_API_ENDPOINT=$API_URL \
-   VITE_AUTH_ENABLED=true \
-   VITE_COGNITO_DOMAIN=<CognitoHostedUiDomain> \
-   VITE_COGNITO_CLIENT_ID=<UserPoolClientId> \
-   VITE_AUTH_REDIRECT_URI=<your CloudFront URL> \
+   cp .env.example .env          # then edit .env with your stack outputs
    npx vite build
    ./deploy-aws.sh
    ```
+   `.env` is gitignored. The values map to stack outputs: `VITE_API_ENDPOINT` ←
+   `ApiEndpoint`, `VITE_COGNITO_DOMAIN` ← `CognitoHostedUiDomain`,
+   `VITE_COGNITO_CLIENT_ID` ← `UserPoolClientId`. (You can also pass them inline
+   instead of using `.env`, e.g. `VITE_API_ENDPOINT=$API_URL ... npx vite build`.)
+
+   > These same vars drive the generated Content-Security-Policy (`connect-src` is
+   > scoped to your exact API + Cognito origins), so they must be correct or the
+   > browser will block API/login calls.
 
 4. **Verify:** an unauthenticated call returns 401; opening the UI redirects to the
    Cognito Hosted UI, where you sign in as the user created in step 2. After login
@@ -395,10 +400,13 @@ plan for them:
 
 > **Hardening notes:** the UI sets a Content-Security-Policy (`script-src 'self'`) as
 > the primary XSS mitigation, since the short-lived access token lives in
-> `sessionStorage` (no refresh token is stored in the browser). For stronger coverage,
-> set CSP and `frame-ancestors`/HSTS via a CloudFront response-headers policy, and
-> consider a backend-for-frontend with HttpOnly cookies if browser token storage must
-> be eliminated. See `docs/SECURITY.md`.
+> `sessionStorage` (no refresh token is stored in the browser). The CSP is generated
+> at build time (`vite.config.js`) and scopes `connect-src` to the **exact** API
+> Gateway and Cognito origins from `VITE_API_ENDPOINT` / `VITE_COGNITO_DOMAIN` — so
+> those build vars must be correct or the browser will block API/login calls. For
+> stronger coverage, also set CSP and `frame-ancestors`/HSTS via a CloudFront
+> response-headers policy, and consider a backend-for-frontend with HttpOnly cookies
+> if browser token storage must be eliminated. See `docs/SECURITY.md`.
 
 ---
 

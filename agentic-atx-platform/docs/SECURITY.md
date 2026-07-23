@@ -101,9 +101,12 @@ short-lived (60 min). Mitigations against token theft via XSS:
 - The UI ships a **Content-Security-Policy** (`script-src 'self'`, restricted
   `connect-src`) as a `<meta>` tag — this blocks injected/remote scripts, the primary
   vector for reading the token.
-- For stronger enforcement, also serve CSP as a real **HTTP header** via a CloudFront
-  response-headers policy (some directives, e.g. `frame-ancestors`, only take effect
-  as a header), along with `Strict-Transport-Security` and `X-Content-Type-Options`.
+- **Planned follow-up:** serve security headers via a **CloudFront response-headers
+  policy** — CSP as a real HTTP header plus `frame-ancestors`/`X-Frame-Options`
+  (clickjacking), `Strict-Transport-Security` (HSTS), `X-Content-Type-Options: nosniff`,
+  and `Referrer-Policy`. These are header-only directives (a `<meta>` CSP cannot set
+  them), so the meta tag deliberately omits `frame-ancestors`. AWS's managed
+  `SecurityHeadersPolicy` covers most of these with minimal config.
 - To eliminate browser token storage entirely, use a **backend-for-frontend (BFF)**:
   exchange the code server-side and keep the session in an `HttpOnly`, `Secure`,
   `SameSite` cookie. This is a larger change (the API Gateway JWT authorizer expects an

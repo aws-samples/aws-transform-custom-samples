@@ -4,14 +4,15 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <!--
-      Content-Security-Policy: primary XSS mitigation. `script-src 'self'` blocks
-      injected/remote scripts (which is what would read the access token from
-      sessionStorage), and connect-src limits where the page can send data to
-      same-origin + AWS API Gateway + Cognito. Note: frame-ancestors and some
-      directives only take effect as a real HTTP header — set those via the
-      CloudFront response-headers policy for full coverage (see docs/SECURITY.md).
+      Content-Security-Policy: primary XSS mitigation. Injected at build time by the
+      cspPlugin in vite.config.js so connect-src is scoped to the EXACT API Gateway
+      and Cognito origins this build targets (not a broad *.amazonaws.com wildcard).
+      `script-src 'self'` blocks injected/remote scripts (which would read the access
+      token from sessionStorage). Header-only directives (frame-ancestors, HSTS,
+      X-Frame-Options) are intentionally NOT in this meta tag — they're planned via a
+      CloudFront response-headers policy (see docs/SECURITY.md).
     -->
-    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' https://*.amazonaws.com https://*.amazoncognito.com; base-uri 'self'; object-src 'none'; frame-ancestors 'none'" />
+    <!--CSP_META-->
     <title>ATX Transform</title>
   </head>
   <body>
