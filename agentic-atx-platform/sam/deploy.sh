@@ -73,7 +73,11 @@ echo "4. Building SAM application..."
 SAM_CLI_CONTAINER_TOOL=docker sam build 2>&1
 echo ""
 
-echo "5. Deploying SAM stack..."
+# Auth is secure-by-default (EnableAuth=true). For the open blog/demo walkthrough,
+# export ENABLE_AUTH=false before running this script.
+AUTH_OVERRIDE="EnableAuth=${ENABLE_AUTH:-true}"
+
+echo "5. Deploying SAM stack... (auth: ${ENABLE_AUTH:-true})"
 sam deploy \
     --stack-name AtxAgentCoreSAM \
     --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
@@ -82,6 +86,7 @@ sam deploy \
         SourceBucketName="${SOURCE_BUCKET}" \
         AwsRegion="${REGION}" \
         ${MODEL_OVERRIDE} \
+        ${AUTH_OVERRIDE} \
         OrchestratorContainerUri="${ORCH_ECR_URI}:latest" \
     --no-confirm-changeset \
     --no-fail-on-empty-changeset \

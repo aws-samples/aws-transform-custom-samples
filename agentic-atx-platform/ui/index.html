@@ -3,6 +3,16 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!--
+      Content-Security-Policy: primary XSS mitigation. Injected at build time by the
+      cspPlugin in vite.config.js so connect-src is scoped to the EXACT API Gateway
+      and Cognito origins this build targets (not a broad *.amazonaws.com wildcard).
+      `script-src 'self'` blocks injected/remote scripts (which would read the access
+      token from sessionStorage). Header-only directives (frame-ancestors, HSTS,
+      X-Frame-Options) are intentionally NOT in this meta tag — they're planned via a
+      CloudFront response-headers policy (see docs/SECURITY.md).
+    -->
+    <!--CSP_META-->
     <title>ATX Transform</title>
   </head>
   <body>

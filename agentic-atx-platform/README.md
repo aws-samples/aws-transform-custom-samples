@@ -58,6 +58,7 @@ Key settings:
 | `BEDROCK_MODEL_ID` | `us.anthropic.claude-sonnet-4-5-20250929-v1:0` | AI model for orchestrator |
 | `FARGATE_VCPU` | `2` | vCPU for Batch jobs |
 | `FARGATE_MEMORY` | `4096` | Memory (MB) for Batch jobs |
+| `ENABLE_AUTH` | `true` | Secure by default. `true` requires Cognito JWT auth; set `false` for the open blog/demo walkthrough |
 | `JOB_TIMEOUT` | `43200` | Max job duration (seconds) |
 
 See `deployment/config.env.template` for all options.
@@ -292,6 +293,120 @@ Create via the "Create Custom" tab. Published to the ATX registry via `atx custo
 | **Metrics** | CloudWatch dashboard for the `AWS/TransformCustom` namespace (Chart.js) |
 | **Knowledge** | Review/enable/disable/delete knowledge items per transformation |
 | **Chat** | Conversational interface to the orchestrator |
+
+---
+
+## Authentication
+
+The HTTP API is **secure by default** (`EnableAuth=true`). It requires a Cognito
+JWT access token; the `atx-async-invoke-agent` Lambda verifies the token
+(signature via the user pool JWKS, plus issuer/audience/expiry) and rejects
+unauthenticated calls with `401`. The React UI signs in through the Cognito
+Hosted UI (OAuth2 authorization-code + PKCE) and attaches the token to every
+API call.
+
+> **Open demo mode:** for the blog/demo walkthrough where no login is desired,
+> deploy with `ENABLE_AUTH=false` and build the UI without `VITE_AUTH_ENABLED`.
+
+### Enabling auth (default)
+
+1. **Deploy the stack** (creates the Cognito User Pool, app client, and hosted UI domain):
+   ```bash
+   cd sam && ./deploy.sh          # ENABLE_AUTH defaults to true
+   ```
+   Note the stack outputs: `UserPoolId`, `UserPoolClientId`, `CognitoHostedUiDomain`.
+
+2. **Create a user** — required to access the app. Only users you add to the
+   Cognito User Pool can sign in; self-signup is disabled (admin-create only), so
+   no one can reach the UI until at least one user exists. Repeat for each person
+   who needs access.
+   ```bash
+   aws cognito-idp admin-create-user \
+     --user-pool-id <UserPoolId> \
+     --username you@example.com \
+     --user-attributes Name=email,Value=you@example.com Name=email_verified,Value=true
+   # then set a permanent password:
+   aws cognito-idp admin-set-user-password \
+     --user-pool-id <UserPoolId> --username you@example.com \
+     --password '<StrongPassw0rd!>' --permanent
+   ```
+   > Without `--permanent`, an admin-created user is left in `FORCE_CHANGE_PASSWORD`
+   > and will be prompted to set a new password on first sign-in. You can also create
+   > users from the Cognito console (User pools → your pool → Users → Create user).
+
+3. **Build + deploy the UI** with auth config from the stack outputs. Copy
+   `ui/.env.example` to `ui/.env` and fill in the values (Vite auto-loads `.env`):
+   ```bash
+   cd ui && npm install
+   cp .env.example .env          # then edit .env with your stack outputs
+   npx vite build
+   ./deploy-aws.sh
+   ```
+   `.env` is gitignored. The values map to stack outputs: `VITE_API_ENDPOINT` ←
+   `ApiEndpoint`, `VITE_COGNITO_DOMAIN` ← `CognitoHostedUiDomain`,
+   `VITE_COGNITO_CLIENT_ID` ← `UserPoolClientId`. (You can also pass them inline
+   instead of using `.env`, e.g. `VITE_API_ENDPOINT=$API_URL ... npx vite build`.)
+
+   > These same vars drive the generated Content-Security-Policy (`connect-src` is
+   > scoped to your exact API + Cognito origins), so they must be correct or the
+   > browser will block API/login calls.
+
+4. **Verify:** an unauthenticated call returns 401; opening the UI redirects to the
+   Cognito Hosted UI, where you sign in as the user created in step 2. After login
+   the app loads and API calls carry the bearer token.
+   ```bash
+   curl -s -o /dev/null -w "%{http_code}\n" -X POST $API_URL/orchestrate \
+     -H 'Content-Type: application/json' -d '{"action":"direct","op":"list_jobs"}'   # -> 401
+   ```
+
+### UI auth build flags
+
+| Flag | Description |
+|------|-------------|
+| `VITE_AUTH_ENABLED` | `true` to enable the Hosted UI login flow |
+| `VITE_COGNITO_DOMAIN` | Cognito hosted UI domain (stack output `CognitoHostedUiDomain`) |
+| `VITE_COGNITO_CLIENT_ID` | App client id (stack output `UserPoolClientId`) |
+| `VITE_AUTH_REDIRECT_URI` | OAuth redirect URI (defaults to `window.location.origin`) |
+
+> **Design note:** auth is enforced at the **API Gateway JWT authorizer** — the
+> `/orchestrate` route rejects unauthenticated/invalid tokens with `401` at the edge,
+> before the Lambda is invoked. The Lambda (`auth.py`) additionally verifies the JWT
+> as defense-in-depth (and trusts gateway-validated claims when present). Raw
+> `AWS::ApiGatewayV2` resources are used (instead of SAM's HttpApi `Auth` shorthand)
+> so the authorizer can be attached conditionally on `EnableAuth`.
+
+### Upgrading from the pre-auth version
+
+Updating an existing (pre-auth) deployment introduces **two breaking changes** —
+plan for them:
+
+1. **The API endpoint URL changes.** The API moved from `AWS::Serverless::HttpApi`
+   to raw `AWS::ApiGatewayV2::Api` (so the JWT authorizer can be conditional).
+   CloudFormation replaces the API, so its ID/URL changes on update. You must rebuild
+   the UI with the new `VITE_API_ENDPOINT` (from the `ApiEndpoint` stack output) and
+   repoint any external integrations.
+2. **Auth is on by default.** `EnableAuth` defaults to `true`, so after the update the
+   API requires a Cognito login. Open deployments will stop working until you create
+   users and rebuild the UI with the `VITE_AUTH_*` flags. To intentionally keep the
+   old open behavior, deploy with `ENABLE_AUTH=false` (you still get the new endpoint).
+
+**Upgrade runbook:**
+```
+1. Deploy the stack (sam/deploy.sh) — note the new ApiEndpoint + Cognito outputs
+2. Create user(s):  aws cognito-idp admin-create-user ...  (see "Create a user" above)
+3. Rebuild + redeploy the UI with VITE_API_ENDPOINT (new) + VITE_AUTH_* flags
+4. Verify: unauthenticated call -> 401; UI login works
+```
+
+> **Hardening notes:** the UI sets a Content-Security-Policy (`script-src 'self'`) as
+> the primary XSS mitigation, since the short-lived access token lives in
+> `sessionStorage` (no refresh token is stored in the browser). The CSP is generated
+> at build time (`vite.config.js`) and scopes `connect-src` to the **exact** API
+> Gateway and Cognito origins from `VITE_API_ENDPOINT` / `VITE_COGNITO_DOMAIN` — so
+> those build vars must be correct or the browser will block API/login calls. For
+> stronger coverage, also set CSP and `frame-ancestors`/HSTS via a CloudFront
+> response-headers policy, and consider a backend-for-frontend with HttpOnly cookies
+> if browser token storage must be eliminated. See `docs/SECURITY.md`.
 
 ---
 

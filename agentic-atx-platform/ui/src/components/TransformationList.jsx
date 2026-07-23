@@ -1,3 +1,4 @@
+import { authedFetch } from "../auth"
 import React, { useState, useEffect } from 'react'
 import { MANAGED_TRANSFORMATIONS } from '../transformations'
 
@@ -6,7 +7,7 @@ const API_BASE = import.meta.env.VITE_API_ENDPOINT || '/api'
 const GITHUB_BASE = 'https://github.com/aws-samples/aws-transform-custom-samples/tree/main/aws-managed-definitions'
 
 async function directCall(op, extra = {}) {
-  const res = await fetch(`${API_BASE}/orchestrate`, {
+  const res = await authedFetch(`${API_BASE}/orchestrate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'direct', op, ...extra })
@@ -23,7 +24,7 @@ function CustomTransformCard({ name, description }) {
     setLoading(true)
     try {
       const normalized = name.toLowerCase().replace(/\s+/g, '-')
-      const res = await fetch(`${API_BASE}/orchestrate`, {
+      const res = await authedFetch(`${API_BASE}/orchestrate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'direct', op: 'get_file', definition_name: normalized })

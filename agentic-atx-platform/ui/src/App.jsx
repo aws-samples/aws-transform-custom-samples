@@ -1,3 +1,4 @@
+import { authedFetch, authEnabled, handleAuthRedirect, isAuthenticated, login, logout } from "./auth"
 import React, { useState, useEffect } from 'react'
 import TransformationList from './components/TransformationList'
 import TransformationForm from './components/TransformationForm'
@@ -13,7 +14,7 @@ const API_BASE = import.meta.env.VITE_API_ENDPOINT || '/api'
 
 // Async orchestrator for AI operations
 async function orchestrate(prompt, { onStep, pollIntervalMs = 5000, maxPollMs = 300000 } = {}) {
-  const submitRes = await fetch(`${API_BASE}/orchestrate`, {
+  const submitRes = await authedFetch(`${API_BASE}/orchestrate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'submit', prompt })
@@ -24,7 +25,7 @@ async function orchestrate(prompt, { onStep, pollIntervalMs = 5000, maxPollMs = 
   const deadline = Date.now() + maxPollMs
   while (Date.now() < deadline) {
     await new Promise(r => setTimeout(r, pollIntervalMs))
-    const pollRes = await fetch(`${API_BASE}/orchestrate`, {
+    const pollRes = await authedFetch(`${API_BASE}/orchestrate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'poll', request_id })
@@ -46,7 +47,7 @@ async function orchestrate(prompt, { onStep, pollIntervalMs = 5000, maxPollMs = 
 
 // Direct calls for fast operations (status, results) - no AI overhead
 async function directCall(op, job_id) {
-  const res = await fetch(`${API_BASE}/orchestrate`, {
+  const res = await authedFetch(`${API_BASE}/orchestrate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'direct', op, job_id })
@@ -56,7 +57,7 @@ async function directCall(op, job_id) {
 
 // Fire-and-forget: submit to orchestrator without waiting for result
 async function submitAsync(prompt) {
-  const res = await fetch(`${API_BASE}/orchestrate`, {
+  const res = await authedFetch(`${API_BASE}/orchestrate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'submit', prompt })
@@ -68,12 +69,33 @@ export default function App() {
   const [tab, setTab] = useState('Transformations')
   const [jobs, setJobs] = useState([])
   const [jobsLoaded, setJobsLoaded] = useState(false)
+  const [authReady, setAuthReady] = useState(!authEnabled())
+  const [authed, setAuthed] = useState(isAuthenticated())
 
-  // Load jobs from DynamoDB on mount
+  // Handle the Cognito redirect (?code=...) and gate the app on auth when enabled.
   useEffect(() => {
+    if (!authEnabled()) { setAuthReady(true); setAuthed(true); return }
+    let cancelled = false
+    ;(async () => {
+      await handleAuthRedirect()
+      if (cancelled) return
+      if (isAuthenticated()) {
+        setAuthed(true)
+        setAuthReady(true)
+      } else {
+        // Not signed in — redirect to the Cognito Hosted UI.
+        login()
+      }
+    })()
+    return () => { cancelled = true }
+  }, [])
+
+  // Load jobs from DynamoDB on mount (only once authenticated)
+  useEffect(() => {
+    if (!authed) return
     async function loadJobs() {
       try {
-        const res = await fetch(`${API_BASE}/orchestrate`, {
+        const res = await authedFetch(`${API_BASE}/orchestrate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'direct', op: 'list_jobs' })
@@ -84,7 +106,7 @@ export default function App() {
       setJobsLoaded(true)
     }
     loadJobs()
-  }, [])
+  }, [authed])
 
   function updateJobs(updater) {
     setJobs(prev => {
@@ -96,7 +118,7 @@ export default function App() {
   const addJob = (job) => {
     updateJobs(prev => [job, ...prev])
     // Persist to DynamoDB
-    fetch(`${API_BASE}/orchestrate`, {
+    authedFetch(`${API_BASE}/orchestrate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'direct', op: 'save_job', job })
@@ -107,7 +129,7 @@ export default function App() {
     updateJobs(prev => [...newJobs, ...prev])
     // Persist all to DynamoDB
     newJobs.forEach(job => {
-      fetch(`${API_BASE}/orchestrate`, {
+      authedFetch(`${API_BASE}/orchestrate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'direct', op: 'save_job', job })
@@ -115,11 +137,28 @@ export default function App() {
     })
   }
 
+  // While auth is initializing/redirecting, don't render the app shell.
+  if (!authReady) {
+    return (
+      <div className="app">
+        <header><h1>ATX Transform</h1></header>
+        <div className="card"><span className="spinner" /><span className="loading-text">Signing in...</span></div>
+      </div>
+    )
+  }
+
   return (
     <div className="app">
       <header>
-        <h1>ATX Transform</h1>
-        <p className="subtitle">AI-Powered Code Transformation Platform</p>
+        <div className="flex-between">
+          <div>
+            <h1>ATX Transform</h1>
+            <p className="subtitle">AI-Powered Code Transformation Platform</p>
+          </div>
+          {authEnabled() && (
+            <button className="btn btn-secondary btn-sm" onClick={logout}>Sign out</button>
+          )}
+        </div>
       </header>
       <nav>
         {TABS.map(t => (

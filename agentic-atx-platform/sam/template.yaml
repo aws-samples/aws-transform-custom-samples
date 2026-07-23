@@ -27,6 +27,30 @@ Parameters:
     Type: String
     Default: ""
     Description: AgentCore runtime ARN (set after the orchestrator is deployed). Preserved across redeploys.
+  EnableAuth:
+    Type: String
+    Default: "true"
+    AllowedValues: ["true", "false"]
+    Description: >
+      Secure by default. When "true" (default), the API requires a valid Cognito JWT
+      (verified in the Lambda) and provisions a Cognito User Pool. Set to "false" only
+      for the open blog/demo walkthrough where no authentication is desired.
+  AllowedOrigin:
+    Type: String
+    Default: "*"
+    Description: >
+      CORS allowed origin. Use "*" for demo; set to the CloudFront/UI URL when auth is enabled.
+  CognitoCallbackUrl:
+    Type: String
+    Default: "https://localhost:3000"
+    Description: OAuth callback URL for the Cognito hosted UI (the deployed UI URL).
+  CognitoLogoutUrl:
+    Type: String
+    Default: "https://localhost:3000"
+    Description: OAuth sign-out redirect URL for the Cognito hosted UI.
+
+Conditions:
+  AuthEnabled: !Equals [!Ref EnableAuth, "true"]
 
 Globals:
   Function:
@@ -115,10 +139,16 @@ Resources:
                   - bedrock:InvokeModel
                   - bedrock:InvokeModelWithResponseStream
                 Resource: "*"
+              # SubmitJob scoped to the ATX job queue + definition; DescribeJobs
+              # has no resource-level support in AWS Batch, so it requires "*".
               - Effect: Allow
-                Action:
-                  - batch:SubmitJob
-                  - batch:DescribeJobs
+                Action: batch:SubmitJob
+                Resource:
+                  - !Sub "arn:aws:batch:${AwsRegion}:${AWS::AccountId}:job-queue/atx-job-queue"
+                  - !Sub "arn:aws:batch:${AwsRegion}:${AWS::AccountId}:job-definition/atx-transform-job"
+                  - !Sub "arn:aws:batch:${AwsRegion}:${AWS::AccountId}:job-definition/atx-transform-job:*"
+              - Effect: Allow
+                Action: batch:DescribeJobs
                 Resource: "*"
               - Effect: Allow
                 Action:
@@ -189,14 +219,15 @@ Resources:
                   - !Sub "arn:aws:s3:::${OutputBucketName}/*"
                   - !Sub "arn:aws:s3:::${SourceBucketName}"
                   - !Sub "arn:aws:s3:::${SourceBucketName}/*"
-              # DescribeJobs has no resource-level ARN support in AWS Batch
-              # (jobs are described by dynamic job id), so it requires "*".
+              # ListJobs and DescribeJobs do NOT support resource-level permissions
+              # in AWS Batch — scoping them to an ARN silently denies the call, so
+              # they must use "*". Only SubmitJob supports queue/definition ARNs.
               - Effect: Allow
                 Action: batch:DescribeJobs
                 Resource: "*"
               - Effect: Allow
                 Action: batch:ListJobs
-                Resource: !Sub "arn:aws:batch:${AwsRegion}:${AWS::AccountId}:job-queue/atx-job-queue"
+                Resource: "*"
               - Effect: Allow
                 Action: batch:SubmitJob
                 Resource:
@@ -249,29 +280,144 @@ Resources:
           RESULT_BUCKET: !Ref OutputBucketName
           JOB_QUEUE_NAME: atx-job-queue
           JOB_DEFINITION_NAME: atx-transform-job
-      Events:
-        Orchestrate:
-          Type: HttpApi
-          Properties:
-            Path: /orchestrate
-            Method: POST
-            ApiId: !Ref HttpApi
+          ENABLE_AUTH: !Ref EnableAuth
+          EXPECTED_TOKEN_USE: "access"
+          ALLOWED_ORIGIN: !Ref AllowedOrigin
+          COGNITO_USER_POOL_ID: !If [AuthEnabled, !Ref UserPool, ""]
+          COGNITO_APP_CLIENT_ID: !If [AuthEnabled, !Ref UserPoolClient, ""]
+
+  # Allow API Gateway to invoke the async function (explicit, since the HttpApi
+  # event is replaced by raw ApiGatewayV2 resources below).
+  AsyncInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref AsyncInvokeFunction
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:aws:execute-api:${AwsRegion}:${AWS::AccountId}:${HttpApi}/*/*/orchestrate"
 
   # ========================================
-  # 3. HTTP API Gateway
+  # 3. HTTP API Gateway (raw ApiGatewayV2 so the JWT authorizer can be conditional)
   # ========================================
+  # When EnableAuth=true, a JWT authorizer (Cognito) is created and attached to the
+  # /orchestrate route (AuthorizationType: JWT). When false, the route is open
+  # (AuthorizationType: NONE). Using raw ApiGatewayV2 resources lets these properties
+  # be conditional via !If — which SAM's HttpApi `Auth` shorthand does not allow.
+  # The Lambda (auth.py) still verifies the JWT as defense-in-depth.
   HttpApi:
-    Type: AWS::Serverless::HttpApi
+    Type: AWS::ApiGatewayV2::Api
     Properties:
-      StageName: prod
+      Name: AtxAgentCoreSAM
+      ProtocolType: HTTP
       CorsConfiguration:
         AllowOrigins:
-          - "*"
+          - !Ref AllowedOrigin
         AllowMethods:
           - POST
+          - OPTIONS
         AllowHeaders:
           - content-type
+          - authorization
         MaxAge: 86400
+
+  HttpApiIntegration:
+    Type: AWS::ApiGatewayV2::Integration
+    Properties:
+      ApiId: !Ref HttpApi
+      IntegrationType: AWS_PROXY
+      IntegrationUri: !GetAtt AsyncInvokeFunction.Arn
+      PayloadFormatVersion: "2.0"
+
+  # Cognito JWT authorizer — only created when auth is enabled.
+  HttpApiJwtAuthorizer:
+    Type: AWS::ApiGatewayV2::Authorizer
+    Condition: AuthEnabled
+    Properties:
+      ApiId: !Ref HttpApi
+      AuthorizerType: JWT
+      Name: CognitoJwtAuthorizer
+      IdentitySource:
+        - "$request.header.Authorization"
+      JwtConfiguration:
+        Issuer: !Sub "https://cognito-idp.${AwsRegion}.amazonaws.com/${UserPool}"
+        Audience:
+          - !Ref UserPoolClient
+
+  HttpApiRoute:
+    Type: AWS::ApiGatewayV2::Route
+    Properties:
+      ApiId: !Ref HttpApi
+      RouteKey: "POST /orchestrate"
+      Target: !Sub "integrations/${HttpApiIntegration}"
+      AuthorizationType: !If [AuthEnabled, "JWT", "NONE"]
+      AuthorizerId: !If [AuthEnabled, !Ref HttpApiJwtAuthorizer, !Ref "AWS::NoValue"]
+
+  HttpApiStage:
+    Type: AWS::ApiGatewayV2::Stage
+    Properties:
+      ApiId: !Ref HttpApi
+      StageName: prod
+      AutoDeploy: true
+
+  # ========================================
+  # 4. Cognito (created only when EnableAuth=true)
+  # ========================================
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Condition: AuthEnabled
+    Properties:
+      UserPoolName: atx-transform-users
+      AutoVerifiedAttributes:
+        - email
+      UsernameAttributes:
+        - email
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: true
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 12
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Condition: AuthEnabled
+    Properties:
+      ClientName: atx-transform-ui
+      UserPoolId: !Ref UserPool
+      GenerateSecret: false
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthFlows:
+        - code
+      AllowedOAuthScopes:
+        - email
+        - openid
+        - profile
+      SupportedIdentityProviders:
+        - COGNITO
+      CallbackURLs:
+        - !Ref CognitoCallbackUrl
+      LogoutURLs:
+        - !Ref CognitoLogoutUrl
+      ExplicitAuthFlows:
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      AccessTokenValidity: 60
+      IdTokenValidity: 60
+      RefreshTokenValidity: 30
+      TokenValidityUnits:
+        AccessToken: minutes
+        IdToken: minutes
+        RefreshToken: days
+
+  UserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Condition: AuthEnabled
+    Properties:
+      Domain: !Sub "atx-transform-${AWS::AccountId}"
+      UserPoolId: !Ref UserPool
 
 Outputs:
   ApiEndpoint:
@@ -286,3 +432,15 @@ Outputs:
   AsyncLambdaName:
     Description: Async invoke Lambda function name
     Value: !Ref AsyncInvokeFunction
+  UserPoolId:
+    Description: Cognito User Pool ID (only when auth enabled)
+    Condition: AuthEnabled
+    Value: !Ref UserPool
+  UserPoolClientId:
+    Description: Cognito User Pool App Client ID (only when auth enabled)
+    Condition: AuthEnabled
+    Value: !Ref UserPoolClient
+  CognitoHostedUiDomain:
+    Description: Cognito hosted UI domain (only when auth enabled)
+    Condition: AuthEnabled
+    Value: !Sub "https://atx-transform-${AWS::AccountId}.auth.${AwsRegion}.amazoncognito.com"

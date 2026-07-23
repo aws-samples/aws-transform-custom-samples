@@ -1,3 +1,4 @@
+import { authedFetch } from "../auth"
 import React, { useState, useEffect, useRef } from 'react'
 
 function timeAgo(date) {
@@ -41,7 +42,7 @@ function ResultsSummary({ data }) {
     setPreview(null)
     try {
       const API = import.meta.env.VITE_API_ENDPOINT || '/api'
-      const res = await fetch(`${API}/orchestrate`, {
+      const res = await authedFetch(`${API}/orchestrate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'direct', op: 'get_file', bucket, key: file.key })
@@ -61,7 +62,7 @@ function ResultsSummary({ data }) {
   async function downloadFile(file) {
     try {
       const API = import.meta.env.VITE_API_ENDPOINT || '/api'
-      const res = await fetch(`${API}/orchestrate`, {
+      const res = await authedFetch(`${API}/orchestrate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'direct', op: 'download_url', bucket, key: file.key })
@@ -83,7 +84,7 @@ function ResultsSummary({ data }) {
     try {
       const API = import.meta.env.VITE_API_ENDPOINT || '/api'
       const prefix = data.results_location?.replace(`s3://${bucket}/`, '') || ''
-      const startRes = await fetch(`${API}/orchestrate`, {
+      const startRes = await authedFetch(`${API}/orchestrate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'direct', op: 'download_all', bucket, prefix })
@@ -111,7 +112,7 @@ function ResultsSummary({ data }) {
 
       for (let i = 0; i < 120; i++) {
         await new Promise(r => setTimeout(r, 5000))
-        const pollRes = await fetch(`${API}/orchestrate`, {
+        const pollRes = await authedFetch(`${API}/orchestrate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'direct', op: 'download_all', bucket, prefix, download_id: downloadId })
@@ -227,7 +228,7 @@ function FailedJobDetails({ jobId, job, onRetry }) {
     async function loadDetails() {
       try {
         const API = import.meta.env.VITE_API_ENDPOINT || '/api'
-        const res = await fetch(`${API}/orchestrate`, {
+        const res = await authedFetch(`${API}/orchestrate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'direct', op: 'status', job_id: jobId })
@@ -328,7 +329,7 @@ function PreviewAndPublish({ job, orchestrate, onPublished }) {
       try {
         const API = import.meta.env.VITE_API_ENDPOINT || '/api'
         const normalized = job.transformation.toLowerCase().replace(/\s+/g, '-')
-        const res = await fetch(`${API}/orchestrate`, {
+        const res = await authedFetch(`${API}/orchestrate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'direct', op: 'get_file', definition_name: normalized })
@@ -390,7 +391,7 @@ function ViewDefinitionButton({ name }) {
     setLoading(true)
     try {
       const API = import.meta.env.VITE_API_ENDPOINT || '/api'
-      const res = await fetch(`${API}/orchestrate`, {
+      const res = await authedFetch(`${API}/orchestrate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'direct', op: 'get_file', definition_name: name })
@@ -457,7 +458,7 @@ export default function JobTracker({ orchestrate, directCall, jobs, setJobs }) {
       if (job.type === 'create' || job.type === 'preview') {
         // Create jobs: poll orchestrator result from S3
         const API = import.meta.env.VITE_API_ENDPOINT || '/api'
-        const res = await fetch(`${API}/orchestrate`, {
+        const res = await authedFetch(`${API}/orchestrate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'poll', request_id: jobId })
@@ -502,7 +503,7 @@ export default function JobTracker({ orchestrate, directCall, jobs, setJobs }) {
 
   function _persistJobUpdate(jobId, updates) {
     const API = import.meta.env.VITE_API_ENDPOINT || '/api'
-    fetch(`${API}/orchestrate`, {
+    authedFetch(`${API}/orchestrate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'direct', op: 'update_job', job_id: jobId, updates })
@@ -539,7 +540,7 @@ export default function JobTracker({ orchestrate, directCall, jobs, setJobs }) {
     setJobs(prev => prev.filter(j => j.id !== jobId))
     if (expanded === jobId) setExpanded(null)
     const API = import.meta.env.VITE_API_ENDPOINT || '/api'
-    fetch(`${API}/orchestrate`, {
+    authedFetch(`${API}/orchestrate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'direct', op: 'delete_job', job_id: jobId })
@@ -572,7 +573,7 @@ export default function JobTracker({ orchestrate, directCall, jobs, setJobs }) {
         }
         setJobs(prev => [newJob, ...prev])
         const API = import.meta.env.VITE_API_ENDPOINT || '/api'
-        fetch(`${API}/orchestrate`, {
+        authedFetch(`${API}/orchestrate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'direct', op: 'save_job', job: newJob })
@@ -584,7 +585,7 @@ export default function JobTracker({ orchestrate, directCall, jobs, setJobs }) {
   async function downloadFile(bucket, key, fileName) {
     try {
       const API = import.meta.env.VITE_API_ENDPOINT || '/api'
-      const res = await fetch(`${API}/orchestrate`, {
+      const res = await authedFetch(`${API}/orchestrate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'direct', op: 'download_url', bucket, key })
@@ -661,7 +662,7 @@ export default function JobTracker({ orchestrate, directCall, jobs, setJobs }) {
                   <PreviewAndPublish job={job} orchestrate={orchestrate} onPublished={(pubJob) => {
                     setJobs(prev => prev.map(j => j.id === job.id ? { ...j, type: 'create', status: 'PROCESSING' } : j))
                     const API = import.meta.env.VITE_API_ENDPOINT || '/api'
-                    fetch(`${API}/orchestrate`, {
+                    authedFetch(`${API}/orchestrate`, {
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ action: 'direct', op: 'update_job', job_id: job.id, updates: { type: 'create', status: 'PROCESSING' } })

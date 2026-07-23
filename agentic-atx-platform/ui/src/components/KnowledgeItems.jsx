@@ -1,3 +1,4 @@
+import { authedFetch } from "../auth"
 import { useState, useEffect } from 'react'
 import {
   readCachedKnowledgeItems, refreshKnowledgeItems,
@@ -228,7 +229,7 @@ export default function KnowledgeItems() {
     let cancelled = false
     async function loadCustoms() {
       try {
-        const res = await fetch(`${API_BASE}/orchestrate`, {
+        const res = await authedFetch(`${API_BASE}/orchestrate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'direct', op: 'list_custom' }),

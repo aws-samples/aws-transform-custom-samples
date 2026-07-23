@@ -9,10 +9,13 @@ import { fetchMetrics, fetchExecutions, rankBy, statusSplit, typeSplit } from '.
 
 ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, Title, Tooltip, Legend)
 
+// CloudWatch ListMetrics only surfaces metrics active in the last ~14 days, and
+// this dashboard discovers metrics via ListMetrics — so ranges beyond 14 days
+// can't return data. We cap the selector at 14 days to avoid misleading empty views.
 const RANGES = [
   { id: '24h', label: 'Last 24h' },
   { id: '7d', label: 'Last 7 days' },
-  { id: '30d', label: 'Last 30 days' },
+  { id: '14d', label: 'Last 14 days' },
 ]
 
 const COLORS = {
@@ -146,7 +149,8 @@ export default function Metrics() {
         <div>
           <h2 style={{ fontSize: 18 }}>Metrics</h2>
           <p style={{ color: '#8b949e', fontSize: 13, marginTop: 2 }}>
-            From the <code>AWS/TransformCustom</code> CloudWatch namespace.
+            From the <code>AWS/TransformCustom</code> CloudWatch namespace. Reflects
+            activity from roughly the last 14 days (CloudWatch metric discovery window).
           </p>
         </div>
         <div className="filter-bar" style={{ margin: 0, alignItems: 'center', gap: 12 }}>

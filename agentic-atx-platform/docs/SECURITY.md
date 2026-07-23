@@ -64,38 +64,109 @@ Security considerations and best practices for the AWS Transform CLI container.
 - Enable VPC Flow Logs for audit
 - Monitor network traffic patterns with CloudWatch
 
-## REST API Security
+## API Security
 
-### IAM Authentication
+### Agentic Platform HTTP API (Cognito JWT)
+
+The agentic platform exposes a single HTTP API (`POST /orchestrate`). It is
+**secure by default** (`EnableAuth=true`).
 
 ✅ **Implemented:**
-- AWS IAM authentication (AWS Signature V4)
-- No API keys or shared secrets
-- IAM user/role permissions with `execute-api:Invoke`
-- Full CloudTrail audit trail
+- Cognito User Pool authentication; UI signs in via the Hosted UI (OAuth2
+  authorization-code + PKCE)
+- **API Gateway JWT authorizer** on the `/orchestrate` route: unauthenticated or
+  invalid tokens are rejected with `401` at the edge, before the Lambda is invoked
+- Defense-in-depth: the `atx-async-invoke-agent` Lambda (`auth.py`) also verifies
+  the Cognito JWT (JWKS signature, issuer, audience, expiry, token_use, client_id),
+  trusting gateway-validated claims when present
+- Fails closed: if auth is enabled but misconfigured, requests are denied
+- CORS restricted to the configured UI origin (`AllowedOrigin`)
+- Internal async self-invokes (Lambda→Lambda) and CORS preflight bypass the gate
 
-⚠️ **Recommendations:**
-- Grant users `execute-api:Invoke` permission on the API
-- Use temporary credentials (AWS SSO or STS)
-- Monitor API access via CloudTrail
-- Set up CloudWatch Alarms for unusual activity
+⚠️ **Notes / recommendations:**
+- The authorizer is implemented with raw `AWS::ApiGatewayV2` resources (not SAM's
+  HttpApi `Auth` shorthand) so it can be attached conditionally on `EnableAuth`.
+- `ENABLE_AUTH=false` deploys an **open** API for the blog/demo walkthrough only —
+  do not use open mode for shared or internet-reachable environments.
+- Self-signup is disabled; create users via `admin-create-user`.
+- Restrict `AllowedOrigin` to the exact UI URL (avoid `*`) when auth is enabled.
 
-**Grant API access:**
-```bash
-aws iam put-user-policy \
-  --user-name YOUR_USERNAME \
-  --policy-name InvokeATXApi \
-  --policy-document '{
-    "Version": "2012-10-17",
-    "Statement": [{
-      "Effect": "Allow",
-      "Action": "execute-api:Invoke",
-      "Resource": "arn:aws:execute-api:*:*:*/prod/*"
-    }]
-  }'
-```
+### Browser token storage & XSS
 
-**See:** The orchestrator handles API authentication via AgentCore IAM roles.
+The UI holds the **access token** in `sessionStorage` (cleared on tab close) and
+does **not** store a refresh token in the browser — on expiry the user re-auths via
+the Hosted UI, so there is no long-lived credential to steal. Access tokens are
+short-lived (60 min). Mitigations against token theft via XSS:
+
+- The UI ships a **Content-Security-Policy** (`script-src 'self'`, restricted
+  `connect-src`) as a `<meta>` tag — this blocks injected/remote scripts, the primary
+  vector for reading the token.
+- **Planned follow-up:** serve security headers via a **CloudFront response-headers
+  policy** — CSP as a real HTTP header plus `frame-ancestors`/`X-Frame-Options`
+  (clickjacking), `Strict-Transport-Security` (HSTS), `X-Content-Type-Options: nosniff`,
+  and `Referrer-Policy`. These are header-only directives (a `<meta>` CSP cannot set
+  them), so the meta tag deliberately omits `frame-ancestors`. AWS's managed
+  `SecurityHeadersPolicy` covers most of these with minimal config.
+- To eliminate browser token storage entirely, use a **backend-for-frontend (BFF)**:
+  exchange the code server-side and keep the session in an `HttpOnly`, `Secure`,
+  `SameSite` cookie. This is a larger change (the API Gateway JWT authorizer expects an
+  `Authorization` header, not a cookie) and is left as a documented hardening option.
+
+### Extending auth: federation (SAML / OIDC / SSO)
+
+Auth is intentionally built on Cognito + the Hosted UI so it can be extended to an
+organization's existing identity provider **without changing the UI or API** — both
+already redirect to the Hosted UI and consume Cognito-issued JWTs, so the token the
+gateway authorizer validates is identical regardless of how the user signed in.
+
+To federate with a corporate IdP:
+
+- **SAML 2.0** (Okta, Microsoft Entra ID / Azure AD, PingFederate, ADFS, etc.):
+  add an `AWS::Cognito::UserPoolIdentityProvider` with `ProviderType: SAML` pointing
+  at the IdP metadata (URL or file), map SAML assertion attributes (email, name,
+  groups) to Cognito attributes, and add the provider to the app client's
+  `SupportedIdentityProviders`. Register Cognito's ACS URL + entity ID as a relying
+  party on the IdP side.
+- **OIDC** (if the IdP speaks OpenID Connect): same pattern with
+  `ProviderType: OIDC` — often simpler than SAML.
+- **AWS workforce SSO:** IAM Identity Center is an option for AWS-centric orgs.
+
+Notes:
+- No app changes are required — federation is a Cognito-side configuration.
+- For **authorization** (roles/permissions), map the IdP's group/role claims into
+  the token and gate actions in the app (see the scopes/groups discussion).
+- This sample ships with Cognito-native users by default; federation is left as a
+  documented extension point so teams can wire in their own IdP for their use case.
+
+### Private API endpoint (network isolation)
+
+The `/orchestrate` API is a **public** regional endpoint protected by the Cognito
+JWT authorizer. If you have private network access to AWS (VPN, Direct Connect, or
+in-VPC clients) and want to remove public internet exposure entirely, consider a
+private API. Important trade-offs:
+
+- **HTTP API (API Gateway v2) does not support private endpoints.** Private API is
+  a REST API (v1) feature — it uses an interface VPC endpoint (`execute-api`) plus a
+  resource policy that restricts access to your VPC/VPCe. Making this API private is
+  therefore a migration from HTTP API → REST API, not a config toggle.
+- **A browser UI cannot reach a private endpoint** over the public internet. Going
+  private only makes sense if the UI is also internal (VPN, WorkSpaces, or an
+  in-VPC/internal ALB front end). For a public browser SPA, keep the public endpoint
+  and rely on the JWT authorizer (and optionally WAF — see below).
+- **WAF caveat:** AWS WAF cannot be associated with an HTTP API. To add WAF
+  (e.g. rate-based rules, IP allowlists) you would either route the API through
+  CloudFront as an origin and attach WAF to the distribution, or migrate to REST API
+  and attach WAF directly. WAF can also be attached to the Cognito user pool to
+  protect the login/token endpoints.
+
+**Recommendation:** for the public-UI deployment, keep the public HTTP API + Cognito
+JWT auth; add CloudFront-fronted WAF for rate limiting/IP restriction if needed. Use
+a private REST API only when the entire access path (including the UI) is internal.
+
+### Container REST API (scaled-execution-containers)
+
+The separate `scaled-execution-containers` REST API uses **IAM authentication**
+(AWS Signature V4); callers need `execute-api:Invoke`. See that project's docs.
 
 ## Secrets Management
 
@@ -283,6 +354,9 @@ aws ecr start-image-scan \
 ### Before Deployment
 
 - [ ] Review and customize IAM policies
+- [ ] Keep `EnableAuth=true` (default) for any shared/reachable environment
+- [ ] Set `AllowedOrigin` to the exact UI URL (not `*`) when auth is enabled
+- [ ] Create Cognito users via `admin-create-user` (self-signup is disabled)
 - [ ] Configure VPC and subnets
 - [ ] Set up security groups
 - [ ] Enable ECR image scanning
