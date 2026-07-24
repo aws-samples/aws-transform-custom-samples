@@ -18,6 +18,7 @@ Only resources with a GA or generally usable ACK controller are mapped - anythin
 | `AWS::DynamoDB::Table` | `aws_dynamodb_table` | `dynamodb.Table` | `dynamodb.services.k8s.aws/v1alpha1` | `Table` | Not needed (`spec.tableName`) |
 | `AWS::SQS::Queue` | `aws_sqs_queue` | `sqs.Queue` | `sqs.services.k8s.aws/v1alpha1` | `Queue` | `{"queueURL": "https://sqs...."}` |
 | `AWS::SNS::Topic` | `aws_sns_topic` | `sns.Topic` | `sns.services.k8s.aws/v1alpha1` | `Topic` | `{"arn": "arn:aws:sns:..."}` |
+| `AWS::SNS::Subscription` | `aws_sns_topic_subscription` | `sns.TopicSubscription` | `sns.services.k8s.aws/v1alpha1` | `Subscription` | `{"arn": "arn:aws:sns:...:<sub-id>"}` |
 | `AWS::RDS::DBInstance` | `aws_db_instance` | `rds.Instance` | `rds.services.k8s.aws/v1alpha1` | `DBInstance` | Not needed (`spec.dbInstanceIdentifier`) |
 | `AWS::RDS::DBCluster` | `aws_rds_cluster` | `rds.Cluster` | `rds.services.k8s.aws/v1alpha1` | `DBCluster` | Not needed (`spec.dbClusterIdentifier`) |
 | `AWS::ElastiCache::ReplicationGroup` | `aws_elasticache_replication_group` | `elasticache.ReplicationGroup` | `elasticache.services.k8s.aws/v1alpha1` | `ReplicationGroup` | Not needed (`spec.replicationGroupID`) |
