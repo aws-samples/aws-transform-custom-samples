@@ -10,11 +10,14 @@ Analyzes and transforms customer code (Kubernetes manifests, Helm charts, Kustom
 - [The Problem](#the-problem)
 - [What This Skill Does](#what-this-skill-does)
 - [Skill Architecture](#skill-architecture)
-- [Complement to the EKS Upgrade Controller](#complement-to-the-eks-upgrade-controller)
+- [Code Readiness vs. Cluster Upgrade Execution](#code-readiness-vs-cluster-upgrade-execution)
 - [Getting Started](#getting-started)
 - [Getting Started with AWS Transform Custom](#getting-started-with-aws-transform-custom)
+- [Benchmarks](#benchmarks)
+- [Troubleshooting](#troubleshooting)
 - [Known Limitations](#known-limitations)
 - [Documentation & References](#documentation--references)
+- [Repository Structure](#repository-structure)
 
 ## Overview
 
@@ -76,16 +79,16 @@ Input: Customer repo + target EKS version (via additionalPlanContext)
 3. **PodSecurityPolicy is flag-only.** PSP removal (EKS 1.25+) requires a Pod Security Admission design decision that cannot be automated safely — it is always reported, never auto-migrated.
 4. **Sequential-hop awareness.** EKS requires upgrading one minor version at a time. The skill always documents every intermediate hop in the target version string, even when transforming code directly to the final target.
 
-## Complement to the EKS Upgrade Controller
+## Code Readiness vs. Cluster Upgrade Execution
 
-This skill and the [Upgrade Controller for Amazon EKS](https://gitlab.aws.dev/brunemat/eks-upgrade-controller) solve two different halves of the same problem:
+Preparing for an EKS version upgrade has two distinct halves — this skill covers only the first:
 
 | | Scope |
 |---|---|
 | **This skill** | The **code**: manifests, Helm charts, Terraform, CDK — everything that runs on the cluster |
-| **Upgrade Controller** | The **cluster**: control plane + data plane version upgrades, staged rollouts, maintenance windows, EKS Upgrade Insights validation |
+| **Cluster upgrade execution** | The **cluster**: control plane + data plane version upgrades, staged rollouts, maintenance windows — see [EKS cluster upgrade best practices](https://docs.aws.amazon.com/eks/latest/best-practices/cluster-upgrades.html) and [EKS Upgrade Insights](https://docs.aws.amazon.com/eks/latest/userguide/cluster-insights.html) |
 
-Used together they provide end-to-end upgrade readiness: code prepared ahead of time, cluster upgraded through an automated, sequential, validated process. `MIGRATION_REPORT.md` explicitly recommends the Upgrade Controller as the execution mechanism for the documented Upgrade Execution Path.
+Used together they provide end-to-end upgrade readiness: code prepared ahead of time, then the cluster upgraded through a sequential, validated process. `MIGRATION_REPORT.md` documents the full sequential Upgrade Execution Path and points to the official EKS upgrade guidance as the execution reference.
 
 ## Getting Started
 
@@ -142,14 +145,29 @@ MIGRATION_REPORT.md   # summary, manual action items, addon warnings, risk asses
 
 Plus the transformed manifests/charts/Terraform/CDK files in place, with ambiguous changes marked via `TODO` comments.
 
-## Known Limitations
+## Benchmarks
+
+End-to-end test results — repositories tested via `atx custom def exec`, what was detected, what was transformed, and what passed/failed — are documented in [BENCHMARKS.md](BENCHMARKS.md).
+
+## Troubleshooting
+
+| Symptom | Cause | Fix |
+|---|---|---|
+| `atx custom def publish` fails with authentication error | AWS Transform CLI not authenticated | Re-run the auth flow from the [Getting Started Guide](https://docs.aws.amazon.com/transform/latest/userguide/custom-get-started.html) and confirm your builder ID / IAM Identity Center session is active |
+| Transformation runs but no files are modified | `additionalPlanContext` contains "Analysis only" wording, or no incompatible APIs were found for the target version | Check `MIGRATION_REPORT.md` — if the detection table is empty, the repo is already compatible; otherwise remove the analysis-only instruction |
+| Target version not respected (wrong APIs flagged) | Source/target versions missing or ambiguous in `additionalPlanContext` | Pass both explicitly: `additionalPlanContext=Target EKS version 1.32. Upgrade from 1.28.` |
+| Validation steps reported as skipped | `kubectl`, `helm`, or `terraform` not installed on the machine running the transformation | Install the missing tool or accept the skip — validation is best-effort and the transform output is unaffected |
+| Helm chart values not updated | By design — `values.yaml` structure and keys are preserved; only addon image tags below the minimum compatible version are bumped | Review the addon warnings section of `MIGRATION_REPORT.md` for manual value updates |
+| PodSecurityPolicy still present after the run | By design — PSP migration requires a Pod Security Admission decision and is never automated | Follow the manual action item in `MIGRATION_REPORT.md` |
+
+
 
 | Limitation | Notes |
 |---|---|
 | PodSecurityPolicy migration | Never auto-migrated (requires Pod Security Admission design decisions) — flagged in report only |
 | Custom admission webhooks with non-standard defaults | Flagged for manual review, not transformed |
 | Skip-version upgrades | Not supported by EKS itself; the skill always documents the full sequential path |
-| Cluster-level upgrade execution | Out of scope — use the Upgrade Controller for Amazon EKS for orchestration |
+| Cluster-level upgrade execution | Out of scope — follow the [EKS cluster upgrade best practices](https://docs.aws.amazon.com/eks/latest/best-practices/cluster-upgrades.html) for orchestration |
 
 ## Documentation & References
 
@@ -159,3 +177,17 @@ Plus the transformed manifests/charts/Terraform/CDK files in place, with ambiguo
 | [references/api-removals-by-version.md](references/api-removals-by-version.md) | Complete table of Kubernetes API removals per version (1.16 through 1.36), plus a quick "upgrading from X to Y" lookup |
 | [references/eks-specific-changes.md](references/eks-specific-changes.md) | EKS-specific changes per version, addon compatibility matrix, and Terraform/CDK/Helm update patterns |
 | [references/examples-before-after.md](references/examples-before-after.md) | 8 concrete before/after transformation examples covering Ingress, PDB, CronJob, HPA, FlowSchema, CRDs, Terraform node groups, and webhooks |
+| [BENCHMARKS.md](BENCHMARKS.md) | End-to-end test results: repositories tested, detections, transformations, and pass/fail outcomes |
+
+## Repository Structure
+
+```text
+eks-version-upgrade-readiness/
+├── README.md                              # This file — overview, getting started, troubleshooting
+├── SKILL.md                               # Skill definition: objective, scope, workflow, exit criteria
+├── BENCHMARKS.md                          # End-to-end test results with real repositories
+└── references/
+    ├── api-removals-by-version.md         # Kubernetes API removals per version (1.16–1.36)
+    ├── eks-specific-changes.md            # EKS-specific changes + addon compatibility matrix
+    └── examples-before-after.md           # 8 before/after transformation examples
+```

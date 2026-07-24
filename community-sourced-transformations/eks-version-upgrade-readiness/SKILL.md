@@ -28,7 +28,7 @@ Analyzes and transforms:
 Supports upgrades between any EKS versions from 1.16 through 1.36+.
 
 **Non-Goals** (out of scope for this skill):
-1. Executing the actual cluster upgrade (control plane / data plane) — use the Upgrade Controller for Amazon EKS (https://gitlab.aws.dev/brunemat/eks-upgrade-controller) for automated sequential upgrades with maintenance windows, staged rollouts, and EKS Upgrade Insights validation.
+1. Executing the actual cluster upgrade (control plane / data plane) — follow the EKS cluster upgrade best practices (https://docs.aws.amazon.com/eks/latest/best-practices/cluster-upgrades.html) and validate with EKS Upgrade Insights before each sequential hop.
 2. PodSecurityPolicy migration — removed entirely in Kubernetes 1.25. Requires a Pod Security Admission or third-party webhook design decision that cannot be automated safely. Always flagged in the report, never transformed.
 3. Custom admission webhook business logic — only the `admissionregistration.k8s.io` API shape and required defaults are updated; webhook implementation logic is out of scope.
 4. Non-EKS Kubernetes distributions — API removal mapping is upstream Kubernetes, but EKS-specific sections (AMI types, addon matrix, IAM requirements) assume Amazon EKS.
@@ -43,7 +43,7 @@ Supports upgrades between any EKS versions from 1.16 through 1.36+.
 ### Sequential Upgrade Awareness
 - Amazon EKS requires upgrading one minor version at a time — skip-version upgrades are not supported.
 - Terraform/CDK `cluster_version` / `KubernetesVersion` strings are set to the TARGET version in code (the code itself must be forward-compatible), but `MIGRATION_REPORT.md` must always list each intermediate sequential hop required to get there.
-- `MIGRATION_REPORT.md` must include a section "Upgrade Execution Path" listing every hop and recommending the Upgrade Controller for Amazon EKS as the execution mechanism — this skill never executes the upgrade itself.
+- `MIGRATION_REPORT.md` must include a section "Upgrade Execution Path" listing every hop and pointing to the official EKS upgrade guidance (cluster upgrade best practices + EKS Upgrade Insights) as the execution reference — this skill never executes the upgrade itself.
 
 ### Helm-Specific
 - Transform templates but preserve the `values.yaml` structure and keys.
@@ -89,7 +89,7 @@ Phase 5: Report
         - Manual action items (e.g., PodSecurityPolicy migration)
         - Addon compatibility warnings with recommended versions
         - Risk assessment (low/medium/high) per change
-        - Upgrade Execution Path (sequential hops + Upgrade Controller recommendation)
+        - Upgrade Execution Path (sequential hops + official EKS upgrade guidance)
 ```
 
 ### Configuration
@@ -156,7 +156,7 @@ Load reference files on demand based on what the scan finds:
 5. PodSecurityPolicy usage, if present, is flagged in the report and NOT auto-migrated.
 6. `kubectl apply --dry-run=client`, `helm template`, and/or `terraform validate` pass for all transformed files (for whichever tools are available on the host).
 7. `MIGRATION_REPORT.md` exists and contains: summary of changes, manual action items, addon compatibility warnings, risk assessment per change, and an Upgrade Execution Path section.
-8. The Upgrade Execution Path lists every sequential minor-version hop between source and target and recommends the Upgrade Controller for Amazon EKS as the execution mechanism.
+8. The Upgrade Execution Path lists every sequential minor-version hop between source and target and references the official EKS cluster upgrade best practices as the execution guidance.
 
 ## Tips
 
