@@ -35,7 +35,7 @@ See [ARCHITECTURE.md](ARCHITECTURE.md) for detailed diagrams and data flows.
 > **Windows users:** Use WSL2 (Windows Subsystem for Linux) for the best experience. The deployment scripts are bash-based. Alternatively, run commands in Git Bash or PowerShell with adjustments.
 
 **AWS Account Requirements:**
-- Bedrock model access enabled for Claude Sonnet 4
+- Bedrock model access enabled for Claude Sonnet 4.5
 - Default VPC with public subnets (or configure existing VPC)
 
 ---
@@ -78,7 +78,7 @@ Uses CDK for infrastructure (stable constructs only) and SAM for the AgentCore +
 #### Step 1: Enable Bedrock Model Access
 
 1. Go to [Bedrock console](https://console.aws.amazon.com/bedrock/home) → Model access
-2. Enable **Anthropic Claude Sonnet 4**
+2. Enable **Anthropic Claude Sonnet 4.5**
 
 #### Step 2: Deploy Base Infrastructure via CDK
 
@@ -450,7 +450,7 @@ plan for them:
 | Component | Technology |
 |-----------|------------|
 | AI Orchestration | Amazon Bedrock AgentCore + Strands Agents |
-| AI Model | Claude Sonnet 4 (cross-region inference) |
+| AI Model | Claude Sonnet 4.5 (cross-region inference) |
 | Memory | AgentCore Memory (short-term) |
 | Transformation Engine | AWS Transform CLI (ATX) |
 | Compute | AWS Batch (Fargate) |

@@ -27,7 +27,7 @@ AI-powered code transformation platform built on Amazon Bedrock AgentCore and AW
 ┌──────────────────────────────────────────────────────────────┐
 │  Bedrock AgentCore Runtime                                    │
 │                                                               │
-│  Orchestrator Agent (Strands + Claude Sonnet 4)                  │
+│  Orchestrator Agent (Strands + Claude Sonnet 4.5)                │
 │  ├── find_transform_agent (sub-agent)                        │
 │  │   ├── list_transformations (static catalog)               │
 │  │   ├── search_transformations (keyword search)             │
@@ -51,7 +51,7 @@ AI-powered code transformation platform built on Amazon Bedrock AgentCore and AW
           ▼            ▼            ▼
      Amazon S3    AWS Batch    Amazon Bedrock
    (definitions   (Fargate +   (Claude
-    + results)    ATX CLI)     Sonnet 4)
+    + results)    ATX CLI)     Sonnet 4.5)
 ```
 
 ## Data Flows
@@ -106,7 +106,7 @@ UI → /orchestrate (direct, get_file) → Lambda → S3 get (definition preview
   without an AI selection step — saves one Bedrock call. For large repos, AI picks files with
   a budget-aware max count calculated from average file size vs the 400K context budget.
 
-- **400K character context limit**: ~100K tokens, leaving headroom in Claude Sonnet 4's 200K
+- **400K character context limit**: ~100K tokens, leaving headroom in Claude Sonnet 4.5's 200K
   token context window for the system prompt, requirements, and output generation (8K tokens).
 
 - **Direct tool calls vs nested agent**: The create_transform_agent uses direct Bedrock API
@@ -205,7 +205,7 @@ the JWT authorizer can be attached conditionally via !If on EnableAuth.
 | Service | Purpose |
 |---------|---------|
 | Bedrock AgentCore | Orchestrator runtime |
-| Bedrock (Claude Sonnet 4) | AI reasoning + YAML generation |
+| Bedrock (Claude Sonnet 4.5) | AI reasoning + YAML generation |
 | AgentCore Memory | Conversation context |
 | AWS Batch (Fargate) | ATX CLI execution |
 | S3 | Definitions, repo snapshots, results, UI hosting, orchestrator results, job tracking |

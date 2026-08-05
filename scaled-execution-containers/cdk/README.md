@@ -315,12 +315,17 @@ Stacks are deployed in order automatically.
 After deployment, get outputs:
 
 ```bash
-# All outputs
-npx cdk output --all
+# All outputs for a stack
+aws cloudformation describe-stacks --stack-name AtxApiStack \
+  --query "Stacks[0].Outputs" --output table
 
 # Specific output
-npx cdk output AtxApiStack.ApiEndpoint
+aws cloudformation describe-stacks --stack-name AtxApiStack \
+  --query "Stacks[0].Outputs[?OutputKey=='ApiEndpoint'].OutputValue" --output text
 ```
+
+> Outputs are also printed at the end of `cdk deploy`, and
+> `cdk deploy --outputs-file outputs.json` writes them to a file.
 
 **Key outputs:**
 - `AtxContainerStack.ImageUri` - Container image URI
@@ -336,7 +341,8 @@ After successful deployment, test the API:
 
 ```bash
 # Get API endpoint
-export API_ENDPOINT=$(npx cdk output AtxApiStack.ApiEndpoint --json | jq -r '.AtxApiStack.ApiEndpoint')
+export API_ENDPOINT=$(aws cloudformation describe-stacks --stack-name AtxApiStack \
+  --query "Stacks[0].Outputs[?OutputKey=='ApiEndpoint'].OutputValue" --output text)
 
 # Option 1: Run comprehensive test suite (recommended)
 cd ../test
