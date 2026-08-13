@@ -80,9 +80,11 @@ metadata:
     # Resolve it with:
     #   aws cloudformation describe-stack-resources --stack-name <stack-name> \
     #     --logical-resource-id AppVPC --query 'StackResources[0].PhysicalResourceId' --output text
-    # Then replace REPLACE_ME below before applying.
-    services.k8s.aws/adoption-fields: |
-      {"vpcID": "REPLACE_ME"}
+    # Then uncomment the annotation below with the real value before applying.
+    # The annotation MUST stay commented out until then - an active placeholder
+    # value would instruct ACK to adopt a resource by a fake identifier.
+    # services.k8s.aws/adoption-fields: |
+    #   {"vpcID": "<resolved-vpc-id>"}
 spec:
   cidrBlocks:
     - "10.42.0.0/16"
