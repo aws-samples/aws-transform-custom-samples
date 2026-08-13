@@ -164,7 +164,7 @@ End-to-end test results - repositories tested via `atx custom def exec`, what wa
 | Symptom | Cause | Fix |
 |---|---|---|
 | `atx custom def publish` fails with authentication error | AWS Transform CLI not authenticated | Re-run the auth flow from the [Getting Started Guide](https://docs.aws.amazon.com/transform/latest/userguide/custom-get-started.html) |
-| Generated manifest has `REPLACE_ME` in `adoption-fields` | Identifier only resolvable against the live account (computed value, runtime `!Ref`) | Run the AWS CLI command in the adjacent `TODO(discovery)` comment and replace the placeholder before applying |
+| Generated manifest has a commented-out `adoption-fields` annotation | Identifier only resolvable against the live account (computed value, runtime `!Ref`) | Run the AWS CLI command in the adjacent `TODO(discovery)` comment, then uncomment the annotation with the real value before applying. The annotation ships commented out on purpose - active placeholders would adopt by a fake identifier |
 | Applying a manifest creates a NEW resource instead of adopting | Spec identifier does not match the deployed resource (wrong name/ID), so `adopt-or-create` fell through to create | Delete the new CR (retain policy protects AWS), fix the identifier from the discovery command, re-apply |
 | CR stuck with `ACK.Recoverable: True` | Controller lacks IAM permissions for the target service, or throttling | Check the IRSA/Pod Identity role against the report's prerequisite checklist |
 | CR shows `ACK.Terminal: True` | A spec field is invalid or diverges incompatibly from the deployed resource | Compare the spec with the live resource (`aws <service> describe-*`) and align the field |
