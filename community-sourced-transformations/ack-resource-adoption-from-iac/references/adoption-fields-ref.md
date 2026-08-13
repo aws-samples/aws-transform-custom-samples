@@ -75,4 +75,5 @@ aws lambda list-functions \
 - Always use `--region` or `AWS_PROFILE` on discovery commands to target the correct region
 - For multi-region resources, run discovery per region separately
 - `adoption-fields` accepts inline JSON - use YAML block literal (`|`) to avoid quoting issues
+- When the identifier is unresolved, keep the ENTIRE `adoption-fields` annotation commented out inside the `TODO(discovery)` block - never emit it active with a placeholder value (`TODO`, `REPLACE_ME`). An active placeholder tells ACK to adopt by a fake identifier
 - Official reference: https://aws-controllers-k8s.github.io/community/docs/user-docs/features/#resourceadoption
