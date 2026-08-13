@@ -43,6 +43,7 @@ Supported ACK services (initial mapping table in `references/iac-to-ack-mapping.
 - EVERY generated manifest MUST carry `services.k8s.aws/deletion-policy: "retain"`. A missing retain policy can cause real AWS resource deletion when a CR is removed - this is the single most dangerous failure mode of this transformation.
 - EVERY generated manifest MUST use `services.k8s.aws/adoption-policy: "adopt-or-create"` so applying it never fails on an existing resource and never duplicates it.
 - Never generate a manifest with placeholder/guessed identifiers. If the resource identifier cannot be resolved from the IaC (e.g., a Terraform computed value or a CloudFormation `!Ref` chain that requires runtime state), emit the manifest with an explicit `# TODO(discovery):` comment containing the exact AWS CLI discovery command, and list it in the report's "Requires Discovery" section.
+- When an `adoption-fields` identifier is unresolved, the `services.k8s.aws/adoption-fields` annotation itself MUST stay commented out inside the `TODO(discovery)` block. Never emit an active `adoption-fields` annotation carrying a placeholder value (`TODO`, `REPLACE_ME`, or similar) - an active placeholder instructs ACK to adopt a resource by a fake identifier, which either fails adoption or matches the wrong AWS resource. The manifest stays inert for that resource until a human supplies the real value.
 - The source IaC files are never modified.
 
 ### Fidelity
@@ -217,7 +218,7 @@ Load reference files on demand based on what the scan finds:
 
 1. Every supported IaC resource has exactly one generated ACK manifest (or one kro RGD slot) - no duplicates, no silent drops.
 2. 100% of generated manifests (including templates inside RGDs) carry both `services.k8s.aws/adoption-policy: "adopt-or-create"` and `services.k8s.aws/deletion-policy: "retain"`.
-3. Every Kind requiring `adoption-fields` has the annotation populated with a resolved identifier, OR carries a `TODO(discovery)` comment with the exact AWS CLI command and appears in the report's "Requires Discovery" section.
+3. Every Kind requiring `adoption-fields` either has the annotation populated with a resolved identifier, OR keeps the annotation fully commented out inside a `TODO(discovery)` block with the exact AWS CLI command and appears in the report's "Requires Discovery" section. No generated file contains an active `adoption-fields` annotation with a placeholder value.
 4. kro RGDs are generated only for genuine composition units; every RGD has at least one instance CR; internal references use CEL expressions, not IaC syntax remnants.
 5. No generated file contains IaC-native syntax (`!Ref`, `!GetAtt`, `${var.`, `${module.`, Pulumi interpolations).
 6. All generated YAML parses cleanly; `kubectl apply --dry-run=client` passes where CRDs are available (skipped gracefully otherwise).
