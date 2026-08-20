@@ -10,7 +10,7 @@
 | Automatic transformations | 19/19 applied correctly |
 | Flag-only items (PSP) | 2/2 correctly flagged, NOT auto-migrated |
 | Control resources (already compatible) | 0 modified (correct - no false positives) |
-| Rollback findings (run 4) | 6/6 reported with correct insight severity |
+| Rollback findings (run 4) | 6/6 reported with the correct classification |
 | Validation | `terraform validate` PASS, `helm template` PASS, YAML parse PASS, `kubeconform` PASS against both 1.34 and 1.33 schemas, `kubectl apply --dry-run=server` PASS against a live EKS 1.35 cluster (6/6 transformed resources accepted) |
 | `MIGRATION_REPORT.md` generated | 4/4 runs |
 | Total agent minutes | ~156.4 |
@@ -209,12 +209,20 @@ flagging it is the correct behaviour.
   happened) - the audit therefore ran against the working tree rather than `git diff baseline HEAD`.
   The reference set roughly doubled in size with the rollback material, so **budget 90-120 agent
   minutes** for this TD rather than 60.
-- **Addon matrix gap:** the report states a v2.8.0+ minimum for the AWS Load Balancer Controller on
-  1.34. The matrix in `references/eks-specific-changes.md` only has columns for 1.30+ and 1.32+, so
-  that figure is an extrapolation, not documented guidance. Worth adding an explicit 1.34+ column.
-- **Wording nit:** the report labels the VolumeAttributesClass adoption with insight severity
-  `ERROR`. It is an API-compatibility finding that *would* surface as an ERROR insight, but the
-  table conflates the skill's own classification with the cluster insight severity.
+- **Addon matrix gap (fixed 2026-08-20):** the report stated a v2.8.0+ minimum for the AWS Load
+  Balancer Controller on 1.34, extrapolated from the 1.30+ and 1.32+ columns. The root cause was the
+  matrix itself, which mixed AWS-published per-version data with community floors in a single table
+  and so invited projection. Adding a "1.34+" column would have made it worse, because AWS publishes
+  no floor for the LB Controller at any Kubernetes version — only a general "2.7.2 or later"
+  recommendation. `references/eks-specific-changes.md` now splits the two: an exact
+  per-Kubernetes-version table for the three EKS-managed add-ons (cited to the AWS docs) and a
+  floors table for self-managed add-ons carrying a source-of-truth link per row plus an explicit
+  instruction not to extrapolate to versions with no column.
+- **Severity labelling (fixed 2026-08-20):** the report labelled the VolumeAttributesClass adoption
+  with insight severity `ERROR`, conflating this skill's own risk rating with a cluster insight
+  severity — no insight exists for a repository finding. `references/rollback-readiness.md` now
+  states where severity is *quoted* (disruption controls and managed add-ons, per the Auto Mode
+  docs) and where it is *rated* by the skill (everything in the additions tables).
 
 ---
 

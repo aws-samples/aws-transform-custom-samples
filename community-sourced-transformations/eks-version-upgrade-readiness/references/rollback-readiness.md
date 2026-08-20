@@ -58,6 +58,22 @@ when updating this file, and update the review date above.
 
 ---
 
+## Severity: quoted for the cluster, rated by this skill
+
+`ERROR` and `WARNING` in this file are **EKS cluster insight** severities, and they are only
+meaningful for findings EKS actually evaluates: the disruption controls in the data plane section
+below, and EKS-managed add-ons. In those rows the severity is *quoted* from the Auto Mode rollback
+documentation, not chosen here.
+
+Everything in the additions tables works differently. A target-only API adoption has **no
+corresponding insight** — EKS does not read the repository — so the `Impact` column (High / Medium /
+Low) is this skill's own risk *rating*. Report it that way in `MIGRATION_REPORT.md`: a
+rollback-blocking change with a risk rating, and no insight severity attached. Writing "insight
+severity: ERROR" beside a manifest finding implies EKS will surface it, which it will not, and sends
+the reader hunting for an insight that never appears.
+
+---
+
 ## Additions by version (inverse lookup)
 
 What exists in N but **not** in N-1. Adopting any of these closes the rollback door until it

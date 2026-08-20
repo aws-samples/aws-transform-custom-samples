@@ -128,23 +128,66 @@ Full severity mapping and examples: `rollback-readiness.md`.
 
 ## Addon Compatibility Matrix (common addons)
 
-When upgrading EKS, addon versions must also be compatible:
+Two different questions live here, and merging them into one table is how an invented version
+number gets produced: AWS publishes an exact per-Kubernetes-version list for the add-ons **it**
+manages, and publishes **no** per-version floor for anything else. They are kept apart for that
+reason.
 
-| Addon | Min version for EKS 1.30+ | Min version for EKS 1.32+ |
-|-------|---------------------------|---------------------------|
-| VPC CNI | v1.16.0+ | v1.18.0+ |
-| CoreDNS | v1.11.1+ | v1.11.3+ |
-| kube-proxy | Match cluster version | Match cluster version |
-| EBS CSI Driver | v1.28.0+ | v1.35.0+ |
-| EFS CSI Driver | v2.0.0+ | v2.1.0+ |
-| AWS LB Controller | v2.7.0+ | v2.8.0+ |
-| Cert-Manager | v1.14.0+ | v1.15.0+ |
-| Ingress-NGINX | v1.10.0+ | v1.11.0+ |
-| ArgoCD | v2.10.0+ | v2.12.0+ |
-| Karpenter | v0.35.0+ | v1.0.0+ |
-| Istio | v1.20+ | v1.22+ |
+### EKS-managed add-ons: exact version per Kubernetes version
 
-**Note:** Always verify exact compatibility in addon release notes. This table is approximate guidance.
+AWS publishes the latest EKS add-on build for every supported Kubernetes version. When the report
+needs to name a concrete version for these three, take it from here rather than from a floor.
+
+| Kubernetes version | `kube-proxy` | CoreDNS | VPC CNI |
+|---|---|---|---|
+| 1.36 | `v1.36.0-eksbuild.14` | `v1.14.3-eksbuild.3` | `v1.22.4-eksbuild.3` |
+| 1.35 | `v1.35.3-eksbuild.13` | `v1.14.3-eksbuild.3` | `v1.22.4-eksbuild.3` |
+| 1.34 | `v1.34.6-eksbuild.13` | `v1.13.2-eksbuild.11` | `v1.22.4-eksbuild.3` |
+| 1.33 | `v1.33.10-eksbuild.13` | `v1.12.4-eksbuild.18` | `v1.22.4-eksbuild.3` |
+| 1.32 | `v1.32.13-eksbuild.16` | `v1.11.4-eksbuild.40` | `v1.22.4-eksbuild.3` |
+| 1.31 | `v1.31.14-eksbuild.20` | `v1.11.4-eksbuild.40` | `v1.22.4-eksbuild.3` |
+
+Verified 2026-08-20 against the AWS docs: [kube-proxy versions](https://docs.aws.amazon.com/eks/latest/userguide/managing-kube-proxy.html),
+[CoreDNS versions](https://docs.aws.amazon.com/eks/latest/userguide/managing-coredns.html),
+[VPC CNI versions](https://docs.aws.amazon.com/eks/latest/userguide/managing-vpc-cni.html).
+
+Three things this table does **not** say:
+
+- These are the **latest** published builds, not minimum floors. An older build can be perfectly
+  valid; a build newer than the row simply does not exist for that version.
+- The values move with every EKS patch release, so treat the `-eksbuildN` suffix as guidance for
+  the report, not as an assertion to hard-code.
+- They describe the **EKS add-on** type. A self-managed install of the same component follows the
+  upstream project's own versioning and will not match these strings.
+
+`kube-proxy` must additionally stay within the supported version skew of the control plane, which
+is why "match the cluster version" remains the rule of thumb for it.
+
+VPC CNI is currently the same build across 1.31 to 1.36, so in this window it is effectively
+version-independent and a VPC CNI finding is rarely a per-version upgrade blocker.
+
+### Self-managed add-ons: minimum floors, and where the number comes from
+
+AWS publishes no per-Kubernetes-version compatibility floor for these. The floors below are
+guidance for the ranges shown; the right-hand column is the actual source of truth.
+
+| Addon | Min for EKS 1.30+ | Min for EKS 1.32+ | Source of truth |
+|---|---|---|---|
+| EBS CSI Driver | v1.28.0+ | v1.35.0+ | [aws-ebs-csi-driver releases](https://github.com/kubernetes-sigs/aws-ebs-csi-driver/releases) |
+| EFS CSI Driver | v2.0.0+ | v2.1.0+ | [aws-efs-csi-driver releases](https://github.com/kubernetes-sigs/aws-efs-csi-driver/releases) |
+| AWS LB Controller | v2.7.0+ | v2.8.0+ | [aws-load-balancer-controller releases](https://github.com/kubernetes-sigs/aws-load-balancer-controller/releases) |
+| Cert-Manager | v1.14.0+ | v1.15.0+ | [cert-manager supported releases](https://cert-manager.io/docs/releases/) |
+| Ingress-NGINX | v1.10.0+ | v1.11.0+ | [kubernetes/ingress-nginx](https://github.com/kubernetes/ingress-nginx) (retired upstream March 2026) |
+| ArgoCD | v2.10.0+ | v2.12.0+ | [argo-cd releases](https://github.com/argoproj/argo-cd/releases) |
+| Karpenter | v0.35.0+ | v1.0.0+ | [Karpenter compatibility matrix](https://karpenter.sh/docs/upgrading/compatibility/) |
+| Istio | v1.20+ | v1.22+ | [Istio supported releases](https://istio.io/latest/docs/releases/supported-releases/) |
+
+**Do not extrapolate this table.** There is deliberately no column for 1.33, 1.34, 1.35 or 1.36:
+AWS documents no floor for those versions, and projecting the trend yields a number that looks
+sourced and is not. For a target with no column, report that the floor is undocumented, cite the
+source-of-truth link, and — when the repository pins a version — state whether that pin sits inside
+or outside the upstream project's own supported window. Naming an invented minimum is worse than
+naming none, because the reader cannot tell the difference.
 
 ### Reading the matrix when a rollback window matters
 
