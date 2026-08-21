@@ -135,8 +135,30 @@ reason.
 
 ### EKS-managed add-ons: exact version per Kubernetes version
 
-AWS publishes the latest EKS add-on build for every supported Kubernetes version. When the report
-needs to name a concrete version for these three, take it from here rather than from a floor.
+AWS publishes the latest EKS add-on build for every supported Kubernetes version.
+
+**Resolve these at runtime, not from the table below.** The authoritative source is the API,
+and it never goes stale:
+
+```bash
+aws eks describe-addon-versions --kubernetes-version <target> \
+  --query 'addons[?addonName==`kube-proxy`||addonName==`coredns`||addonName==`vpc-cni`].{addon:addonName,latest:addonVersions[0].addonVersion}' \
+  --output table
+```
+
+When the CLI is unavailable, fall back to the snapshot below - but read the staleness warning
+first, because it is not a theoretical concern.
+
+> **Measured drift: this snapshot was verified against the AWS docs on 2026-08-20 and
+> 17 of its 18 cells were already wrong on 2026-08-21.** One day. Two of the changes were
+> **minor** version bumps, not build-suffix bumps: CoreDNS for Kubernetes 1.33 moved
+> `v1.12.4-eksbuild.18` to `v1.13.2-eksbuild.17`, and VPC CNI moved `v1.22.4-eksbuild.3` to
+> `v1.23.0-eksbuild.1` across every row. Only `kube-proxy` for 1.36 was unchanged.
+>
+> A hand-verified version table cannot be maintained at this cadence, so treat the snapshot as
+> a shape reference and the API as the value. A report that repeats a stale exact version is
+> worse than one that says "resolve at analysis time", because the reader cannot tell that the
+> number is a year-old artifact of the document rather than a fact about their cluster.
 
 | Kubernetes version | `kube-proxy` | CoreDNS | VPC CNI |
 |---|---|---|---|
