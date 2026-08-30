@@ -149,10 +149,16 @@ MIGRATION_REPORT.md       inventory (present AND absent fields), scaffolds, manu
 
 ## Benchmarks
 
-The paired assessment has been validated against two real Cloud Foundry sample repositories
-(`cloudfoundry-samples/spring-music`, `cloudfoundry-samples/cf-sample-app-nodejs`), both pinned:
+See [`BENCHMARKS.md`](BENCHMARKS.md). Summary: two rounds against two real Cloud Foundry sample
+repositories (`cloudfoundry-samples/spring-music`, `cloudfoundry-samples/cf-sample-app-nodejs`),
+both pinned. Round 1 surfaced 2 contract defects, both fixed in `SKILL.md` and re-validated in
+round 2 on both repos. Round 2: 2/2 COMPLETE, source integrity 0 files modified outside `eks/`
+and the report, `MIGRATION_REPORT.md` at the repository root in 2/2 runs,
+`kubectl apply --dry-run=client` clean, every `TODO(migration)` paired with a report entry.
+
+The paired assessment has been validated separately against the same two repositories:
 31/31 question coverage, counts reconciled, read-only verified, and every cited evidence file
-confirmed to exist. `BENCHMARKS.md` for this transformation is added when its own runs complete.
+confirmed to exist.
 
 ## Known Limitations
 
@@ -184,6 +190,7 @@ confirmed to exist. `BENCHMARKS.md` for this transformation is added when its ow
 tanzu-to-eks/
 ├── README.md                          this file
 ├── SKILL.md                           the transformation definition
+├── BENCHMARKS.md                      measured results
 └── references/
     └── 01-manifest-mapping.md         every field, its classification, and what absence means
 ```
