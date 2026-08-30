@@ -118,6 +118,7 @@ per run.
 
 ```text
 azure-devops-pipelines-migration/
+├── README.md                             # this file
 ├── SKILL.md                              # orchestration spine (discovery → convert → scaffold → validate → report)
 ├── BENCHMARKS.md                         # validation evidence, both targets
 └── references/
