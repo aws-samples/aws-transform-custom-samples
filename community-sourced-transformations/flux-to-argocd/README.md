@@ -106,7 +106,8 @@ proving the conversion end to end, not just structurally.
 ## Repository Structure
 
 ```text
-atx-td-flux-to-argocd/
+flux-to-argocd/
+├── README.md                       # this file
 ├── SKILL.md                        # orchestration spine (discovery → convert → scaffold → validate → report)
 ├── BENCHMARKS.md                   # validation evidence (structural + live reconcile)
 └── references/
