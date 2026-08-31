@@ -600,6 +600,11 @@ export default function JobTracker({ orchestrate, directCall, jobs, setJobs }) {
           }))
           _persistJobUpdate(jobId, { status: result.job_status })
           setLastRefresh(new Date().toISOString())
+          // If the card is already expanded when the job completes, load the
+          // results now (the expand handler only loads for finished jobs).
+          if (result.job_status === 'SUCCEEDED' && expanded === jobId && !jobResults[jobId]) {
+            loadResults(jobId)
+          }
         }
       }
     } catch (e) { console.error(e) }
