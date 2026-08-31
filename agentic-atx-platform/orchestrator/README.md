@@ -22,7 +22,7 @@ Each sub-agent is itself a Strands Agent with its own system prompt and tools th
 | `agent.py` | Main orchestrator with system prompt and entrypoint |
 | `tools/findtransform.py` | Catalog search (static + S3 custom) |
 | `tools/executetransform.py` | Batch submit, status, results |
-| `tools/createtransform.py` | Generate definition (Bedrock), publish (Batch) |
+| `tools/createtransform.py` | Generate definition (ATX headless via Batch), publish (Batch) |
 | `tools/memory_client.py` | AgentCore Memory client |
 | `tools/memory_hooks.py` | Short-term memory hooks |
 | `requirements.txt` | Python dependencies |

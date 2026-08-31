@@ -227,10 +227,8 @@ export default function CreateCustom({ submitAsync, onJobCreated, orchestrate })
       <div className="card mt-16" style={{ background: '#0d1117' }}>
         <h3 style={{ fontSize: 14, marginBottom: 8 }}>How it works</h3>
         <ol style={{ color: '#8b949e', fontSize: 12, lineHeight: 1.8, paddingLeft: 20 }}>
-          <li>If a source repo is provided, a Batch job clones and analyzes the code</li>
-          <li>AI generates a <code>SKILL.md</code> (ATX skill format) based on your requirements and the code analysis</li>
-          <li><strong>Create & Publish</strong>: auto-publishes immediately | <strong>Generate & Review</strong>: lets you edit before publishing</li>
-          <li>A Batch job runs <code>atx custom def publish</code> to register it</li>
+          <li>A Batch job runs the ATX CLI in headless mode (<code>atx -x</code>): it clones the source repo (if provided), analyzes the code, and generates a <code>SKILL.md</code> (ATX skill format) from your requirements</li>
+          <li><strong>Create & Publish</strong>: the same job runs <code>atx custom def publish</code> to register it | <strong>Generate & Review</strong>: the definition is staged for you to edit before publishing</li>
           <li>Once published, use it like any other transformation</li>
         </ol>
       </div>

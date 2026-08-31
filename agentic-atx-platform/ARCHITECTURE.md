@@ -37,10 +37,9 @@ AI-powered code transformation platform built on Amazon Bedrock AgentCore and AW
 │  │   ├── get_job_status → Batch describe                     │
 │  │   └── list_job_results → S3 list                          │
 │  └── create_transform_agent (direct tool calls)             │
-│      ├── upload_repo_to_s3 → Batch clone + S3 sync           │
-│      ├── list_repo_files → S3 list (file tree)               │
-│      ├── read_repo_file → S3 get (individual files)          │
-│      ├── generate_transformation_definition → Bedrock + S3   │
+│      ├── _submit_headless_create → Batch job:                │
+│      │     clone → atx -x (headless generate) → S3 stage     │
+│      │     → atx custom def publish (unless preview)         │
 │      ├── publish_transformation → Batch publish job          │
 │      └── list_registry_transformations → Batch list job      │
 │                                                               │
@@ -73,48 +72,51 @@ UI → /orchestrate (submit) → Lambda (async) → AgentCore
   → Orchestrator → create_transform_agent
 
   Step 1: Extract parameters from natural language (Bedrock)
-  Step 2: Upload repo to S3 (if source URL provided)
-    → Batch job: git clone → aws s3 sync (full repo) → poll until done
-    → Files stored at s3://atx-source-code-{account}/repo-snapshots/{name}/
+  Step 2: Submit ONE fire-and-forget Batch job (ATX CLI headless mode):
+    → git clone <repo> (if source URL provided)
+    → atx -x "<generation prompt>" -t
+      (the ATX agent reads the repo off local disk, selects relevant files
+       itself, and writes /tmp/skills/{name}/SKILL.md)
+    → aws s3 cp SKILL.md s3://atx-source-code-{account}/custom-definitions/{name}/SKILL.md
+    → atx custom def publish (skipped in preview / "Generate & Review" mode)
+    → status.json written to S3 (generating|publishing → generated|published|failed)
 
-  Step 3: Smart file selection
-    → list_repo_files: S3 list all files with sizes
-    → If total source size < 400K chars: read ALL source files (small repo)
-    → If total source size >= 400K chars: AI selects most relevant files
-      based on transformation requirements (budget-aware file count)
+  Without source repo: the headless prompt generates from requirements only
 
-  Step 4: Read selected files from S3 (up to 400K chars / ~100K tokens)
-  Step 5: Generate definition (Bedrock with full source code context)
-    → Uploads SKILL.md (ATX skill format) to S3
-  Step 6: Publish (Batch job: atx custom def publish)
-    → status.json written to S3
-
-  Without source repo: skips steps 2-4, generates from requirements only
+  The orchestrator returns immediately after submit_job; the UI tracks
+  progress via check_publish (Batch describe_jobs → status.json update)
 
 UI → /orchestrate (direct, list_custom) → Lambda → S3 list
 UI → /orchestrate (direct, check_publish) → Lambda → Batch + S3 update
 UI → /orchestrate (direct, get_file) → Lambda → S3 get (definition preview)
+UI → /orchestrate (direct, put_file) → Lambda → S3 put (save user-edited SKILL.md
+  before the review-flow publish; scoped to custom-definitions/<name>/SKILL.md)
 ```
 
 ### Design Decisions: Custom Transformation Creation
 
-- **Full repo upload vs summary extraction**: The full repo is uploaded to S3 so the AI can
-  selectively read files based on the transformation requirements. This produces higher quality
-  definitions than a fixed shell-based summary because the AI chooses what's relevant.
+- **ATX headless mode vs custom Bedrock pipeline**: Skill generation is delegated to the ATX
+  CLI itself (`atx -x "<prompt>" -t`), running inside the same Batch container used for
+  transformations. The CLI reads the repo directly off local disk and always emits the
+  SKILL.md format the registry validates — no repo snapshot in S3, no custom file-selection
+  prompts, and no format drift between our generation code and the ATX registry rules.
 
-- **Smart file selection**: For small repos (< 400K chars of source code), all files are read
-  without an AI selection step — saves one Bedrock call. For large repos, AI picks files with
-  a budget-aware max count calculated from average file size vs the 400K context budget.
+- **Deterministic shell steps around the agent**: The headless prompt only asks ATX to write
+  the SKILL.md to a known path. The S3 staging (`aws s3 cp`) and publish
+  (`atx custom def publish`) run as explicit shell steps in the same job, so the artifacts
+  and registry publish are not dependent on the agent following multi-step instructions.
 
-- **400K character context limit**: ~100K tokens, leaving headroom in Claude Sonnet 4's 200K
-  token context window for the system prompt, requirements, and output generation (8K tokens).
+- **Fire-and-forget Batch**: A full headless generation can run for many minutes, exceeding
+  the Lambda/AgentCore invocation window. The tool returns the Batch job id immediately and
+  the UI polls `check_publish`, which reconciles the Batch job state into status.json.
 
-- **Direct tool calls vs nested agent**: The create_transform_agent uses direct Bedrock API
-  calls and sequential tool invocations instead of a nested Strands agent. This avoids a
-  streaming type bug in the Strands SDK and gives more predictable execution.
+- **Prompt safety through the container's eval**: The Batch entrypoint `eval`s the command
+  string, so user-controlled text (requirements, description) is base64-encoded in the
+  submitted command and decoded inside the job; source URLs are validated against an
+  allowlist pattern before interpolation.
 
-- **Three Bedrock calls** (with source): extract params → select files (large repos only) → generate definition.
-  Two Bedrock calls for small repos (extract params → generate definition).
+- **One Bedrock call**: extract params from the natural-language request. Generation itself
+  consumes ATX Agent Minutes instead of Bedrock tokens.
 
 ### CSV Batch
 ```
