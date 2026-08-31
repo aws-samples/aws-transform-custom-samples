@@ -114,6 +114,42 @@ def _handle_poll(body):
         return cors_response(200, json.dumps({'status': 'NOT_FOUND'}))
 
 
+def _validate_skill_frontmatter(content, expected_name):
+    """
+    Validate the SKILL.md YAML frontmatter block, mirroring what the ATX
+    registry enforces on publish. Returns an error string, or None if valid.
+    """
+    import re as _re
+    lines = content.split('\n')
+    if not lines or lines[0].strip() != '---':
+        return "SKILL.md must start with a '---' YAML frontmatter block containing 'name' and 'description'"
+    end = None
+    for i in range(1, len(lines)):
+        if lines[i].strip() == '---':
+            end = i
+            break
+    if end is None:
+        return "SKILL.md frontmatter opened with '---' but is never closed with a matching '---'"
+    keys = {}
+    for ln in lines[1:end]:
+        if not ln.strip() or ln.strip().startswith('#'):
+            continue
+        if ln.startswith((' ', '\t')):
+            continue  # indented continuation of the previous value
+        m = _re.match(r'^([A-Za-z0-9_-]+):\s*(.*)$', ln)
+        if not m:
+            return (f"Invalid frontmatter line (each line must be 'key: value'): "
+                    f"\"{ln.strip()[:80]}\". Move free text below the closing '---'.")
+        keys[m.group(1)] = m.group(2).strip()
+    if not keys.get('name'):
+        return "Frontmatter is missing the required 'name' field"
+    if keys['name'].strip('"\'') != expected_name:
+        return f"Frontmatter 'name' must be '{expected_name}' (found '{keys['name']}')"
+    if not keys.get('description'):
+        return "Frontmatter is missing the required 'description' field"
+    return None
+
+
 def _handle_direct(body):
     """Direct AWS service calls - no AgentCore, instant response."""
     op = body.get('op', '')
@@ -331,6 +367,12 @@ def _handle_direct(body):
             normalized = def_name.lower().replace(' ', '-')
             if not _re.fullmatch(r'[a-z0-9][a-z0-9-]{0,62}[a-z0-9]|[a-z0-9]', normalized):
                 return cors_response(400, json.dumps({'error': f'Invalid definition_name: {def_name}'}))
+            # Validate the SKILL.md frontmatter before saving, so a bad edit
+            # fails here with a clear message instead of minutes later when
+            # `atx custom def publish` rejects it in a Batch job.
+            fm_error = _validate_skill_frontmatter(content, normalized)
+            if fm_error:
+                return cors_response(400, json.dumps({'error': fm_error}))
             account = boto3.client('sts').get_caller_identity()['Account']
             bucket = f"atx-source-code-{account}"
             key = f"custom-definitions/{normalized}/SKILL.md"
