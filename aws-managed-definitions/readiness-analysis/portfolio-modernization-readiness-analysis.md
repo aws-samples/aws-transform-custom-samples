@@ -22,7 +22,7 @@ The transformation follows these implementation steps:
 9. **Dependency-Aware Phased Roadmap** (Step 6): Generate 4-phase roadmap with dependency-based service ordering
 10. **Pathway Aggregation** (Step 7): Aggregate pathway triggers across the portfolio
 11. **Synthesis** (Step 8): Integration opportunities, risk analysis, resource allocation
-12. **AWS Programs & Engagement Recommendations** (Step 9): Recommend MAP, MMP, WAMP, EBA, OLA, VMP, ISV WMP where triggered
+12. **AWS Programs & Engagement Recommendations** (Step 9): Recommend programs and GTM motions from the shared AWS Program & GTM Library (`references/program-library.md`) where triggered
 13. **Portfolio-Level Questions** (Step 10): Evaluate PORT-MOD-Q1 through PORT-MOD-Q5 — capabilities only visible across multiple repos
 
 The output is a **four-artifact bundle** (per the Four-Artifact Output Contract below) containing:
@@ -42,7 +42,7 @@ The MD report contains:
 - Integration opportunities
 - Risk analysis with likelihood-impact matrix
 - Resource allocation recommendations
-- AWS Programs & Engagement Recommendations (MAP, OLA, MMP, VMP, WAMP, EBA, ISV WMP)
+- AWS Programs & Engagement Recommendations (from the shared AWS Program & GTM Library — MAP, OLA, AppMod, EBA, VMCCO, SHIP, etc., where triggered)
 - Learning materials mapped to portfolio skill gaps
 - Service-by-service summary
 
@@ -1019,19 +1019,20 @@ For each identified risk:
 
 > **This section appears ONLY in portfolio reports, NEVER in individual reports.** AWS programs are engagement-level decisions scoped to the customer's overall estate, not per-repo. The portfolio view has the right scope to make these recommendations.
 
-Based on the portfolio-wide analysis findings from previous steps, evaluate each of the 8 AWS engagement programs below against its trigger condition. Include a program in the recommendations only if its trigger condition is met. If no programs are triggered, include a brief note instead.
+Based on the portfolio-wide analysis findings from previous steps, recommend relevant AWS programs and GTM motions from the shared **AWS Program & GTM Library** in `references/program-library.md`. Load that file when evaluating recommendations — it is the authoritative catalog and contains the full agent instructions (signal patterns, exclusions, qualification criteria, prioritization, grouping, status filtering, and a reasoning checklist). Include a program only if its trigger condition is met. If no programs are triggered, include the brief note in 9.2 instead.
 
-#### 9.1 Programs Catalog and Trigger Logic
+#### 9.1 Evaluating the Library from MOD Findings
 
-| Program | Acronym | Trigger Condition | How to Evaluate |
-|---------|---------|-------------------|-----------------|
-| Migration Acceleration Program | MAP | Portfolio has 3+ repos with workloads NOT yet on AWS (on-premises or another cloud provider) | Check individual report findings for non-AWS hosting signals: (1) no AWS IaC detected (no CDK, CloudFormation, or Terraform with AWS provider), (2) no AWS SDK references in application code, (3) deployment targets referencing non-AWS infrastructure (Azure, GCP, bare-metal, VMware, on-prem data centers, physical server configs), (4) self-hosted CI/CD with no cloud provider integration (Jenkins on-prem, GitLab self-hosted without cloud runners). If 3+ repos show these signals, recommend MAP. MAP is ONLY for net-new workloads migrating to AWS — it does NOT apply to workloads already running on AWS in any form, including EC2-hosted legacy applications. A PHP monolith on EC2 is already on AWS and does not qualify for MAP regardless of how unmodernized it is. |
-| Optimization and Licensing Analysis | OLA | Any repo has Oracle, SQL Server, VMware, or commercial license findings | Check individual report findings for DATA-Q4 (stored procedures / commercial SQL) and INF-Q2 (managed DB) scores. If any repo's findings mention Oracle, SQL Server, VMware, or other commercial database/license references, recommend OLA. |
-| Microsoft Modernization Program | MMP | Any repo has .NET or Windows workloads detected | Check APP-Q1 (Programming Languages) findings. If any repo uses C#, .NET, ASP.NET, or VB.NET, recommend MMP. |
-| VMware Modernization Program | VMP | Any repo has VMware references in IaC or deployment configs | Check individual report findings for VMware, vSphere, ESXi, or vCenter references. If found, recommend VMP. |
-| Windows App Modernization Program | WAMP | Any repo has Windows-based deployment targets | Check individual report findings for Windows Server, IIS, or Windows-specific deployment references. If found, recommend WAMP. |
-| Experience-Based Acceleration | EBA | Portfolio has 2+ repos with triggered pathways AND overall score < 3.0 | Count repos with at least one triggered pathway AND overall score < 3.0. If count >= 2, recommend EBA. Specify which pathway(s) are most prevalent for the EBA engagement focus. |
-| ISV Workload Migration Program | ISV WMP | Portfolio includes ISV or third-party software workloads | Check findings for references to third-party commercial software, ISV applications, or packaged software deployments. If found, recommend ISV WMP. |
+Use the `[MOD]` / `[ARA+MOD]`-tagged programs in the library and map MOD's vocabulary as described in the library's "Mapping findings to triggers" section:
+
+- **Pathways** → use the exact MOD pathway names (`Move to Cloud Native`, `Move to Containers`, `Move to Open Source`, `Move to Managed Databases`, `Move to Managed Analytics`, `Move to Modern DevOps`, `Move to AI`). Use the aggregated pathway plan from Step 7.
+- **"Multiple High-severity findings"** → count unified `High` findings across services (from cross-cutting analysis). **"High Effort"** → the finding `effort` field (`High`/`Medium`/`Low`).
+- **Classification / category health** → use `severity_status` (`Ready`/`Needs Work`/`Critical`) and `score_rating` (`Mature`/`Partial`/`Needs Work`/`Not Ready`). **Do NOT use or expose the internal 1–4 score** anywhere in the recommendations output.
+- **Workload-specific triggers** (VMware, Windows/.NET, Oracle, SAP, Kafka, mainframe) → use the technology stack detected during discovery and the per-service findings.
+- **On-prem / migration triggers** (MAP, OLA, Migration Evaluator, VMCCO) → MOD scope is AWS-targeting workloads and excludes on-prem. Trigger these from portfolio/service `context` references (on-prem, data center, VMware estate, "migrating from…") or IaC evidence of non-AWS/VMware providers (`vsphere_*`, bare-metal) — NOT from MOD findings about workloads already on AWS. A legacy app already on EC2 does not qualify for MAP.
+- **Customer segment** (Enterprise / SMB / ISV / Startup / WWPS) → infer from portfolio `context` and `service_inventory`.
+
+Apply the library's selection rules: cap recommendations at **3–5**, prioritize by direct finding match → segment fit → entry-point-before-follow-on, group as **Funded Programs → Engagement Models → GTM Motions**, sequence logically (Assessment → Funding → Execution → Optimization), and never recommend `Retiring` or not-yet-imminent `Launching` programs. Run the library's reasoning checklist before finalizing.
 
 #### 9.2 Program Recommendations Output
 
@@ -1039,9 +1040,11 @@ For each triggered program:
 
 - **Program name and acronym**
 - **Relevance** — Why this program is recommended based on portfolio findings
-- **Trigger findings** — Specific portfolio metrics that triggered the recommendation (e.g., "4 of 6 services have overall score < 2.5")
+- **Trigger findings** — Specific portfolio metrics that triggered the recommendation (using severity/classification language, never the internal numeric score — e.g., "4 of 6 services classified Remediation Required", "Move to Containers triggered for 3 services")
 - **What it provides** — Brief description of the program's value
 - **Next step** — Recommended action (e.g., "Request MAP engagement via AWS Solutions Architect")
+
+Group the rendered output under **Funded Programs → Engagement Models → GTM Motions**. Cap at 3–5 total.
 
 If no programs are triggered, include: "No specific AWS program recommendations based on current findings. As the portfolio evolves, re-assess to identify program eligibility."
 
@@ -1725,11 +1728,29 @@ in exactly one column per pathway row.
 
 ### Recommended Programs
 
+> Recommendations are capped at 3–5 and grouped by type. Trigger findings use severity and
+> classification language only — the internal 1–4 maturity score is never exposed here.
+
+#### Funded Programs
+
 | Program | Acronym | Relevance | Trigger Findings | Next Step |
 |---------|---------|-----------|-----------------|-----------|
 | <program name> | <acronym> | <why recommended> | <specific findings> | <recommended action> |
 
-> If no programs are triggered:
+#### Engagement Models
+
+| Program | Acronym | Relevance | Trigger Findings | Next Step |
+|---------|---------|-----------|-----------------|-----------|
+| <program name> | <acronym> | <why recommended> | <specific findings> | <recommended action> |
+
+#### GTM Motions
+
+| Program | Acronym | Relevance | Trigger Findings | Next Step |
+|---------|---------|-----------|-----------------|-----------|
+| <program name> | <acronym> | <why recommended> | <specific findings> | <recommended action> |
+
+> Omit any group heading that has no triggered programs.
+> If no programs are triggered at all:
 > "No specific AWS program recommendations based on current findings. As the
 > portfolio evolves, re-assess to identify program eligibility."
 
@@ -2044,7 +2065,7 @@ The Portfolio MOD JSON artifact MUST emit these top-level keys in the order show
 | `repositories[]` | Per-repo roll-up |
 | `findings[]` | Lightweight portfolio finding index. See "Portfolio `findings[]` entry shape" below. |
 | `remediation_roadmap` | See §"Remediation Roadmap" — grouping `pathway` |
-| `recommended_actions[]` | Canonical AWS programs (MAP, MMP, WAMP, EBA, OLA, VMP, ISV WMP) |
+| `recommended_actions[]` | Triggered AWS programs from the AWS Program & GTM Library (`references/program-library.md`), grouped Funded → Engagement → GTM |
 | `pathways[]` | All 7 AWS Modernization Pathways with JSON-pointer back-references; see §"Pathways Aggregation" |
 | `dependency_map` | Portfolio dependency map |
 | `roadmap_phases[]` | Optional, additive |
@@ -2200,19 +2221,21 @@ MD rendering under an H2 heading **"## Remediation Roadmap"** matching the webap
 
 ### Recommended Actions
 
-The Portfolio MOD JSON emits `recommended_actions[]` with minimum-set coverage:
+The Portfolio MOD JSON emits `recommended_actions[]`. Programs are drawn from the AWS Program & GTM Library (`references/program-library.md`); each entry carries a `group` field (`Funded Programs` / `Engagement Models` / `GTM Motions`) so the webapp can render the grouped output. The library is the authoritative source for the program set, trigger logic, and grouping.
 
-| `id` | `name` | `acronym` | `type` |
-|---|---|---|---|
-| `map` | Migration Acceleration Program | MAP | program |
-| `mmp` | Microsoft Modernization Program | MMP | program |
-| `wamp` | Windows App Modernization Program | WAMP | program |
-| `eba` | Experience-Based Acceleration | EBA | program |
-| `ola` | Optimization and Licensing Analysis | OLA | program |
-| `vmp` | VMware Migration Program | VMP | program |
-| `isv-wmp` | ISV Workload Migration Program | ISV WMP | program |
+Each entry envelope:
 
-Same entry envelope as Portfolio ARA. `status ∈ {Triggered, Applicable, Not Triggered}` with non-empty `trigger_reason`. Emitted under the H2 heading **"## Recommended Actions"**.
+| Field | Description |
+|---|---|
+| `id` | Stable slug for the program (e.g., `map`, `ola`, `appmod-assessment`, `ship`) |
+| `name` | Full program name (e.g., Migration Acceleration Program) |
+| `acronym` | Program acronym where one exists, else `null` |
+| `type` | `program` |
+| `group` | `Funded Programs` / `Engagement Models` / `GTM Motions` |
+| `status` | `Triggered` / `Applicable` / `Not Triggered` |
+| `trigger_reason` | Non-empty prose stating the finding(s) that triggered (or did not trigger) the program — using severity/classification language, never the internal 1–4 score |
+
+The triggered set is capped at 3–5 per the library's selection rules. Same entry envelope as Portfolio ARA. Emitted under the H2 heading **"## Recommended Actions"**.
 
 ---
 
@@ -2332,11 +2355,13 @@ Source: `remediation_roadmap.items[]` grouped by phase + `roadmap_phases[]`
 
 #### AWS Programs & Engagement Recommendations
 
-Table columns: `Program`, `Relevance`, `What You Get`, `Suggested Timing`
+Table columns: `Program`, `Group`, `Relevance`, `What You Get`, `Suggested Timing`
 
 - Source: `recommended_actions[]`
+- Group values: `Funded Programs`, `Engagement Models`, `GTM Motions` — render as grouped sections in that order (or a Group column), omitting any group with no triggered programs
 - Relevance values: `Triggered`, `Applicable`, `Not Triggered`
-- Show ALL programs (not just triggered)
+- The triggered set can include ANY `[MOD]` / `[ARA+MOD]` program from the AWS Program & GTM Library. Examples that may appear from MOD findings: MAP, OLA, AMA, AppMod Assessment / PoC Funding (Funded), VMCCO, Well-Architected Review (Non-Funded → grouped under Funded Programs per the library's grouping rule), AML / Immersion Days / ProServe Residency (Engagement Models), ModNet / Agentic-led Modernization Sales Play (GTM Motions)
+- Show the recommended set only (capped at 3–5 per the library's selection rules) — do NOT render the full program catalog (88 programs). Do not display any internal numeric maturity score.
 
 #### Pathways Tab (MOD-only — ARA does not have this)
 
