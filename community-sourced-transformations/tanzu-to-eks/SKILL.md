@@ -8,7 +8,7 @@ description: >-
   reconstructed from the repository. Not for Tanzu Kubernetes Grid (TKG).
   Trigger: Cloud Foundry migration, TAS to EKS, PCF to EKS, manifest.yml, VCAP_SERVICES, cf push.
 type: custom
-version: 0.1.0
+version: 0.2.0
 ---
 
 # Tanzu / Cloud Foundry to Amazon EKS
@@ -97,6 +97,8 @@ common cause of an OOMKill loop after a CF migration.
   where, the TODO shows what, the report shows why.
 - **Absence is reported, not filled.** If the repository has no health check, no CPU value and no
   Dockerfile, say so for each - do not quietly supply defaults that look like decisions someone made.
+- **The manual-action section of the report is named exactly `## Manual Action Items`.**
+- **No em dash (U+2014) anywhere in emitted output** - use a hyphen.
 - Stay on the current branch; do not commit.
 
 ## Workflow
@@ -124,7 +126,7 @@ Phase 5  MIGRATION_REPORT.md, cross-referenced to the Lens question ids.
    is a defect, not a convenience.
 4. Emitted YAML parses; `--dry-run=client` clean; charts render under `helm template`.
 5. Every REPORT-ONLY construct has a report entry naming the construct, the reason, and the path.
-6. Every `TODO(migration)` has a report entry, and vice versa.
+6. Every `TODO(migration)` has an entry in the report's `## Manual Action Items`, and vice versa.
 7. The `memory` translation carries its HIGH-risk JVM note whenever a JVM language is detected.
 
 ## Non-Goals

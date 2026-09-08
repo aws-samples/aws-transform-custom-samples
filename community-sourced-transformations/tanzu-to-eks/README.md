@@ -149,12 +149,14 @@ MIGRATION_REPORT.md       inventory (present AND absent fields), scaffolds, manu
 
 ## Benchmarks
 
-See [`BENCHMARKS.md`](BENCHMARKS.md). Summary: two rounds against two real Cloud Foundry sample
+See [`BENCHMARKS.md`](BENCHMARKS.md). Summary: three rounds against two real Cloud Foundry sample
 repositories (`cloudfoundry-samples/spring-music`, `cloudfoundry-samples/cf-sample-app-nodejs`),
-both pinned. Round 1 surfaced 2 contract defects, both fixed in `SKILL.md` and re-validated in
-round 2 on both repos. Round 2: 2/2 COMPLETE, source integrity 0 files modified outside `eks/`
-and the report, `MIGRATION_REPORT.md` at the repository root in 2/2 runs,
-`kubectl apply --dry-run=client` clean, every `TODO(migration)` paired with a report entry.
+both pinned. Round 1 surfaced 2 contract defects and round 2 surfaced 2 report-cosmetic variances;
+all 4 are fixed in `SKILL.md` and re-validated on both repos before publishing. Round 3, on
+`SKILL.md` v0.2.0: 2/2 COMPLETE, source integrity 0 files modified outside `eks/` and the report,
+`MIGRATION_REPORT.md` at the repository root in 2/2 runs, `kubectl apply --dry-run=client` clean,
+`## Manual Action Items` as the report section name in 2/2, zero em dash in emitted output, and
+every `TODO(migration)` paired 1:1 with a row in that section.
 
 The paired assessment has been validated separately against the same two repositories:
 31/31 question coverage, counts reconciled, read-only verified, and every cited evidence file
