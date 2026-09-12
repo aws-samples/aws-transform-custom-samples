@@ -10,8 +10,8 @@ REST API for triggering, monitoring, and managing AWS Transform CLI jobs on AWS 
 
 _If using CDK:_
 ```bash
-cd cdk
-npx cdk output AtxApiStack.ApiEndpoint
+aws cloudformation describe-stacks --stack-name AtxApiStack \
+  --query "Stacks[0].Outputs[?OutputKey=='ApiEndpoint'].OutputValue" --output text
 # Or check the output printed during deployment
 ```
 
