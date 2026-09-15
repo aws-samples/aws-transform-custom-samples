@@ -1,11 +1,14 @@
 """
 CreateTransform Sub-Agent
 
-Creates custom transformation definitions by:
-1. Cloning repo to S3 via Batch job
-2. AI-driven file selection: list files → pick relevant ones → read them
-3. Generating SKILL.md (ATX skill format) using Bedrock with full source context
-4. Publishing to ATX registry via Batch job
+Creates custom transformation definitions (skills) using the ATX CLI in
+headless mode. A single Batch job:
+1. Clones the source repository (optional)
+2. Runs `atx -x "<prompt>" -t` so the ATX agent analyzes the code and writes
+   the SKILL.md itself (no separate Bedrock generation pipeline)
+3. Stages the SKILL.md in S3 (custom-definitions/<name>/SKILL.md) for the UI
+4. Publishes to the ATX registry via `atx custom def publish` (unless the
+   request is preview-only: "do not publish")
 """
 
 import os
@@ -13,6 +16,7 @@ import json
 import time
 import logging
 import re
+import base64
 import boto3
 from typing import Any, Dict
 
@@ -51,38 +55,99 @@ def _normalize_skill_name(name: str) -> str:
     return n[:64].rstrip('-')
 
 
-# YAML-escape a value for the SKILL.md frontmatter (handles quotes/colons/newlines).
-def _yaml_escape(value: str) -> str:
-    s = (value or "").replace('\n', ' ').strip()
-    s = s.replace('\\', '\\\\').replace('"', '\\"')
-    return f'"{s}"'
+# The Batch container entrypoint evals the --command string, so anything
+# user-controlled is base64-encoded and decoded inside the job instead of
+# being interpolated into the shell command directly.
+def _b64(value: str) -> str:
+    return base64.b64encode((value or "").encode('utf-8')).decode('ascii')
 
 
-@tool
-def upload_repo_to_s3(source_url: str, name: str) -> Dict[str, Any]:
+# Git/S3 URLs are interpolated into the job command, so reject anything with
+# shell metacharacters.
+_SOURCE_URL_RE = re.compile(r'^[A-Za-z0-9@.:/_~+-]+$')
+
+def _validate_source_url(url: str) -> bool:
+    return bool(url) and bool(_SOURCE_URL_RE.match(url)) and len(url) < 512
+
+
+def _build_headless_prompt(name: str, description: str, requirements: str,
+                           has_source: bool) -> str:
+    """Prompt for `atx -x`: the ATX agent generates the SKILL.md itself."""
+    if has_source:
+        context_line = (
+            "First analyze the source code in the current directory and tailor the "
+            "instructions to the actual files, frameworks, and patterns you find. "
+            "Reference real file names, function names, and code patterns."
+        )
+    else:
+        context_line = (
+            "No reference repository is available; base the instructions on the "
+            "requirements alone."
+        )
+
+    return f"""You are creating an AWS Transform custom transformation definition (skill).
+
+Skill name: {name}
+Description: {description}
+
+Requirements:
+{requirements}
+
+{context_line}
+
+Write the completed skill to /tmp/skills/{name}/SKILL.md with:
+- YAML frontmatter containing exactly two fields: `name: {name}` and a one-line `description`.
+- A markdown body with clear, detailed step-by-step instructions that an AI agent will follow to transform a codebase: what changes to make, specific patterns to look for, how to validate the changes, and edge cases to handle.
+
+Do not publish the skill. Do not modify any repository files. Your only output artifact is /tmp/skills/{name}/SKILL.md."""
+
+
+def _submit_headless_create(name: str, description: str, requirements: str,
+                            source_url: str, publish: bool) -> Dict[str, Any]:
     """
-    Submit a Batch job to clone a repository and upload all source files to S3.
-    Files are uploaded to s3://{bucket}/repo-snapshots/{name}/ for AI-driven browsing.
-
-    Args:
-        source_url: Git repository URL (e.g., 'https://github.com/user/repo')
-        name: Transformation name (used as S3 prefix)
-
-    Returns:
-        Dictionary with job ID and S3 prefix
+    Submit a single fire-and-forget Batch job that generates the SKILL.md with
+    ATX headless mode, stages it in S3, and optionally publishes it.
     """
     bucket = _get_source_bucket()
-    s3_prefix = f"repo-snapshots/{name}"
-    job_name = f"upload-repo-{name}-{int(time.time())}"
+    skill_name = _normalize_skill_name(name)
+    description = (description or skill_name).strip()
+    if len(description) > 1024:
+        description = description[:1021] + '...'
+    # Keep the submit_job payload well under the Batch 30 KiB limit.
+    if len(requirements) > 8000:
+        requirements = requirements[:8000] + '\n[truncated]'
+
+    if source_url and not _validate_source_url(source_url):
+        return {"status": "error", "error": f"Invalid source URL: {source_url}"}
+
+    prompt = _build_headless_prompt(skill_name, description, requirements,
+                                    has_source=bool(source_url))
+    skill_dir = f"/tmp/skills/{skill_name}"
+    s3_dest = f"s3://{bucket}/custom-definitions/{skill_name}/SKILL.md"
+
+    steps = []
+    if source_url:
+        steps.append(f"git clone --depth 1 {source_url} /source/repo")
+        steps.append("cd /source/repo")
+    else:
+        steps.append("mkdir -p /source/workdir")
+        steps.append("cd /source/workdir")
+        steps.append("git init -q")
+    steps.append(f"mkdir -p {skill_dir}")
+    # Decode user-controlled text inside the job (the entrypoint evals this string).
+    steps.append(f"ATX_PROMPT=\"$(echo {_b64(prompt)} | base64 -d)\"")
+    steps.append("atx -x \"$ATX_PROMPT\" -t")
+    steps.append(f"test -f {skill_dir}/SKILL.md")
+    steps.append(f"aws s3 cp {skill_dir}/SKILL.md {s3_dest}")
+    if publish:
+        steps.append(f"SKILL_DESC=\"$(echo {_b64(description)} | base64 -d)\"")
+        steps.append(f"atx custom def publish -n {skill_name} --description \"$SKILL_DESC\" --sd {skill_dir}")
+    cmd = " && ".join(steps)
+
+    mode = "create-publish" if publish else "create-preview"
+    job_name = f"{mode}-{skill_name}-{int(time.time())}"
     job_queue = os.environ.get('JOB_QUEUE_NAME', 'atx-job-queue')
     job_definition = os.environ.get('JOB_DEFINITION_NAME', 'atx-transform-job')
-
-    # Clone repo and sync all source files to S3 (exclude .git)
-    cmd = (
-        f"git clone {source_url} /source/repo && "
-        f"cd /source/repo && "
-        f"aws s3 sync . s3://{bucket}/{s3_prefix}/ --exclude '.git/*'"
-    )
 
     try:
         response = batch_client.submit_job(
@@ -91,175 +156,29 @@ def upload_repo_to_s3(source_url: str, name: str) -> Dict[str, Any]:
         )
         job_id = response['jobId']
 
-        logger.info(f"Waiting for repo upload job {job_id}...")
-        for _ in range(60):  # Max 5 minutes
-            time.sleep(5)
-            status = batch_client.describe_jobs(jobs=[job_id])
-            if not status['jobs']:
-                break
-            job_status = status['jobs'][0]['status']
-            if job_status == 'SUCCEEDED':
-                return {
-                    "status": "success",
-                    "s3_prefix": f"s3://{bucket}/{s3_prefix}/",
-                    "message": f"Repository uploaded to S3. Use list_repo_files and read_repo_file to browse.",
-                }
-            if job_status == 'FAILED':
-                reason = status['jobs'][0].get('statusReason', 'Unknown')
-                return {"status": "error", "error": f"Upload job failed: {reason}"}
-
-        return {"status": "error", "error": "Upload job timed out after 5 minutes"}
-    except Exception as e:
-        return {"status": "error", "error": str(e)}
-
-
-@tool
-def list_repo_files(name: str) -> Dict[str, Any]:
-    """
-    List all files in a repository snapshot uploaded to S3.
-
-    Args:
-        name: Transformation name (matches the S3 prefix from upload_repo_to_s3)
-
-    Returns:
-        Dictionary with list of file paths and sizes
-    """
-    bucket = _get_source_bucket()
-    prefix = f"repo-snapshots/{name}/"
-    try:
-        paginator = s3_client.get_paginator('list_objects_v2')
-        files = []
-        for page in paginator.paginate(Bucket=bucket, Prefix=prefix):
-            for obj in page.get('Contents', []):
-                rel_path = obj['Key'][len(prefix):]
-                if rel_path and not rel_path.startswith('.git/'):
-                    files.append({'path': rel_path, 'size': obj['Size']})
-        return {
-            "status": "success",
-            "file_count": len(files),
-            "files": files,
-        }
-    except Exception as e:
-        return {"status": "error", "error": str(e)}
-
-
-@tool
-def read_repo_file(name: str, file_path: str) -> Dict[str, Any]:
-    """
-    Read the content of a specific file from the repository snapshot in S3.
-
-    Args:
-        name: Transformation name (matches the S3 prefix)
-        file_path: Relative file path within the repo (e.g., 'src/app.py')
-
-    Returns:
-        Dictionary with file content (truncated to 50KB for context window safety)
-    """
-    bucket = _get_source_bucket()
-    key = f"repo-snapshots/{name}/{file_path}"
-    try:
-        obj = s3_client.get_object(Bucket=bucket, Key=key)
-        content = obj['Body'].read().decode('utf-8', errors='replace')
-        truncated = False
-        if len(content) > 50000:
-            content = content[:50000]
-            truncated = True
-        return {
-            "status": "success",
-            "path": file_path,
-            "content": content,
-            "size": obj['ContentLength'],
-            "truncated": truncated,
-        }
-    except Exception as e:
-        return {"status": "error", "error": str(e)}
-
-
-@tool
-def generate_transformation_definition(name: str, description: str, requirements: str,
-                                        source_context: str = "") -> Dict[str, Any]:
-    """
-    Generate a SKILL.md file (ATX skill format) using Bedrock AI and upload to S3.
-
-    Args:
-        name: Name for the transformation (e.g., 'add-structured-logging')
-        description: Short description of what the transformation does
-        requirements: Detailed requirements for the transformation
-        source_context: Source code context (file contents read from the repo)
-
-    Returns:
-        Dictionary with the generated definition and S3 location
-    """
-    bucket = _get_source_bucket()
-    skill_name = _normalize_skill_name(name)
-
-    prompt = f"""Create the instructions body for an AWS Transform custom SKILL.md file.
-
-Name: {skill_name}
-Description: {description}
-Requirements: {requirements}
-"""
-    if source_context:
-        prompt += f"""
-The following is the actual source code from the target repository.
-Use this to make the transformation instructions specific and accurate for this codebase.
-Reference actual file names, function names, class names, and patterns you see.
-
-{source_context}
-"""
-
-    prompt += """
-The content should contain clear, detailed instructions that an AI agent will follow to transform code.
-Include:
-- What changes to make (be specific based on the actual code patterns found)
-- Specific files and functions to modify
-- Patterns to look for in the source code
-- How to validate the changes
-- Edge cases to handle
-
-Output ONLY the markdown instructions body (no YAML frontmatter, no code fences).
-Do not include a top-level title line; it will be added automatically."""
-
-    try:
-        response = bedrock_runtime.invoke_model(
-            modelId=os.getenv("BEDROCK_MODEL_ID", "us.anthropic.claude-sonnet-4-5-20250929-v1:0"),
-            body=json.dumps({
-                "anthropic_version": "bedrock-2023-05-31",
-                "max_tokens": 8192,
-                "temperature": 0.3,
-                "messages": [{"role": "user", "content": prompt}]
-            })
-        )
-        body = json.loads(response['body'].read())
-        instructions = body['content'][0]['text'].strip()
-
-        # Assemble SKILL.md: YAML frontmatter (name + description) + instructions.
-        # ATX requires `name` to match the parent directory and `description` to be 1-1024 chars.
-        desc = (description or skill_name).strip()
-        if len(desc) > 1024:
-            desc = desc[:1021] + '...'
-        skill_md = (
-            "---\n"
-            f"name: {skill_name}\n"
-            f"description: {_yaml_escape(desc)}\n"
-            "---\n"
-            f"# {skill_name}\n\n"
-            f"{instructions}\n"
-        )
-
-        s3_key = f"custom-definitions/{skill_name}/SKILL.md"
-        s3_client.put_object(
-            Bucket=bucket, Key=s3_key,
-            Body=skill_md.encode('utf-8'),
-            ContentType='text/markdown'
-        )
-
-        return {
-            "status": "success",
+        # Status tracked by the UI (list_custom / check_publish ops).
+        # 'generating' -> 'generated' for previews; 'publishing' -> 'published'
+        # for auto-publish. Failures flip to 'failed'.
+        status_data = {
+            "status": "publishing" if publish else "generating",
+            "job_id": job_id,
+            "job_name": job_name,
             "name": skill_name,
-            "s3_uri": f"s3://{bucket}/{s3_key}",
-            "source_analyzed": bool(source_context),
-            "definition_preview": skill_md[:500] + "..." if len(skill_md) > 500 else skill_md,
+            "description": description,
+            "created_at": time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+        }
+        s3_client.put_object(
+            Bucket=bucket, Key=f"custom-definitions/{skill_name}/status.json",
+            Body=json.dumps(status_data).encode(), ContentType='application/json'
+        )
+
+        return {
+            "status": "success",
+            "job_id": job_id,
+            "job_name": job_name,
+            "name": skill_name,
+            "definition_location": s3_dest,
+            "publish": publish,
         }
     except Exception as e:
         return {"status": "error", "error": str(e)}
@@ -268,7 +187,9 @@ Do not include a top-level title line; it will be added automatically."""
 @tool
 def publish_transformation(name: str, description: str) -> Dict[str, Any]:
     """
-    Publish a transformation definition to the ATX registry by submitting a Batch job.
+    Publish a previously generated transformation definition to the ATX registry
+    by submitting a Batch job. Used by the review flow after the user approves
+    a staged SKILL.md.
 
     Args:
         name: Name of the transformation to publish
@@ -297,6 +218,9 @@ def publish_transformation(name: str, description: str) -> Dict[str, Any]:
                 "error": f"Definition not found: s3://{bucket}/{skill_key} (or legacy transformation_definition.md). Generate it first."}
 
     name = skill_name
+    description = (description or skill_name).strip()
+    if len(description) > 1024:
+        description = description[:1021] + '...'
     job_name = f"publish-{name}-{int(time.time())}"
     job_queue = os.environ.get('JOB_QUEUE_NAME', 'atx-job-queue')
     job_definition = os.environ.get('JOB_DEFINITION_NAME', 'atx-transform-job')
@@ -305,7 +229,8 @@ def publish_transformation(name: str, description: str) -> Dict[str, Any]:
     cmd = (
         f"mkdir -p /tmp/{name} && "
         f"aws s3 cp s3://{bucket}/{staged_file} /tmp/{name}/{filename} && "
-        f"atx custom def publish -n {name} --description '{description}' --sd /tmp/{name}"
+        f"SKILL_DESC=\"$(echo {_b64(description)} | base64 -d)\" && "
+        f"atx custom def publish -n {name} --description \"$SKILL_DESC\" --sd /tmp/{name}"
     )
 
     try:
@@ -358,8 +283,9 @@ def list_registry_transformations() -> Dict[str, Any]:
 def create_transform_agent(query: str) -> Dict[str, Any]:
     """
     Creates and publishes custom transformation definitions to the ATX registry.
-    When a source repository is provided, uses AI-driven file selection to read
-    relevant source files and generate a definition tailored to the actual codebase.
+    Submits a Batch job that runs the ATX CLI in headless mode: the ATX agent
+    clones the source repository (when provided), analyzes the code, generates
+    the SKILL.md, and publishes it (unless the request says not to publish).
 
     Args:
         query: Natural language request describing the custom transformation to create.
@@ -412,127 +338,36 @@ Example: {{"action": "create", "name": "add-logging", "description": "Add loggin
         if not name or not requirements:
             return {"status": "error", "error": "Could not extract transformation name and requirements."}
 
-        results = []
-        source_context = ""
-
-        # Step 2: Upload repo to S3 if source URL provided
-        if source_url:
-            logger.info(f"Uploading repo to S3: {source_url}")
-            upload_result = upload_repo_to_s3(source_url=source_url, name=name)
-            results.append(f"Repo upload: {upload_result.get('status')}")
-
-            if upload_result.get('status') == 'success':
-                # Step 3: List files
-                file_list = list_repo_files(name=name)
-                if file_list.get('status') == 'success':
-                    files = file_list['files']
-                    results.append(f"Files found: {file_list['file_count']}")
-
-                    max_context = 400000  # ~100K tokens
-                    # Filter to source code files only (skip binaries, images, etc.)
-                    SOURCE_EXTS = {'.py', '.java', '.js', '.ts', '.jsx', '.tsx', '.go', '.rb', '.rs',
-                                   '.c', '.cpp', '.h', '.cs', '.kt', '.scala', '.swift',
-                                   '.json', '.yaml', '.yml', '.toml', '.xml', '.properties',
-                                   '.md', '.txt', '.html', '.css', '.scss', '.sql',
-                                   '.gradle', '.cfg', '.ini', '.env', '.sh', '.bat'}
-                    source_files = [f for f in files if any(f['path'].endswith(ext) for ext in SOURCE_EXTS)
-                                    or '.' not in f['path'].split('/')[-1]  # files without extension (Makefile, Dockerfile, etc.)
-                                    or f['path'].split('/')[-1] in ('Makefile', 'Dockerfile', 'Gemfile', 'Rakefile')]
-                    total_source_size = sum(f['size'] for f in source_files)
-
-                    if total_source_size <= max_context:
-                        # Small repo: read ALL source files, skip AI selection
-                        results.append(f"Small repo ({total_source_size} chars) — reading all {len(source_files)} source files")
-                        selected_files = [f['path'] for f in source_files]
-                    else:
-                        # Large repo: AI selects files, budget-aware
-                        avg_file_size = total_source_size // max(len(source_files), 1)
-                        max_files = max(10, min(30, max_context // max(avg_file_size, 1)))
-                        results.append(f"Large repo ({total_source_size} chars) — AI selecting up to {max_files} files")
-
-                        file_paths = [f['path'] for f in source_files]
-                        select_prompt = f"""Given these files in a repository and the transformation requirements below,
-select the most relevant files to read (max {max_files} files). Prioritize:
-1. Main source files related to the transformation requirements
-2. Configuration/dependency files (requirements.txt, package.json, pom.xml)
-3. README or documentation files
-4. Test files if relevant
-
-Return ONLY a JSON array of file paths.
-
-Requirements: {requirements}
-
-Files:
-{json.dumps(file_paths, indent=2)}"""
-
-                        select_response = bedrock_runtime.invoke_model(
-                            modelId=os.getenv("BEDROCK_MODEL_ID", "us.anthropic.claude-sonnet-4-5-20250929-v1:0"),
-                            body=json.dumps({
-                                "anthropic_version": "bedrock-2023-05-31",
-                                "max_tokens": 4096, "temperature": 0.1,
-                                "messages": [{"role": "user", "content": select_prompt}]
-                            })
-                        )
-                        select_text = json.loads(select_response['body'].read())['content'][0]['text'].strip()
-                        if '```' in select_text:
-                            select_text = select_text.split('```')[1]
-                            if select_text.startswith('json'): select_text = select_text[4:]
-                            select_text = select_text.strip()
-                        selected_files = json.loads(select_text)
-                        results.append(f"AI selected {len(selected_files)} files")
-
-                    # Step 4: Read selected files
-                    context_parts = []
-                    total_chars = 0
-                    for fp in selected_files:
-                        if total_chars >= max_context:
-                            break
-                        file_data = read_repo_file(name=name, file_path=fp)
-                        if file_data.get('status') == 'success':
-                            content = file_data['content']
-                            context_parts.append(f"=== {fp} ===\n{content}")
-                            total_chars += len(content)
-
-                    source_context = "\n\n".join(context_parts)
-                    results.append(f"Read {len(context_parts)} files ({total_chars} chars)")
-
-        # Step 5: Generate definition
-        logger.info(f"Generating definition for: {name}")
-        gen_result = generate_transformation_definition(
-            name=name, description=description,
-            requirements=requirements, source_context=source_context
-        )
-        if gen_result.get('status') == 'error':
-            return gen_result
-        results.append(f"Definition generated: {gen_result.get('s3_uri')}")
-
-        # Check if this is a generate-only request (preview mode)
+        # Preview mode: generate and stage the SKILL.md without publishing
+        # (contract with the UI's "Generate & Review" button).
         generate_only = 'do not publish' in query.lower() or 'don\'t publish' in query.lower()
 
+        result = _submit_headless_create(
+            name=name, description=description, requirements=requirements,
+            source_url=source_url, publish=not generate_only
+        )
+        if result.get('status') == 'error':
+            return result
+
+        skill_name = result['name']
         if generate_only:
             return {
                 "status": "success",
-                "result": f"Custom transformation '{name}' definition generated (preview mode, not published).\n" +
-                          f"Definition location: {gen_result.get('s3_uri')}\n" +
-                          f"Source analyzed: {bool(source_context)}\n" +
-                          f"Definition preview: {gen_result.get('definition_preview', '')}\n\n" +
-                          "\n".join(results),
+                "result": f"Custom transformation '{skill_name}' generation started (preview mode, will not be published).\n"
+                          f"Batch job ID: {result['job_id']}\n"
+                          f"The ATX CLI is analyzing the repository and generating the definition in headless mode.\n"
+                          f"Definition will be staged at: {result['definition_location']}\n"
+                          f"Once the job succeeds, review the definition and publish it from the UI.",
             }
-
-        # Step 6: Publish
-        logger.info(f"Publishing: {name}")
-        pub_result = publish_transformation(name=name, description=description)
-        if pub_result.get('status') == 'error':
-            return pub_result
-        results.append(f"Publish job: {pub_result.get('job_id')}")
 
         return {
             "status": "success",
-            "result": f"Custom transformation '{name}' created and publish job submitted.\n" +
-                      f"Publish job ID: {pub_result.get('job_id')}\n" +
-                      f"Source analyzed: {bool(source_context)}\n" +
-                      f"Definition preview: {gen_result.get('definition_preview', '')}\n\n" +
-                      "\n".join(results),
+            "result": f"Custom transformation '{skill_name}' creation started.\n"
+                      f"Batch job ID: {result['job_id']}\n"
+                      f"The ATX CLI is analyzing the repository, generating the definition in headless mode, "
+                      f"and publishing it to the ATX registry in a single job.\n"
+                      f"Definition will be staged at: {result['definition_location']}\n"
+                      f"'{skill_name}' will be available for execution once the job completes.",
         }
 
     except json.JSONDecodeError as e:
