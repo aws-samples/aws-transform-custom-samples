@@ -16,8 +16,8 @@ Out-of-box transformation definitions provided by AWS for common migration and u
 | General | [Codebase Analysis](comprehensive-codebase-analysis/codebase-analysis.md) | Static analysis and documentation for migration planning |
 | Readiness | [Modernization Readiness Analysis](readiness-analysis/modernization-readiness-analysis.md) | Scans portfolios for cloud-native maturity gaps and maps findings to AWS modernization pathways |
 | Readiness | [Agentic Readiness Analysis](readiness-analysis/agentic-readiness-analysis.md) | Evaluates whether systems are ready to be safely called by AI agents — covering APIs, identity, state management, human-in-the-loop, and observability |
-| Readiness | [Portfolio Modernization Readiness](readiness-analysis/portfolio-modernization-readiness.md) | Aggregates per-repo MOD reports into portfolio-level roadmap and cross-cutting analysis |
-| Readiness | [Portfolio Agentic Readiness](readiness-analysis/portfolio-agentic-readiness.md) | Aggregates per-repo ARA reports into portfolio-level cross-cutting analysis |
+| Readiness | [Portfolio Modernization Readiness](readiness-analysis/portfolio-modernization-readiness-analysis.md) | Aggregates per-repo MOD reports into portfolio-level roadmap and cross-cutting analysis |
+| Readiness | [Portfolio Agentic Readiness](readiness-analysis/portfolio-agentic-readiness-analysis.md) | Aggregates per-repo ARA reports into portfolio-level cross-cutting analysis |
 
 ## Directory Structure
 
@@ -44,6 +44,8 @@ aws-managed-definitions/
 └── readiness-analysis/
     ├── modernization-readiness-analysis.md
     ├── agentic-readiness-analysis.md
-    ├── portfolio-modernization-readiness.md
-    └── portfolio-agentic-readiness.md
+    ├── portfolio-modernization-readiness-analysis.md
+    ├── portfolio-agentic-readiness-analysis.md
+    └── references/
+        └── program-library.md   # AWS Program & GTM catalog; loaded by the two portfolio TDs
 ```
