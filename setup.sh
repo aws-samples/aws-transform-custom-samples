@@ -157,12 +157,54 @@ CDK="npx cdk"
 info "CDK CLI $($CDK --version 2>&1 | head -1)"
 
 # --- Bootstrap CDK (idempotent) ---
+# Keep our bootstrap in its own toolkit stack: `cdk bootstrap --qualifier atxinfra`
+# without --toolkit-stack-name writes into the default stack name CDKToolkit, which
+# replaces the shared hnb659fds bootstrap every other CDK app in the account uses
+# (its roles and SSM parameter get deleted; bucket and ECR repo are left orphaned).
+# teardown.sh already looks for CDKToolkit-atxinfra first, so this is the intended layout.
 
 echo "Bootstrapping CDK (if needed)..."
-if ! $CDK bootstrap "aws://${ACCOUNT_ID}/${REGION}" --qualifier atxinfra; then
-  fail "CDK bootstrap failed. Check the error above."
+ATX_TOOLKIT_STACK="CDKToolkit-atxinfra"
+BOOTSTRAP_VERSION=$(aws ssm get-parameter --name /cdk-bootstrap/atxinfra/version \
+  --region "$REGION" --query 'Parameter.Value' --output text 2>/dev/null || echo "")
+case "$BOOTSTRAP_VERSION" in ''|*[!0-9]*) BOOTSTRAP_VERSION="" ;; esac
+
+if [ -n "$BOOTSTRAP_VERSION" ]; then
+  # Already bootstrapped for our qualifier. Find the stack that owns those resources so
+  # we never create a second stack over the same physical resource names (roles, SSM
+  # parameter and ECR repo would fail with AlreadyExists; the bucket would end up
+  # managed by two stacks).
+  OWNING_STACK=""
+  for CANDIDATE in "$ATX_TOOLKIT_STACK" CDKToolkit; do
+    CANDIDATE_QUALIFIER=$(aws cloudformation describe-stacks --stack-name "$CANDIDATE" --region "$REGION" \
+      --query "Stacks[0].Parameters[?ParameterKey=='Qualifier'].ParameterValue" --output text 2>/dev/null || echo "")
+    if [ "$CANDIDATE_QUALIFIER" = "atxinfra" ]; then
+      OWNING_STACK="$CANDIDATE"
+      break
+    fi
+  done
+
+  if [ -z "$OWNING_STACK" ]; then
+    warn "/cdk-bootstrap/atxinfra/version exists (v$BOOTSTRAP_VERSION) but no stack owns it — leftover bootstrap resources may need manual cleanup"
+    if ! $CDK bootstrap "aws://${ACCOUNT_ID}/${REGION}" --qualifier atxinfra --toolkit-stack-name "$ATX_TOOLKIT_STACK"; then
+      fail "CDK bootstrap failed. Check the error above."
+    fi
+    info "CDK bootstrapped ($ATX_TOOLKIT_STACK)"
+  elif [ "$BOOTSTRAP_VERSION" -ge 21 ]; then
+    info "CDK already bootstrapped for qualifier atxinfra (v$BOOTSTRAP_VERSION in stack $OWNING_STACK) — skipping"
+  else
+    warn "atxinfra bootstrap is v$BOOTSTRAP_VERSION — upgrading stack $OWNING_STACK in place"
+    if ! $CDK bootstrap "aws://${ACCOUNT_ID}/${REGION}" --qualifier atxinfra --toolkit-stack-name "$OWNING_STACK"; then
+      fail "CDK bootstrap failed. Check the error above."
+    fi
+    info "CDK bootstrapped ($OWNING_STACK)"
+  fi
+else
+  if ! $CDK bootstrap "aws://${ACCOUNT_ID}/${REGION}" --qualifier atxinfra --toolkit-stack-name "$ATX_TOOLKIT_STACK"; then
+    fail "CDK bootstrap failed. Check the error above."
+  fi
+  info "CDK bootstrapped ($ATX_TOOLKIT_STACK)"
 fi
-info "CDK bootstrapped"
 
 # --- Deploy ---
 
