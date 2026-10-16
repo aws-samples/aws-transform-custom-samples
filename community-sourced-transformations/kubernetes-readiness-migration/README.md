@@ -342,7 +342,7 @@ These are loaded on-demand by the agent when specific patterns are encountered:
 | [go-patterns.md](references/go-patterns.md) | go.mod present | Viper env helpers, gRPC probes, S3 mock testing, GOMEMLIMIT ConfigMap rules |
 | [nodejs-patterns.md](references/nodejs-patterns.md) | package.json present | process.env timing, ioredis pub/sub, NestJS WebSocket, Bull/BullMQ graceful shutdown |
 | [php-patterns.md](references/php-patterns.md) | composer.json present | Laravel queue routing, supervisord, PHP-FPM non-root, S3 ACL patterns |
-| [java-maven-patterns.md](references/java-maven-patterns.md) | pom.xml or build.gradle present | Spring @Value bridging, Quartz JDBC clustering, Liquibase Job, EF efbundle |
+| [java-jvm-patterns.md](references/java-jvm-patterns.md) | pom.xml or build.gradle present | Spring @Value bridging, Quartz JDBC clustering, Liquibase Job, EF efbundle |
 | [python-patterns.md](references/python-patterns.md) | requirements.txt / setup.py / pyproject.toml | pydantic-settings, APScheduler, gunicorn preload_app, Celery Beat writable paths |
 | [ruby-rails-patterns.md](references/ruby-rails-patterns.md) | Gemfile present | ActionCable Redis, ActiveStorage, whenever→Sidekiq-Cron, Puma graceful shutdown |
 | [dotnet-patterns.md](references/dotnet-patterns.md) | .csproj / .sln present | IConfiguration bridge, EF Core efbundle Job, SignalR Redis backplane, Kestrel port config |
@@ -389,7 +389,7 @@ These are loaded on-demand by the agent when specific patterns are encountered:
 │   ├── go-patterns.md                         # Go-specific patterns
 │   ├── nodejs-patterns.md                     # Node.js-specific patterns
 │   ├── php-patterns.md                        # PHP-specific patterns
-│   ├── java-maven-patterns.md                 # Java/Maven/Gradle-specific patterns
+│   ├── java-jvm-patterns.md                   # Java/Maven/Gradle-specific patterns
 │   ├── python-patterns.md                     # Python-specific patterns
 │   ├── ruby-rails-patterns.md                 # Ruby/Rails-specific patterns
 │   └── dotnet-patterns.md                     # C#/.NET-specific patterns
