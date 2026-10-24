@@ -197,8 +197,8 @@ and update a pinned PHP managed rule group to the latest version.
 - **Sample guidance, provided as is, without warranty (MIT-0, see the repository license).** It is not an AWS service, a security product or a compromise assessment.
   Test in a non-production environment first. You are responsible for your systems. Facts are dated 2026-10-23 and change quickly; if this
   page and an AWS bulletin disagree, the bulletin wins.
-- **It does not patch anything** and **does not detect a compromise.** Tenable, citing Amazon Threat Intelligence, reports a first exploitation
-  attempt on 2026-10-17 and broad exploitation since ([Tenable FAQ](https://www.tenable.com/blog/php2shell-cve-2026-109618-cve-2026-109619-frequently-asked-questions-about-critical-php-remote));
+- **It does not patch anything** and **does not detect a compromise.** Amazon Threat Intelligence reported a first exploitation
+  attempt on 2026-10-17, four days before the fixes, and broad exploitation since ([BleepingComputer](https://www.bleepingcomputer.com/news/security/amazon-says-php2shell-exploitation-began-4-days-before-patches/));
   if a system was exposed unpatched, investigate separately and rotate credentials the application could read. Start from at least 2026-10-17;
   a [community checklist](https://builder.aws.com/content/3L1O3OGdUB5loyuR2tCQKI9E3Yu/find-it-patch-it-watch-it-a-community-checklist-for-php2shell-on-aws)
   citing Aikido suggests looking back to at least June 2026 (for example, PHP files changed since then that you did not deploy).
