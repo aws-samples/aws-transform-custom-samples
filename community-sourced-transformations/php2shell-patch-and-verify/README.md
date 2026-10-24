@@ -199,7 +199,9 @@ and update a pinned PHP managed rule group to the latest version.
   page and an AWS bulletin disagree, the bulletin wins.
 - **It does not patch anything** and **does not detect a compromise.** Tenable, citing Amazon Threat Intelligence, reports a first exploitation
   attempt on 2026-10-17 and broad exploitation since ([Tenable FAQ](https://www.tenable.com/blog/php2shell-cve-2026-109618-cve-2026-109619-frequently-asked-questions-about-critical-php-remote));
-  if a system was exposed unpatched, investigate separately from at least 2026-10-17 and rotate credentials the application could read.
+  if a system was exposed unpatched, investigate separately and rotate credentials the application could read. Start from at least 2026-10-17;
+  a [community checklist](https://builder.aws.com/content/3L1O3OGdUB5loyuR2tCQKI9E3Yu/find-it-patch-it-watch-it-a-community-checklist-for-php2shell-on-aws)
+  citing Aikido suggests looking back to at least June 2026 (for example, PHP files changed since then that you did not deploy).
 - **It cannot see what is not in a repository you connect:** running services without source or infrastructure-as-code, PHP inside third-party
   products, or managed platforms' runtimes.
 - **`AWS/php-version-upgrade` is early access.** It is an AI agent: review every diff. `-x -t` makes it run commands unattended and it may install
