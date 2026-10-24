@@ -1,0 +1,178 @@
+diff -ruN a/legacy-php-app/composer.json b/legacy-php-app/composer.json
+--- a/legacy-php-app/composer.json
++++ b/legacy-php-app/composer.json
+@@ -1,13 +1,13 @@
+ {
+     "name": "example/legacy-inventory",
+-    "description": "Deliberately legacy PHP 7.4 sample used to demonstrate the PHP2Shell upgrade workflow. Not for production.",
++    "description": "PHP 8.5 sample used to demonstrate the PHP2Shell upgrade workflow. Not for production.",
+     "type": "project",
+     "license": "MIT-0",
+     "require": {
+-        "php": ">=7.4"
++        "php": ">=8.5"
+     },
+     "require-dev": {
+-        "phpunit/phpunit": "^9.6"
++        "phpunit/phpunit": "^11.5.50"
+     },
+     "autoload": {
+         "psr-4": { "App\\": "src/" }
+diff -ruN a/legacy-php-app/phpunit.xml b/legacy-php-app/phpunit.xml
+--- a/legacy-php-app/phpunit.xml
++++ b/legacy-php-app/phpunit.xml
+@@ -1,8 +1,17 @@
+ <?xml version="1.0" encoding="UTF-8"?>
+-<phpunit bootstrap="vendor/autoload.php" colors="false" cacheResult="false">
++<phpunit xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
++         xsi:noNamespaceSchemaLocation="https://schema.phpunit.de/11.5/phpunit.xsd"
++         bootstrap="vendor/autoload.php"
++         colors="false"
++         cacheResult="false">
+     <testsuites>
+         <testsuite name="app">
+             <directory>tests</directory>
+         </testsuite>
+     </testsuites>
++    <source>
++        <include>
++            <directory>src</directory>
++        </include>
++    </source>
+ </phpunit>
+diff -ruN a/legacy-php-app/src/Initials.php b/legacy-php-app/src/Initials.php
+--- a/legacy-php-app/src/Initials.php
++++ b/legacy-php-app/src/Initials.php
+@@ -3,9 +3,9 @@
+ 
+ class Initials
+ {
+-    // Curly-brace string offsets were removed in PHP 8.0 (parse error).
++    // Bracket string offsets (curly-brace offsets were removed in PHP 8.0).
+     public function first($text)
+     {
+-        return $text{0};
++        return $text[0];
+     }
+ }
+diff -ruN a/legacy-php-app/src/Inventory.php b/legacy-php-app/src/Inventory.php
+--- a/legacy-php-app/src/Inventory.php
++++ b/legacy-php-app/src/Inventory.php
+@@ -11,21 +11,20 @@
+ 
+     public function add($sku, $qty)
+     {
+-        $this->items[$sku] = (isset($this->items[$sku]) ? $this->items[$sku] : 0) + $qty;
++        $this->items[$sku] = ($this->items[$sku] ?? 0) + $qty;
+     }
+ 
+-    // each() was removed in PHP 8.0 -> fatal "Call to undefined function each()".
++    // each() was removed in PHP 8.0; array_key_first() returns the same first key.
+     public function firstSku()
+     {
+-        reset($this->items);
+-        $pair = each($this->items);
+-        return $pair ? $pair['key'] : null;
++        $key = array_key_first($this->items);
++        return $key === null ? null : $key;
+     }
+ 
+-    // count(null) throws TypeError in PHP 8.0 (it was a warning in 7.x).
++    // Preserves the PHP 7.x count(null) === 0 result without the removed coercion.
+     public function lineCount($lines)
+     {
+-        return count($lines);
++        return count($lines ?? []);
+     }
+ 
+     public function total()
+diff -ruN a/legacy-php-app/src/Matcher.php b/legacy-php-app/src/Matcher.php
+--- a/legacy-php-app/src/Matcher.php
++++ b/legacy-php-app/src/Matcher.php
+@@ -3,10 +3,17 @@
+ 
+ class Matcher
+ {
+-    // Silent semantic change: in PHP 7.4, 0 == "abc" is true. In PHP 8.0 it is false.
+-    // No crash, no warning: only a test notices.
++    /**
++     * PHP 8.0 changed string-to-number comparison: `'abc' == 0` was true on
++     * PHP 7.4 and is false from PHP 8.0 on. The leading-numeric cast is made
++     * explicit here so the documented behaviour is preserved on PHP 8.5.
++     */
+     public function isZeroLike($value)
+     {
++        if (is_string($value) && !is_numeric($value)) {
++            return (int) $value === 0;
++        }
++
+         return $value == 0;
+     }
+ }
+diff -ruN a/legacy-php-app/src/Notes.php b/legacy-php-app/src/Notes.php
+--- a/legacy-php-app/src/Notes.php
++++ b/legacy-php-app/src/Notes.php
+@@ -1,24 +1,26 @@
+ <?php
+ namespace App;
+ 
++#[\AllowDynamicProperties]
+ class Notes
+ {
+-    // Deprecated in PHP 8.4: implicitly nullable parameter type.
+-    public function title(string $text = null)
++    // Explicitly nullable parameter type (implicit nullability deprecated in PHP 8.4).
++    public function title(?string $text = null)
+     {
+         return strtoupper(trim($text === null ? 'untitled' : $text));
+     }
+ 
+-    // Deprecated in PHP 8.2: creation of dynamic properties.
++    // Dynamic property creation is deprecated since PHP 8.2; the class opts in
++    // explicitly via #[\AllowDynamicProperties] so the public behaviour is kept.
+     public function tag($name)
+     {
+         $this->{$name} = true;
+         return $this;
+     }
+ 
+-    // Deprecated in PHP 8.2: "${var}" string interpolation.
++    // "{$var}" interpolation ("${var}" deprecated in PHP 8.2).
+     public function greet($user)
+     {
+-        return "Hello ${user}";
++        return "Hello {$user}";
+     }
+ }
+diff -ruN a/legacy-php-app/src/Sorter.php b/legacy-php-app/src/Sorter.php
+--- a/legacy-php-app/src/Sorter.php
++++ b/legacy-php-app/src/Sorter.php
+@@ -3,10 +3,12 @@
+ 
+ class Sorter
+ {
+-    // create_function() was removed in PHP 8.0.
++    // create_function() was removed in PHP 8.0; a closure is the replacement.
+     public function byName(array $names)
+     {
+-        $cmp = create_function('$a, $b', 'return strcmp($a, $b);');
++        $cmp = static function ($a, $b) {
++            return strcmp($a, $b);
++        };
+         usort($names, $cmp);
+         return $names;
+     }
+diff -ruN a/legacy-php-app/tests/InventoryTest.php b/legacy-php-app/tests/InventoryTest.php
+--- a/legacy-php-app/tests/InventoryTest.php
++++ b/legacy-php-app/tests/InventoryTest.php
+@@ -15,7 +15,8 @@
+ 
+     public function testLineCountOfNothingIsZero()
+     {
+-        // 7.4: count(null) returns 0 with a warning. 8.x: TypeError.
+-        $this->assertSame(0, @(new Inventory())->lineCount(null));
++        // Behaviour preserved on PHP 8.5 without relying on the removed
++        // count(null) coercion, so no error suppression is needed.
++        $this->assertSame(0, (new Inventory())->lineCount(null));
+     }
+ }
