@@ -333,7 +333,7 @@ and update a pinned PHP managed rule group to the latest version.
 php2shell-patch-and-verify/
 ├── README.md                          this guide
 ├── BENCHMARKS.md                      what was measured, the gate's test matrix, and how to repeat it
-├── tests/verify-matrix.sh             rebuilds and runs the gate's 55-case test matrix
+├── tests/verify-matrix.sh             rebuilds and runs the gate's 77-case test matrix
 ├── php-upgrade-secure-verify/         the custom verify-only transformation (publish this folder)
 │   ├── SKILL.md
 │   ├── references/                    verdict contract, patched versions and safe constraints

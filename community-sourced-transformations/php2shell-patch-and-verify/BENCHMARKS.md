@@ -88,7 +88,7 @@ in the official image, the repository and its tests are trusted input, and only 
 ## How to repeat it
 
 ```bash
-# The gate's test matrix (Docker, network for images and PHPUnit phars; about 10 minutes)
+# The gate's test matrix (Docker, network for images and PHPUnit phars; about 15 minutes)
 bash tests/verify-matrix.sh
 
 # Gate on any PHP repository (no agent, no cost)
