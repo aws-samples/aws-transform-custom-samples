@@ -282,7 +282,7 @@ $o("MANIFEST_GATE", $why ? "FAIL" : "PASS"); $o("MANIFEST_REASON", implode("; ",
     # shellcheck disable=SC2016
     MOUT="$("$CLI" run "${CRUN[@]}" --memory 512m \
       -e UNPATCHED="$UNPATCHED" -e RUNTIME="$PHPVER" -e FLOOR="$FLOOR" -e BRANCH="$TARGET" -e MCODE="$MCODE" \
-      --mount type=bind,source="$REPO/composer.json",target=/m/composer.json,readonly "${LOCKMOUNT[@]}" \
+      --mount type=bind,source="$REPO/composer.json",target=/m/composer.json,readonly ${LOCKMOUNT[@]+"${LOCKMOUNT[@]}"} \
       --entrypoint sh "$COMPOSER_IMAGE" -c 'cp "$(command -v composer)" /tmp/c.phar && php -r "$MCODE"' 2>&1)"
     printf '%s\n' "$MOUT" | while IFS= read -r l; do printf 'MANIFEST: %s\n' "$l"; done
     MGATE="$(printf '%s\n' "$MOUT" | sed -n 's/^MANIFEST_GATE=//p' | head -1)"
@@ -310,7 +310,8 @@ if [ "${#F[@]}" -gt 0 ]; then S="FAIL: ${F[0]}"; for x in "${F[@]:1}"; do S="$S;
 [ "$LGATE" = NO-FILES ]             && finish BLOCKED 9 "BLOCKED: no PHP file found to lint (wrong path?)"
 [ "$LGATE" = COVERAGE-MISMATCH ]    && finish BLOCKED 9 "BLOCKED: the container could lint $(( LDONE - LUNREAD )) of $HOSTCOUNT files (files the container user cannot read)"
 case "$TGATE" in TIMEOUT|KILLED|NO-TIMEOUT|NO-START|NO-JUNIT|ENVIRONMENT) finish BLOCKED 9 "BLOCKED: $NOTE";; esac
-[ "$TGATE" = NOT-RUN ]              && finish INCONCLUSIVE 5 "INCONCLUSIVE: patched $PHPVER, manifest and lint clean, but no test executed ($NOTE)"
+if [ "$MGATE" = PASS ]; then CLEAN="manifest and lint clean"; else CLEAN="lint clean, no composer.json to check"; fi
+[ "$TGATE" = NOT-RUN ]              && finish INCONCLUSIVE 5 "INCONCLUSIVE: patched $PHPVER, $CLEAN, but no test executed ($NOTE)"
 [ "$MGATE" = NO-MANIFEST ]          && finish INCONCLUSIVE 5 "INCONCLUSIVE: no composer.json, so nothing stops an install on an unpatched PHP (tests and lint clean on $PHPVER)"
 [ "$LINT_VENDOR" = 1 ]              || finish INCONCLUSIVE 5 "INCONCLUSIVE: vendor/ was not linted (LINT_VENDOR=0); tests and the rest are clean on $PHPVER"
 [ "$TGATE" = PASS ] || finish BLOCKED 9 "BLOCKED: unexpected test result"

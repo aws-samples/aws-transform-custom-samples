@@ -15,7 +15,7 @@ Facts about the CVEs and patched releases change quickly; see the [README](READM
 | Verify gate, upgraded code as the transformation left it | **FAIL**, exit 2: `"php": ">=8.5"` allows 8.5.0 to 8.5.11, although 7 of 7 tests passed and 1,545 files parse |
 | Verify gate, upgraded code with `"php": "^8.5.12"` | **PASS**, exit 0: 7 of 7 tests on PHP 8.5.12, 1,545 files linted (`vendor/` included) |
 | Verify gate, same code on PHP 8.5.11 | **FAIL**, exit 2: runtime below the patched release |
-| Verify gate test matrix | 77 of 77 cases return the expected verdict, exit code and checked fields; reproduce with `bash tests/verify-matrix.sh` |
+| Verify gate test matrix | Linux (bash 5, Docker): 77 of 77 cases return the expected verdict, exit code and checked fields. macOS (bash 3.2, Docker Desktop): 74 pass and 3 are skipped, because that runtime does not enforce file permissions on mounts. Reproduce with `bash tests/verify-matrix.sh` |
 | Realistic `vendor/` (Laravel 11, Symfony 7, PHPStan, PHP-CS-Fixer, PHP_CodeSniffer, PHPUnit 11) | 8,398 files linted in 65 s; 1 file (Symfony `polyfill-uuid/bootstrap85.php`) parses only on 8.5 and was accepted as version-guarded with a warning; 0 failures |
 | Verify as a continuous modernization custom analysis | legacy: 3 findings (high manifest, high parse error naming `AWS/php-version-upgrade`, medium "no tests executed"); upgraded as left: 1 high manifest finding with the exact fix; fixed manifest: 0 findings |
 | Verify run through the engine (target given as prose) | PASS; only the report files written; one commit "Step 1: Run PHP patched-runtime verify gate" |

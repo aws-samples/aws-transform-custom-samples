@@ -228,7 +228,7 @@ This is the fix. Nothing above closes the vulnerabilities.
 
 | Where PHP runs | Action |
 |---|---|
-| Amazon Linux 2023 | Releases are locked to the one you installed, so a plain `dnf upgrade` can keep offering old PHP. Upgrade every PHP package of your branch to the release named in the advisory: `sudo dnf upgrade -y --releasever=2023.12.20261021 'php8.4*'` (php8.2: ALAS2023-2026-3301, php8.3: -3302, php8.4: -3303, php8.5: -3304). Keep the quoted wildcard: `dnf update php8.4` only targets the `php8.4` metapackage, and if you installed `php8.4-fpm` without it, nothing is updated and the command still exits 0 |
+| Amazon Linux 2023 | Releases are locked to the one you installed, so a plain `dnf upgrade` can keep offering old PHP. Upgrade every PHP package of your branch to the release named in the advisory: `sudo dnf upgrade -y --releasever=2023.12.20261021 'php8.4*'` (php8.2: ALAS2023-2026-3301, php8.3: -3302, php8.4: -3303, php8.5: -3304). Keep the quoted wildcard: `dnf update php8.4` only targets the `php8.4` metapackage, and if you installed `php8.4-fpm` without it, nothing is updated ("No match for argument: php8.4", exit 1) and PHP stays on the old release. If a script ignores that exit code, it moves on as if it had patched |
 | Containers | Rebuild on a base image with a fixed release (for example `php:8.4.27-fpm`), push, redeploy |
 | AWS Elastic Beanstalk | Updated PHP platform versions exist (8.2 to 8.5). Managed Platform Updates applies them in the next window; otherwise update the platform version yourself |
 | Amazon Lightsail | AWS cannot update a running instance in place: create new instances from the updated blueprint and migrate |
@@ -275,7 +275,7 @@ and update a pinned PHP managed rule group to the latest version.
 
 | Symptom | Cause and fix |
 |---|---|
-| `dnf update php8.4` prints "No packages marked for upgrade" but PHP is old | Only the metapackage was targeted. Use `sudo dnf upgrade -y --releasever=2023.12.20261021 'php8.4*'` |
+| `dnf update php8.4` prints "No match for argument: php8.4" and "No packages marked for upgrade", and PHP is still old | Only the metapackage was targeted. Use `sudo dnf upgrade -y --releasever=2023.12.20261021 'php8.4*'` |
 | Step 3 `FAIL` exit 2, `manifest_reason` "allows unpatched or end-of-life PHP" | Set `require.php` as in step 2, item 1, then `composer update --lock` |
 | Step 3 `FAIL` exit 2, "pins an unpatched release" | `config.platform.php` is below the floor. Set it to the floor (for example `8.4.27`) |
 | Step 3 `INCONCLUSIVE` exit 5 | Read `summary`: no test executed (install dependencies or add tests), no `composer.json` (add one with a safe `require.php`), or `LINT_VENDOR=0` (drop it). Then verify again |
@@ -302,7 +302,8 @@ and update a pinned PHP managed rule group to the latest version.
 - **Trust boundary:** the repository, its `vendor/` and its tests are trusted input. The gate cross-checks PHPUnit's summary with its JUnit
   log, which stops a wrapper that only prints "OK", but a hostile project can still fake both. The containers limit what such a project can
   reach; they do not authenticate its results. Run the gate on code you would run anyway.
-- Only Docker was tested. Podman, Finch and nerdctl are accepted through `CONTAINER_CLI` but not verified.
+- Only Docker was tested. Podman, Finch and nerdctl are accepted through `CONTAINER_CLI` but not verified. On a runtime whose mounts ignore file
+  permissions (Finch, and possibly Docker Desktop on a Mac), a file the container user should not be able to read is not detected as unreadable.
 - The image tag (`php:<release>-cli`) can be rebuilt by its maintainers; the version gate still checks the PHP version inside it. Pin a
   digest with `PHP_IMAGE=php@sha256:<digest>` if you need a fixed image.
 
@@ -333,7 +334,7 @@ and update a pinned PHP managed rule group to the latest version.
 php2shell-patch-and-verify/
 ├── README.md                          this guide
 ├── BENCHMARKS.md                      what was measured, the gate's test matrix, and how to repeat it
-├── tests/verify-matrix.sh             rebuilds and runs the gate's 77-case test matrix
+├── tests/verify-matrix.sh             rebuilds and runs the gate's 77-case test matrix (needs `timeout` on the host)
 ├── php-upgrade-secure-verify/         the custom verify-only transformation (publish this folder)
 │   ├── SKILL.md
 │   ├── references/                    verdict contract, patched versions and safe constraints

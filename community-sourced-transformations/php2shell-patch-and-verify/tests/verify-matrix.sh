@@ -84,8 +84,17 @@ for v in 9 10 11; do
   done
 done
 
-N=0; BAD=0
-run() { # name want-verdict want-exit repo target [env...]
+# Cases about unreadable files need a runtime that enforces file permissions on bind mounts (Docker on Linux and Podman do;
+# Finch and Docker Desktop on a Mac may not). Probe it instead of guessing from the runtime's name.
+CLI_="${CONTAINER_CLI:-docker}"; mkdir -p "$B/permprobe" && echo x > "$B/permprobe/f" && chmod 700 "$B/permprobe" && chmod 600 "$B/permprobe/f"
+if "$CLI_" run --rm --network none --user 65534:65534 --mount type=bind,source="$B/permprobe",target=/p,readonly \
+     "${PHP_IMAGE_PROBE:-php:8.4.27-cli}" sh -c 'cat /p/f' >/dev/null 2>&1; then PERMS=0; else PERMS=1; fi
+chmod 755 "$B/permprobe"
+N=0; BAD=0; SKIP=0
+[ "$PERMS" = 1 ] || echo "note: this runtime does not enforce file permissions on mounts; the unreadable-file cases are skipped"
+run() {
+  if [ "$PERMS" = 0 ] && case "$1" in unreadable|unreadable-file|unreadable-man) true;; *) false;; esac; then
+    SKIP=$((SKIP+1)); printf 'SKIP     %-16s (runtime does not enforce file permissions)\n' "$1"; return; fi # name want-verdict want-exit repo target [env...]
   local n=$1 ev=$2 ex=$3 r=$4 t=$5; shift 5
   env "$@" bash "$V" "$B/$r" "$t" > "$B/$n.out" 2>&1; local rc=$?
   local got; got=$(python3 -c "import json,sys;print(json.load(open(sys.argv[1]))['verdict'])" "$B/$r/verify-verdict.json" 2>/dev/null || echo NONE)
@@ -180,5 +189,5 @@ N=$((N+7))
 chmod 644 "$B/umani/composer.json" "$B/ufile/src/secret.php" 2>/dev/null
 [ "$(cat "$B/victim")" = KEEP ] || { echo "MISMATCH verdict-symlink: the symlink target was overwritten"; BAD=$((BAD+1)); }
 chmod 755 "$B/unread/src/secret" 2>/dev/null
-echo "cases: $N, mismatches: $BAD"
+echo "cases: $N, skipped: $SKIP, mismatches: $BAD"
 [ "$BAD" -eq 0 ]
