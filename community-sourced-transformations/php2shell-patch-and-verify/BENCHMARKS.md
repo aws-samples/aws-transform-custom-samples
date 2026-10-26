@@ -7,7 +7,7 @@ Facts about the CVEs and patched releases change quickly; see the [README](READM
 
 | Metric | Result |
 |--------|--------|
-| Fixture | `samples/legacy-php-app` (PHP 7.4 app, 12 files, 7 tests, deliberate PHP 8 breakages) |
+| Fixture | `samples/legacy-php-app` (PHP 7.4 app, 13 files: 5 classes, 5 test files with 7 tests, deliberate PHP 8 breakages) |
 | Rapid analysis (`rapid-techdebt-analysis`) | about 1 minute, 1 high finding (PHP 7.4 end of life, fix `AWS/php-version-upgrade`) |
 | Comprehensive analysis (`tech-debt-comprehensive`) | about 7 minutes, 11 findings (3 high), including silent PHP 8 behavior changes |
 | Managed upgrade (`AWS/php-version-upgrade`) | 35.6 agent minutes (about US$ 1.25). Code migration good; it wrote `"php": ">=8.5"`, kept `'abc' == 0` true, and ran its tests on PHP 8.5.3 (unpatched) |
@@ -15,10 +15,11 @@ Facts about the CVEs and patched releases change quickly; see the [README](READM
 | Verify gate, upgraded code as the transformation left it | **FAIL**, exit 2: `"php": ">=8.5"` allows 8.5.0 to 8.5.11, although 7 of 7 tests passed and 1,545 files parse |
 | Verify gate, upgraded code with `"php": "^8.5.12"` | **PASS**, exit 0: 7 of 7 tests on PHP 8.5.12, 1,545 files linted (`vendor/` included) |
 | Verify gate, same code on PHP 8.5.11 | **FAIL**, exit 2: runtime below the patched release |
-| Verify gate test matrix | 55 of 55 cases return the expected verdict and exit code; reproduce with `bash tests/verify-matrix.sh` |
+| Verify gate test matrix | 77 of 77 cases return the expected verdict, exit code and checked fields; reproduce with `bash tests/verify-matrix.sh` |
+| Realistic `vendor/` (Laravel 11, Symfony 7, PHPStan, PHP-CS-Fixer, PHP_CodeSniffer, PHPUnit 11) | 8,398 files linted in 65 s; 1 file (Symfony `polyfill-uuid/bootstrap85.php`) parses only on 8.5 and was accepted as version-guarded with a warning; 0 failures |
 | Verify as a continuous modernization custom analysis | legacy: 3 findings (high manifest, high parse error naming `AWS/php-version-upgrade`, medium "no tests executed"); upgraded as left: 1 high manifest finding with the exact fix; fixed manifest: 0 findings |
 | Verify run through the engine (target given as prose) | PASS; only the report files written; one commit "Step 1: Run PHP patched-runtime verify gate" |
-| Agent minutes per verify run | 8.5 to 15.8 over 7 runs of the final versions (about US$ 0.30 to 0.55); `verify.sh` alone costs nothing |
+| Agent minutes per verify run | 8.5 to 15.8 over 9 runs during development (about US$ 0.30 to 0.55); `verify.sh` alone costs nothing |
 | Step 4 on Amazon Linux 2023, from `php8.4-fpm` 8.4.26 | The README commands, run verbatim in a container: worker on 8.4.27, `ALAS2023-2026-3303` installed, master started after the install, `session.upload_progress.enabled` Off in CLI and FPM |
 
 Observation that motivated the gate: the managed upgrade ran its own tests on PHP 8.5.3, which is **below** the patched 8.5.12, and wrote a
@@ -46,8 +47,16 @@ used unless the case sets `PHP_IMAGE`. Unless stated, the manifest is `~8.2.35 |
 | `composer.json` is a symlink | 8.4 | 9 | BLOCKED |
 | Parse error in `src/`, in a `.phtml` file, in a file name with spaces | 8.4 | 3 | FAIL |
 | Parse error only under `vendor/` | 8.4 | 3 | FAIL; with `LINT_VENDOR=0`: INCONCLUSIVE (exit 5), never PASS |
-| Directory the container user cannot read | 8.4 | 9 | BLOCKED, "linted 2 of 3 files" |
-| Symlink pointing outside the repository | 8.4 | 9 | BLOCKED, "linted 2 of 3 files" |
+| Directory or file the container user cannot read, or an unreadable `composer.json` | 8.4 | 9 | BLOCKED |
+| Symlink pointing outside the repository | 8.4 | 9 | BLOCKED before any walk |
+| Parse error in `B.PHP`, in a `.module` file, or in an extensionless `bin/console` with a php shebang (Debian and Alpine) | 8.4 | 3 | FAIL |
+| `vendor/` file with PHP 8.5-only syntax (version-guarded polyfill) | 8.4 | 0 | PASS, with `vendor_files_needing_newer_php` 1 and a warning |
+| `require.php` `~8.4.28 \|\| ^8.5.12` (newer than the image) | 8.4 | 0 | PASS, with a warning to verify on a release it allows |
+| `composer.lock` platform does not match `require.php` | 8.4 | 0 | PASS, with a warning to run `composer update --lock` |
+| PHPUnit config in `build/` (`PHPUNIT_CONFIG`), or `phpunit.dist.xml` at the root | 8.4 | 0 | PASS |
+| Test fails because the checkout is read-only | 8.4 | 9 | BLOCKED, gate environment, not a test failure |
+| Test output contains "Skipped: 5" | 8.4 | 0 | PASS with 1 test: only PHPUnit's summary line is parsed |
+| Old `verify-verdict.json` present / run killed before it ends | 8.4 | 0 / - | Replaced / no verdict file left |
 | Empty directory | 8.4 | 9 | BLOCKED, no PHP file |
 | One failing test | 8.4 | 4 | FAIL |
 | Every test skipped / incomplete / risky | 8.4 | 5 | INCONCLUSIVE, no test executed |
@@ -66,7 +75,7 @@ used unless the case sets `PHP_IMAGE`. Unless stated, the manifest is `~8.2.35 |
 | Git checkout, clean / with an uncommitted change | 8.4 | 0 | PASS with `git_commit` and `git_dirty` false / true plus a warning |
 | `verify-verdict.json` is a symlink to another file | 8.4 | 0 | PASS; the other file is untouched and the symlink is replaced |
 
-Also measured: `php -l` over the 1,534 files of the sample's `vendor/` (PHPUnit 11.5 and its dependencies) found 0 parse errors and took 6 s with
+Also measured: `php -l` over the 1,534 files of `vendor/` in one install of the sample (PHPUnit 11.5 and its dependencies) found 0 parse errors and took 6 s with
 4 workers. Composer's semver library (2.10.3) classified `>=8.4`, `>=8.5`, `>=8.4.27`, `^8.4.27` and `8.4.*` as allowing unpatched releases,
 and `~8.4.27`, `^8.5.12` and `~8.4.27 || ^8.5.12` as safe. With a safe `require.php`, Composer's `platform_check.php` refused to boot on PHP
 8.4.26 and booted on 8.4.27 and on 8.5.11, so it is a partial guard only.

@@ -3,7 +3,7 @@ name: php-upgrade-secure-verify
 description: >-
   Verify-only gate for PHP code already migrated to a supported PHP branch (for
   example by AWS/php-version-upgrade). Runs the repository in isolated,
-  network-less containers on the official image of a PATCHED PHP release (8.2.35,
+  network-less containers on the official image (by default) of a PATCHED PHP release (8.2.35,
   8.3.36, 8.4.27 or 8.5.12 or newer, which carry the PHP2Shell fix for
   CVE-2026-109618 and CVE-2026-109619). Checks the runtime version, that
   composer.json cannot install on an unpatched PHP, that every PHP file parses,
@@ -32,7 +32,7 @@ IN SCOPE:
 2. Asserting the container PHP version is at or above the patched floor, on the requested branch.
 3. Checking `composer.json` (`require.php`, `config.platform.php`) with Composer's own
    semver library.
-4. Lint-checking every PHP file, `vendor/` included, and running the test suite.
+4. Lint-checking every PHP source file, `vendor/` included, and running the test suite.
 5. Recording the result: the script writes `verify-verdict.json`; the agent writes `VERIFY_REPORT.md`.
 
 NON-GOALS (do NOT do these):
@@ -45,7 +45,8 @@ NON-GOALS (do NOT do these):
 - CRITICAL: Do NOT modify, create, or delete any file in the repository EXCEPT
   `VERIFY_REPORT.md` (and `verify-verdict.json`, which only the script writes).
 - CRITICAL: Run repository code ONLY via `bash scripts/verify.sh "$REPO" "$TARGET"`.
-  NEVER run `php` or `composer` directly on the host. The container is the only isolation layer.
+  NEVER run `php` or `composer` directly on the host. The containers are the only isolation layer (the script
+  itself runs `git` on the host with hooks and fsmonitor disabled, to record the commit).
 - CRITICAL: If the container runtime is unavailable or an image cannot be obtained, the
   verdict is `BLOCKED`. NEVER fall back to running PHP on the host.
 - CRITICAL: The verdict and exit code come from the script and `verify-verdict.json` only.
@@ -73,7 +74,8 @@ NON-GOALS (do NOT do these):
 2. Do NOT retry on failure and do NOT modify the repository to make it pass.
 
 ### Phase 2: Record evidence
-1. Read `verify-verdict.json` (written by the script). Do not edit it.
+1. Read `verify-verdict.json` (written by the script). Do not edit it. If it is missing, there is no verdict:
+   report BLOCKED with the script's last output line.
 2. Write `VERIFY_REPORT.md` with: the verdict and exit code, the container PHP version, each
    gate result, the manifest constraint and reason, lint files and failures, tests executed,
    warnings, `git_commit`, and the script's summary line verbatim.

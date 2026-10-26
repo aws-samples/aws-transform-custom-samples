@@ -8,6 +8,7 @@ set -u
 HERE="$(cd "$(dirname "$0")/.." && pwd -P)"
 V="$HERE/php-upgrade-secure-verify/scripts/verify.sh"
 [ -f "$V" ] || { echo "verify.sh not found at $V" >&2; exit 1; }
+command -v timeout >/dev/null 2>&1 || { echo "this matrix needs GNU or busybox timeout on the host" >&2; exit 1; }
 B="$(mktemp -d "${TMPDIR:-/tmp}/verify-matrix.XXXXXX")"; cd "$B" || exit 1
 echo "work dir: $B"
 phar() { local f="$B/phpunit$1.phar"; [ -s "$f" ] || curl -fsSL "https://phar.phpunit.de/phpunit-$1.phar" -o "$f"; printf '%s' "$f"; }
@@ -55,7 +56,22 @@ good sym; echo KEEP > "$B/victim"; ln -s "$B/victim" sym/verify-verdict.json
 good fake; printf '#!/bin/sh\nprintf "OK (1 test, 1 assertion)\\n"\nexit 0\n' > fake/vendor/bin/phpunit; chmod +x fake/vendor/bin/phpunit
 good nostart; printf '#!/nonexistent/interpreter\n' > nostart/vendor/bin/phpunit; chmod +x nostart/vendor/bin/phpunit
 printf 'FROM php:8.4.27-cli\nRUN rm -f /usr/bin/timeout\n' > "$B/Dockerfile.nt"
-docker build -q -t verify-matrix-notimeout:8.4.27 -f "$B/Dockerfile.nt" "$B" >/dev/null 2>&1 || echo "warning: could not build the no-timeout image"
+docker build -q -t verify-matrix-notimeout:8.4.27 -f "$B/Dockerfile.nt" "$B" >/dev/null 2>&1 || { echo "could not build the no-timeout image" >&2; exit 1; }
+# round-5 cases
+good uppr;   echo '<?php if (' > uppr/src/B.PHP
+good modl;   echo '<?php if (' > modl/src/x.module
+good shebang; mkdir -p shebang/bin; printf '#!/usr/bin/env php\n<?php if (\n' > shebang/bin/console; chmod +x shebang/bin/console
+good vnewer; mkdir -p vnewer/vendor/sym; printf '<?php\n#[Deprecated(message: "x")]\nconst UUID_X = 4;\n' > vnewer/vendor/sym/bootstrap85.php
+good ufile;  echo '<?php echo 2;' > ufile/src/secret.php; chmod 600 ufile/src/secret.php
+good umani;  chmod 600 umani/composer.json
+good newer;  man newer '{"require":{"php":"~8.4.28 || ^8.5.12"}}'
+good lockmm; printf '{"platform":{"php":">=8.4"},"packages":[]}\n' > lockmm/composer.lock
+good pconf;  mkdir -p pconf/build; printf '<?xml version="1.0"?>\n<phpunit><testsuites><testsuite name="u"><directory>../t</directory></testsuite></testsuites></phpunit>\n' > pconf/build/phpunit.xml; mv pconf/tests pconf/t
+good pdist;  printf '<?xml version="1.0"?>\n<phpunit><testsuites><testsuite name="u"><directory>t</directory></testsuite></testsuites></phpunit>\n' > pdist/phpunit.dist.xml; mv pdist/tests pdist/t
+src rofs;    man rofs "$GOOD"; tst rofs 'if (@file_put_contents(__DIR__."/../cache.txt", "1") === false) { throw new \RuntimeException("Unable to write the cache: " . error_get_last()["message"]); } $this->assertTrue(true);'
+src noisy;   man noisy "$GOOD"; tst noisy 'echo "Skipped: 5\n"; $this->assertTrue(true);'
+good stale;  printf '{"verdict": "PASS", "patched_runtime_cves": ["CVE-2026-109618"]}\n' > stale/verify-verdict.json
+src slowst;  man slowst "$GOOD"; tst slowst 'sleep(60); $this->assertTrue(true);'; printf '{"verdict": "PASS"}\n' > slowst/verify-verdict.json
 for v in 9 10 11; do
   for k in pass skip mixed; do
     r="pu$v$k"; src "$r"; man "$r" "$GOOD"; tst "$r" '$this->assertTrue(true);' '' "$(phar "$v")"
@@ -127,6 +143,41 @@ for v in 9 10 11; do
   run "phpunit$v-skip"  INCONCLUSIVE 5 "pu${v}skip" 8.4 X=1
   run "phpunit$v-mixed" PASS 0 "pu${v}mixed" 8.4 X=1
 done
+run uppercase-ext   FAIL 3 uppr 8.4 X=1
+run drupal-module   FAIL 3 modl 8.4 X=1
+run shebang-php     FAIL 3 shebang 8.4 X=1
+run alpine-shebang  FAIL 3 shebang 8.4 PHP_IMAGE=php:8.4.27-cli-alpine
+run vendor-newer    PASS 0 vnewer 8.4 X=1
+run unreadable-file BLOCKED 9 ufile 8.4 X=1
+run unreadable-man  BLOCKED 9 umani 8.4 X=1
+run require-newer   PASS 0 newer 8.4 X=1
+run lock-mismatch   PASS 0 lockmm 8.4 X=1
+run phpunit-config  PASS 0 pconf 8.4 PHPUNIT_CONFIG=build/phpunit.xml
+run phpunit-dist    PASS 0 pdist 8.4 X=1
+run read-only-test  BLOCKED 9 rofs 8.4 X=1
+run noisy-output    PASS 0 noisy 8.4 X=1
+run stale-replaced  PASS 0 stale 8.4 X=1
+# an aborted run must not leave the old verdict behind
+timeout 15 bash "$V" "$B/slowst" 8.4 >/dev/null 2>&1; N=$((N+1))
+if [ -e "$B/slowst/verify-verdict.json" ]; then echo "MISMATCH aborted-run: an old verdict survived"; BAD=$((BAD+1)); else echo "OK       aborted-run      no verdict file left"; fi
+python3 - "$B" <<'PY' || BAD=$((BAD+1))
+import json,sys,os
+B=sys.argv[1]; j=lambda r: json.load(open(os.path.join(B,r,'verify-verdict.json')))
+checks=[
+ ("vendor-newer warning", j('vnewer')['vendor_files_needing_newer_php']==1),
+ ("require-newer warning", any('verified runtime' in w for w in j('newer')['warnings'])),
+ ("lock-mismatch warning", any('composer.lock' in w for w in j('lockmm')['warnings'])),
+ ("stale cves replaced", j('stale')['git_commit']=="" and 'generated_at' in j('stale')),
+ ("noisy counted 1", j('noisy')['tests_ran']==1),
+ ("mixed reports not executed", j('pu11mixed')['tests_not_executed']==2),
+ ("phpunit-config ran", j('pconf')['tests_ran']==1),
+]
+bad=[n for n,ok in checks if not ok]
+for n,ok in checks: print(("OK      " if ok else "MISMATCH"), "field:", n)
+sys.exit(1 if bad else 0)
+PY
+N=$((N+7))
+chmod 644 "$B/umani/composer.json" "$B/ufile/src/secret.php" 2>/dev/null
 [ "$(cat "$B/victim")" = KEEP ] || { echo "MISMATCH verdict-symlink: the symlink target was overwritten"; BAD=$((BAD+1)); }
 chmod 755 "$B/unread/src/secret" 2>/dev/null
 echo "cases: $N, mismatches: $BAD"

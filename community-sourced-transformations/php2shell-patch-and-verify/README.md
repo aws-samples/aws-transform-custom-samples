@@ -172,8 +172,11 @@ The managed transformation tests its work on whatever PHP is on the machine. In 
 read-only, no capabilities, unprivileged user) on the **official image of a patched PHP release** by default, and checks that:
 
 1. the container's PHP is at or above the patched release of the branch and on the branch you asked for;
-2. `composer.json` does not allow an unpatched or end-of-life PHP (checked with Composer's own version library);
-3. every `.php`, `.phtml` and `.inc` file parses, `vendor/` included, and every file on disk was actually checked;
+2. `composer.json` allows a patched release of the branch and no unpatched or end-of-life PHP (checked with Composer's own version library);
+3. every PHP source file parses, `vendor/` included, and the container checked every file the host found. PHP source files are `.php`,
+   `.phtml`, `.inc`, `.php5`, `.php7`, `.php8` and the Drupal extensions, in any case, plus executable files without an extension whose first
+   line names `php` (such as `bin/console` or `artisan`). A `vendor/` file that parses only on a newer PHP (a version-guarded polyfill such as
+   Symfony's `bootstrap85.php`) is re-checked on PHP 8.5.12 and accepted with a warning;
 4. your tests pass, with at least one test executed (skipped, incomplete and risky tests do not count), counted twice: from PHPUnit's
    summary and from its JUnit log.
 
@@ -186,7 +189,8 @@ verdict records the image, its ID and a warning that its provenance was not veri
 atx custom def publish -n php-upgrade-secure-verify --sd php-upgrade-secure-verify --category analysis \
   --description "Verify-only gate: runs migrated PHP on an official patched PHP image and writes a PASS/FAIL/INCONCLUSIVE/BLOCKED verdict"
 
-# On the upgraded branch, install dependencies first (the gate has no network). For example:
+# On the upgraded branch, install dependencies first (the gate has no network). The Composer image must run a patched PHP itself
+# (composer:2 ran PHP 8.5.12 on 2026-10-25). For example:
 docker run --rm --user "$(id -u):$(id -g)" -e COMPOSER_HOME=/tmp/c -v "$PWD":/app -w /app composer:2 install --no-scripts --no-plugins
 
 # Run it as a continuous modernization custom analysis (one finding per failed check)...
@@ -206,9 +210,9 @@ can also run by itself, with no agent and no cost: `bash php-upgrade-secure-veri
 | `FAIL` | 3 | A file does not parse |
 | `FAIL` | 4 | Tests failed |
 | `INCONCLUSIVE` | 5 | Everything checked is clean, but something was not checked: **no test executed**, no `composer.json`, or `vendor/` skipped with `LINT_VENDOR=0`. `php -l` only finds parse errors: removed functions such as `each()` and changed behavior show up only in tests. Not verified |
-| `BLOCKED` | 9 | Could not decide: no Docker, image unavailable, unknown target, unreadable files, PHPUnit could not start, no `timeout` in the image, test timeout or out-of-memory kill. Not verified |
+| `BLOCKED` | 9 | Could not decide: no Docker, image unavailable, unknown target, unreadable files, a symlink leaving the repository, PHPUnit could not start, no `timeout` in the image, tests failing on the gate environment (read-only checkout, full `/tmp`), test timeout or out-of-memory kill. Not verified |
 
-CI should treat only exit 0 as success. The verdict also records `git_commit`, `git_branch` and `warnings` (for example, the end-of-life date
+CI should treat only exit 0 as success. The script deletes any old `verify-verdict.json` when it starts: no file means no verdict. The verdict also records `git_commit`, `git_branch` and `warnings` (for example, the end-of-life date
 of 8.2). Before you run step 2 again on the same checkout, remove the two report files, `verify-verdict.json` and `VERIFY_REPORT.md`, because a
 remediation refuses a repository with uncommitted changes.
 
@@ -276,7 +280,12 @@ and update a pinned PHP managed rule group to the latest version.
 | Step 3 `FAIL` exit 2, "pins an unpatched release" | `config.platform.php` is below the floor. Set it to the floor (for example `8.4.27`) |
 | Step 3 `INCONCLUSIVE` exit 5 | Read `summary`: no test executed (install dependencies or add tests), no `composer.json` (add one with a safe `require.php`), or `LINT_VENDOR=0` (drop it). Then verify again |
 | Step 3 `FAIL` exit 4 on tests that open a network connection | The gate has no network. Tag those tests with a PHPUnit group and run with `PHPUNIT_EXCLUDE_GROUP=<group>` |
-| Step 3 `BLOCKED`, "linted N of M files" | Files the container user cannot read (for example a `vendor/` installed by root with private permissions), or symlinks that point outside the repository. Fix permissions or the links |
+| Step 3 `BLOCKED`, "could lint N of M files" | Files the container user cannot read: private permissions (`600`/`700`), including the repository folder itself, or a `vendor/` installed by root. `chmod -R a+rX` the checkout |
+| Step 3 `BLOCKED`, "a symlink points outside the repository" | Replace the link with the files, or verify a checkout without it |
+| Step 3 `BLOCKED`, "tests failed on the gate environment" | A test wrote into the checkout (read-only in the gate) or filled `/tmp`. Point caches to `sys_get_temp_dir()`, or raise `TMP_SIZE` (default 256m). A test that hides the cause is reported as a failure |
+| Step 3 `INCONCLUSIVE`, tests never run, config not at the root | Set `PHPUNIT_CONFIG=path/to/phpunit.xml` (relative to the repository) |
+| Warning "require.php does not allow the verified runtime" | Your floor is newer than the gate's default image (for example `~8.4.28`). Verify with that release: `PHP_IMAGE=php:8.4.28-cli` |
+| Warning "composer.lock does not match require.php" | Run `composer update --lock` |
 | Step 3 `BLOCKED`, "has no timeout command" | Your `PHP_IMAGE` lacks `timeout` (coreutils or busybox). Add it to the image |
 | Step 3 `BLOCKED`, timeout or killed | A suite slower than `TEST_TIMEOUT` (default 600 s), or a test using more than 2 GB. Raise `TEST_TIMEOUT` or fix the test |
 | Step 3 `FAIL` exit 3 on a file under `vendor/` | An old dependency that does not parse on PHP 8. Update it. `LINT_VENDOR=0` skips `vendor/` for diagnosis only: the verdict is then at best `INCONCLUSIVE` |
@@ -287,6 +296,8 @@ and update a pinned PHP managed rule group to the latest version.
 
 - The gate has no network: tests that need a database or another service fail or must be excluded.
 - There is no baseline: a test that already failed before the migration is reported as a failure after it.
+- Files without an extension are linted only when they are executable and their first line names `php`. `vendor/` files accepted as
+  version-guarded are checked on PHP 8.5.12 only; your tests must load the code paths that matter.
 - The official image has only core extensions; use your own image on the patched base when you need others.
 - **Trust boundary:** the repository, its `vendor/` and its tests are trusted input. The gate cross-checks PHPUnit's summary with its JUnit
   log, which stops a wrapper that only prints "OK", but a hostile project can still fake both. The containers limit what such a project can
