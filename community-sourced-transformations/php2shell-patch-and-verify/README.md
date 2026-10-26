@@ -165,30 +165,50 @@ finding "tests were not executed". Measured minutes are in [BENCHMARKS.md](BENCH
 
 This is the fix. Nothing above closes the vulnerabilities.
 
+**4.1 Install the patched release.**
+
 | Where PHP runs | Action |
 |---|---|
-| Amazon Linux 2023 | The repository is pinned to your installed release, so plain `dnf upgrade` can keep offering old PHP. Use the command in the advisory, then restart: `sudo dnf update php8.4 --releasever 2023.12.20261021` (php8.2: ALAS2023-2026-3301, php8.3: -3302, php8.4: -3303, php8.5: -3304) |
+| Amazon Linux 2023 | Releases are locked to the one you installed, so a plain `dnf upgrade` can keep offering old PHP. Upgrade every PHP package of your branch to the release named in the advisory: `sudo dnf upgrade -y --releasever=2023.12.20261021 'php8.4*'` (php8.2: ALAS2023-2026-3301, php8.3: -3302, php8.4: -3303, php8.5: -3304). Keep the quoted wildcard: `dnf update php8.4` only targets the `php8.4` metapackage, and if you installed `php8.4-fpm` without it, nothing is updated and the command still exits 0 |
 | Containers | Rebuild on a base image with a fixed release (for example `php:8.4.27-fpm`), push, redeploy |
 | AWS Elastic Beanstalk | Updated PHP platform versions exist (8.2 to 8.5). Managed Platform Updates applies them in the next window; otherwise update the platform version yourself |
 | Amazon Lightsail | AWS cannot update a running instance in place: create new instances from the updated blueprint and migrate |
 | AWS Lambda | No managed PHP runtime. If PHP is yours (custom runtime or image), rebuild with a patched release and redeploy |
 | Debian, Ubuntu, RHEL, LTS builds | Use your vendor's package. The version string may not change: trust the vendor advisory |
 
-Confirm on each host (read-only commands):
+**4.2 Keep session upload progress off.** A separate flaw, CVE-2026-115560 (PHP advisory of 2026-10-23), is not fixed by these releases. It needs an
+uncommon configuration, but PHP recommends `session.upload_progress.enabled=0` until its next regular release. It is on by default.
 
 ```bash
-php -v                                              # CLI only; at or above 8.2.35 / 8.3.36 / 8.4.27 / 8.5.12
-php-fpm -v                                          # the binary that serves requests (php-fpm8.4 -v on some distributions); with Apache mod_php, check the package version instead
-rpm -q --changelog php8.4 | grep -E "CVE-2026-109618|CVE-2026-109619"   # vendor builds: both ids must appear (Debian: zgrep in /usr/share/doc/<package>/changelog.Debian.gz)
-sudo systemctl restart php-fpm httpd                # restart every PHP-FPM service and every web server that loads PHP
-rpm -q --qf '%{INSTALLTIME:date}\n' php8.4; ps -o lstart= -p "$(pgrep -o -f 'php-fpm: master')"   # workers must start AFTER the install time
+echo 'session.upload_progress.enabled=0' | sudo tee /etc/php.d/99-php2shell.ini     # the directory php --ini lists under "Scan for additional .ini files"
+grep -rn 'upload_progress' /etc/php-fpm.d/ /etc/php-fpm.conf                         # a pool setting overrides php.ini: remove any that turns it back on
 ```
+
+**4.3 Restart every worker.** A package upgrade does nothing for processes already in memory.
+
+```bash
+sudo systemctl restart php-fpm httpd               # every PHP-FPM service and every web server that loads PHP
+```
+
+**4.4 Confirm on each host** (read-only commands; paths are those of Amazon Linux 2023):
+
+```bash
+/usr/sbin/php-fpm -v                                                         # the binary that serves requests: at or above the patched release
+rpm -qf --qf '%{NAME}-%{VERSION} installed %{INSTALLTIME:date}\n' /usr/sbin/php-fpm
+ps -o lstart= -p "$(pgrep -o -f 'php-fpm: master')"                         # the master must start AFTER that install time
+dnf updateinfo list --installed | grep ALAS2023-2026-3303                    # the advisory is installed (-3301, -3302, -3304 for 8.2, 8.3, 8.5)
+php -r 'var_dump(ini_get("session.upload_progress.enabled"));'               # string(1) "0"
+/usr/sbin/php-fpm -i | grep session.upload_progress.enabled                  # Off
+```
+
+On Amazon Linux the package changelog says only "Package updated to 8.4.27", so `rpm -q --changelog | grep CVE` finds nothing even on a patched
+host: check the advisory with `dnf updateinfo` instead. With Apache `mod_php`, check the version of the package that provides the Apache module and
+restart `httpd`. On other distributions, follow your vendor's advisory.
 
 Until you can patch, PHP's advisories list interim settings that narrow the attack surface. They do not fix the vulnerabilities and every change
 needs a worker restart: `memory_limit=-1` set so the application cannot override it (CVE-2026-109618, with a container memory limit as the real
-ceiling), a low `post_max_size`, `session.upload_progress.enabled=0` (CVE-2026-109619), and on PHP 8.5 also `fatal_error_backtraces=0`. Keep
-`session.upload_progress.enabled=0` even after patching: a separate, still unpatched flaw (CVE-2026-115560, PHP advisory of 2026-10-23) is a remote
-code execution in session upload progress handling, in an uncommon configuration. If you use
+ceiling), a low `post_max_size`, `session.upload_progress.enabled=0` (CVE-2026-109619), and on PHP 8.5 also `fatal_error_backtraces=0`. Keep the
+last one after patching (step 4.2). If you use
 AWS WAF, see the [AWS guidance](https://aws.amazon.com/blogs/security/using-aws-waf-to-apply-mitigations-for-php2shell-rce-vulnerabilities-cve-2026-109618-and-cve-2026-109619)
 and update a pinned PHP managed rule group to the latest version.
 
