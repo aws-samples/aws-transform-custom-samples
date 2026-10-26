@@ -10,7 +10,9 @@
 #
 # Usage: verify.sh <REPO_PATH> [TARGET 8.2|8.3|8.4|8.5, default 8.4]
 # Env:   PHP_IMAGE (default php:<floor>-cli)   COMPOSER_IMAGE (default composer:2)   CONTAINER_CLI (default docker)
-#        LINT_VENDOR=0 skips vendor/           TEST_TIMEOUT seconds (default 600)    PHPUNIT_EXCLUDE_GROUP=network,...
+#        LINT_VENDOR=0 skips vendor/ (diagnostic: never PASS)   TEST_TIMEOUT seconds (default 600)   PHPUNIT_EXCLUDE_GROUP=network,...
+# Trust: the repository, its vendor/ and its tests are trusted input. A hostile repository can fake test output; the
+#        containers limit what it can reach, they do not authenticate its results.
 # Exit:  0 PASS | 2 version, branch or manifest FAIL | 3 lint FAIL | 4 test FAIL | 5 INCONCLUSIVE (no test executed) | 9 BLOCKED
 set -uo pipefail
 
@@ -32,7 +34,7 @@ UNPATCHED='<8.2.35 || >=8.3.0 <8.3.36 || >=8.4.0 <8.4.27 || >=8.5.0 <8.5.12'   #
 
 # Verdict fields (globals, all sanitised before they reach JSON).
 PHPVER=""; VGATE="SKIPPED"; MGATE="SKIPPED"; MREQ=""; MPLAT=""; MREASON=""; LGATE="SKIPPED"; LFILES=0; LFAILS=0
-TGATE="SKIPPED"; TESTS=0; NOTE=""; WARN=()
+TGATE="SKIPPED"; TESTS=0; NOTE=""; WARN=(); IMG_ID=""
 GIT_COMMIT=""; GIT_BRANCH=""; GIT_DIRTY="null"
 
 REPO="$(cd "$REPO_IN" 2>/dev/null && pwd -P)" || {
@@ -55,6 +57,8 @@ finish() { # verdict exit summary
   "verdict": "$verdict",
   "target_branch": "$TARGET",
   "patched_floor": "$FLOOR",
+  "php_image": "$(clean "${RUNIMG:-}")",
+  "php_image_id": "$(clean "$IMG_ID")",
   "php_version": "$(clean "$PHPVER")",
   "version_gate": "$VGATE",
   "manifest_gate": "$MGATE",
@@ -104,6 +108,8 @@ for img in "$RUNIMG" "$COMPOSER_IMAGE"; do
 done
 getimg() { "$CLI" image inspect "$1" >/dev/null 2>&1 || "$CLI" pull -q "$1" >/dev/null 2>&1; }
 getimg "$RUNIMG" || finish BLOCKED 9 "BLOCKED: cannot get the PHP image (check network or PHP_IMAGE)"
+IMG_ID="$("$CLI" image inspect --format '{{.Id}}' "$RUNIMG" 2>/dev/null | head -1)"
+[ -n "${PHP_IMAGE:-}" ] && WARN+=("custom PHP_IMAGE: provenance not verified, only the PHP version inside it")
 if [ -L "$REPO/composer.json" ]; then finish BLOCKED 9 "BLOCKED: composer.json is a symlink"; fi
 
 # Count on the host the files the container must lint; any find error (permissions, loops) means we cannot know coverage.
@@ -136,8 +142,12 @@ grep "^LINT_FAIL=" /tmp/lint.txt | head -20
 if [ -x vendor/bin/phpunit ] && { [ -f phpunit.xml ] || [ -f phpunit.xml.dist ] || [ -d tests ]; }; then
   if [ -f phpunit.xml ] || [ -f phpunit.xml.dist ]; then set -- --do-not-cache-result; else set -- --do-not-cache-result --no-configuration tests; fi
   [ -n "$EXCL" ] && set -- "$@" --exclude-group "$EXCL"
+  if ! command -v timeout >/dev/null 2>&1; then echo "PU_RC=notimeout"
+  else
   if timeout -k 1 1 true 2>/dev/null; then TO="timeout -k 10 $TT"; else TO="timeout $TT"; fi
-  $TO vendor/bin/phpunit "$@" >/tmp/pu.txt 2>&1; echo "PU_RC=$?"
+  $TO vendor/bin/phpunit --log-junit /tmp/junit.xml "$@" >/tmp/pu.txt 2>&1; echo "PU_RC=$?"
+  # Second, independent count: test cases in the JUnit log that were not skipped. A wrapper that only prints a summary has no log.
+  echo "JUNIT_RAN=$(php -r "\$x=@simplexml_load_file(\"/tmp/junit.xml\"); if(!\$x){echo 0; exit;} \$n=0; foreach(\$x->xpath(\"//testcase\") as \$t){ if(!isset(\$t->skipped)) \$n++; } echo \$n;" 2>/dev/null)"
   N=$(grep -Eo "OK \([0-9]+ test" /tmp/pu.txt | grep -Eo "[0-9]+" | head -1)
   [ -n "$N" ] || N=$(grep -Eo "Tests: [0-9]+" /tmp/pu.txt | grep -Eo "[0-9]+" | tail -1)
   S=$(grep -Eo "Skipped: [0-9]+" /tmp/pu.txt | grep -Eo "[0-9]+" | tail -1)
@@ -146,6 +156,7 @@ if [ -x vendor/bin/phpunit ] && { [ -f phpunit.xml ] || [ -f phpunit.xml.dist ] 
   echo "TESTS_RAN=$(( ${N:-0} - ${S:-0} - ${I:-0} - ${K:-0} ))"
   grep -q "No tests executed" /tmp/pu.txt && echo "NO_TESTS=1"
   tail -6 /tmp/pu.txt | tr -c "[:print:]\n" "?" | sed "s/^/PU: /"
+  fi
 else
   echo "PU_RC=none"
   if [ -d tests ] || [ -f phpunit.xml ] || [ -f phpunit.xml.dist ]; then
@@ -175,7 +186,11 @@ else LGATE="PASS"; fi
 PURC="$(val PU_RC | tr -cd '0-9a-z')"; TESTS="$(num TESTS_RAN)"; NOTE="$(val NOTE)"
 case "$PURC" in
   none)    TGATE="NOT-RUN";;
-  0)       if [ "$TESTS" -ge 1 ] && [ -z "$(val NO_TESTS)" ]; then TGATE="PASS"
+  notimeout) TGATE="NO-TIMEOUT"; NOTE="the PHP image has no timeout command, so tests cannot run under a time limit";;
+  126|127) TGATE="NO-START"; TESTS=0; NOTE="vendor/bin/phpunit could not start (exit $PURC)";;
+  0)       JUNIT="$(num JUNIT_RAN)"; [ "$JUNIT" -lt "$TESTS" ] && TESTS="$JUNIT"   # trust the lower of the two counts
+           if [ "$TESTS" -ge 1 ] && [ -z "$(val NO_TESTS)" ]; then TGATE="PASS"
+           elif [ "$JUNIT" -eq 0 ] && [ "$(num TESTS_RAN)" -ge 1 ]; then TGATE="NOT-RUN"; TESTS=0; NOTE="phpunit reported tests but wrote no JUnit log of executed tests"
            else TGATE="NOT-RUN"; TESTS=0; NOTE="phpunit executed no test (none found, or all skipped, incomplete or risky)"; fi;;
   124|143) TGATE="TIMEOUT"; TESTS=0; NOTE="the test suite did not finish within ${TEST_TIMEOUT}s";;
   137)     TGATE="KILLED";  TESTS=0; NOTE="the test suite was killed (out of memory, or it ignored the timeout)";;
@@ -217,7 +232,7 @@ $o("MANIFEST_GATE", $why ? "FAIL" : "PASS"); $o("MANIFEST_REASON", implode("; ",
     MGATE="$(oneof "$MGATE" "PASS FAIL" ERROR)"
   else MGATE="ERROR"; MREASON="cannot get the Composer image (check network or COMPOSER_IMAGE)"; fi
 else
-  MGATE="NO-MANIFEST"; WARN+=("no composer.json: nothing declares which PHP releases the code allows")
+  MGATE="NO-MANIFEST"
 fi
 
 # --- Decision: FAIL beats BLOCKED beats INCONCLUSIVE beats PASS ----------------------------------------------------
@@ -232,7 +247,9 @@ if [ "${#F[@]}" -gt 0 ]; then S="FAIL: ${F[0]}"; for x in "${F[@]:1}"; do S="$S;
 [ "$MGATE" = ERROR ]                && finish BLOCKED 9 "BLOCKED: manifest not checked: ${MREASON:-the Composer check did not run}"
 [ "$LGATE" = NO-FILES ]             && finish BLOCKED 9 "BLOCKED: no PHP file found to lint (wrong path?)"
 [ "$LGATE" = COVERAGE-MISMATCH ]    && finish BLOCKED 9 "BLOCKED: the container linted $LDONE of $HOSTCOUNT files (unreadable paths, or symlinks that leave the repository)"
-case "$TGATE" in TIMEOUT|KILLED) finish BLOCKED 9 "BLOCKED: $NOTE";; esac
+case "$TGATE" in TIMEOUT|KILLED|NO-TIMEOUT|NO-START) finish BLOCKED 9 "BLOCKED: $NOTE";; esac
 [ "$TGATE" = NOT-RUN ]              && finish INCONCLUSIVE 5 "INCONCLUSIVE: patched $PHPVER, manifest and lint clean, but no test executed ($NOTE)"
+[ "$MGATE" = NO-MANIFEST ]          && finish INCONCLUSIVE 5 "INCONCLUSIVE: no composer.json, so nothing stops an install on an unpatched PHP (tests and lint clean on $PHPVER)"
+[ "$LINT_VENDOR" = 1 ]              || finish INCONCLUSIVE 5 "INCONCLUSIVE: vendor/ was not linted (LINT_VENDOR=0); tests and the rest are clean on $PHPVER"
 [ "$TGATE" = PASS ] || finish BLOCKED 9 "BLOCKED: unexpected test result"
 finish PASS 0 "PASS: $TESTS test(s) executed and passed, manifest and lint clean, on patched $PHPVER"

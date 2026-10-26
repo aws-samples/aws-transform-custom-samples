@@ -81,8 +81,9 @@ NON-GOALS (do NOT do these):
    table in `references/patched-versions.md` for the target branch, and add nothing about other
    constraints (comparisons between constraints are easy to get wrong):
    `Set require.php to "<safe constraint>". If composer.json sets config.platform.php, set it to "<floor>". Then run composer update --lock.`
-4. For `INCONCLUSIVE`, state plainly that no test was executed, why (`note`), and that
-   `php -l` only catches parse errors, not removed functions or changed behavior.
+4. For `INCONCLUSIVE`, state plainly what was not checked (the `summary`: no test executed, no
+   `composer.json`, or `vendor/` not linted) and that `php -l` only catches parse errors, not removed
+   functions or changed behavior.
 5. Confirm that no tracked file changed other than the report files.
 
 ## When run as a continuous modernization custom analysis
@@ -93,8 +94,8 @@ Report findings from `verify-verdict.json`, one per failed or weak gate, never f
 - `lint_gate` FAIL: severity high, one finding per failing file as printed by the script; when the
   cause is removed PHP syntax or functions, name `AWS/php-version-upgrade` as the fix.
 - `test_gate` FAIL: severity high, the failing tests as printed by the script.
-- `INCONCLUSIVE`: severity medium, "not verified: no test executed", with the note and the
-  recommendation to install dependencies (or add tests) and verify again.
+- `INCONCLUSIVE`: severity medium, "not verified", with the `summary` and the matching recommendation: install
+  dependencies or add tests; add a `composer.json` with a safe `require.php`; or run without `LINT_VENDOR=0`.
 - `BLOCKED`: severity medium, "not verified", with the reason. Never report BLOCKED as clean.
 - Each entry in `warnings`: severity low.
 A PASS needs no finding beyond its warnings.

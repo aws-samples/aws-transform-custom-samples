@@ -15,10 +15,10 @@ Facts about the CVEs and patched releases change quickly; see the [README](READM
 | Verify gate, upgraded code as the transformation left it | **FAIL**, exit 2: `"php": ">=8.5"` allows 8.5.0 to 8.5.11, although 7 of 7 tests passed and 1,545 files parse |
 | Verify gate, upgraded code with `"php": "^8.5.12"` | **PASS**, exit 0: 7 of 7 tests on PHP 8.5.12, 1,545 files linted (`vendor/` included) |
 | Verify gate, same code on PHP 8.5.11 | **FAIL**, exit 2: runtime below the patched release |
-| Verify gate test matrix | 43 of 43 cases returned the expected verdict and exit code (below) |
+| Verify gate test matrix | 55 of 55 cases return the expected verdict and exit code; reproduce with `bash tests/verify-matrix.sh` |
 | Verify as a continuous modernization custom analysis | legacy: 3 findings (high manifest, high parse error naming `AWS/php-version-upgrade`, medium "no tests executed"); upgraded as left: 1 high manifest finding with the exact fix; fixed manifest: 0 findings |
 | Verify run through the engine (target given as prose) | PASS; only the report files written; one commit "Step 1: Run PHP patched-runtime verify gate" |
-| Agent minutes per verify run | 8.5 to 15.8 over 5 runs (about US$ 0.30 to 0.55); `verify.sh` alone costs nothing |
+| Agent minutes per verify run | 8.5 to 15.8 over 7 runs of the final versions (about US$ 0.30 to 0.55); `verify.sh` alone costs nothing |
 | Step 4 on Amazon Linux 2023, from `php8.4-fpm` 8.4.26 | The README commands, run verbatim in a container: worker on 8.4.27, `ALAS2023-2026-3303` installed, master started after the install, `session.upload_progress.enabled` Off in CLI and FPM |
 
 Observation that motivated the gate: the managed upgrade ran its own tests on PHP 8.5.3, which is **below** the patched 8.5.12, and wrote a
@@ -26,7 +26,8 @@ Observation that motivated the gate: the managed upgrade ran its own tests on PH
 
 ## Gate test matrix (`scripts/verify.sh`)
 
-Each case ran `verify.sh <repo> <target>` against a small purpose-built repository with PHPUnit 11. The official `php:<release>-cli` image was
+`tests/verify-matrix.sh` builds every case below in a temporary directory, runs the gate and checks the verdict and exit code (exit 0
+only when all match). Each case is a small purpose-built repository with PHPUnit 11 unless stated. The official `php:<release>-cli` image was
 used unless the case sets `PHP_IMAGE`. Unless stated, the manifest is `~8.2.35 || ~8.3.36 || ~8.4.27 || ^8.5.12` and one passing test exists.
 
 | Case | Target | Exit | Verdict and reason |
@@ -41,10 +42,10 @@ used unless the case sets `PHP_IMAGE`. Unless stated, the manifest is `~8.2.35 |
 | No `require.php` | 8.4 | 2 | FAIL, any PHP release is allowed |
 | `require.php` `^8.5.12` on target 8.4 | 8.4 | 2 | FAIL, does not allow the verified runtime |
 | Invalid JSON / invalid constraint | 8.4 | 2 | FAIL |
-| No `composer.json` | 8.4 | 0 | PASS, with a warning |
+| No `composer.json` | 8.4 | 5 | INCONCLUSIVE: nothing stops an install on an unpatched PHP |
 | `composer.json` is a symlink | 8.4 | 9 | BLOCKED |
 | Parse error in `src/`, in a `.phtml` file, in a file name with spaces | 8.4 | 3 | FAIL |
-| Parse error only under `vendor/` | 8.4 | 3 | FAIL; with `LINT_VENDOR=0`: PASS and a warning |
+| Parse error only under `vendor/` | 8.4 | 3 | FAIL; with `LINT_VENDOR=0`: INCONCLUSIVE (exit 5), never PASS |
 | Directory the container user cannot read | 8.4 | 9 | BLOCKED, "linted 2 of 3 files" |
 | Symlink pointing outside the repository | 8.4 | 9 | BLOCKED, "linted 2 of 3 files" |
 | Empty directory | 8.4 | 9 | BLOCKED, no PHP file |
@@ -53,10 +54,14 @@ used unless the case sets `PHP_IMAGE`. Unless stated, the manifest is `~8.2.35 |
 | Test sleeps 30 s, `TEST_TIMEOUT=5` | 8.4 | 9 | BLOCKED, did not finish |
 | Test opens a TCP connection | 8.4 | 4 | FAIL (no network); tagged and `PHPUNIT_EXCLUDE_GROUP=network`: PASS |
 | Test allocates 4 GB | 8.4 | 9 | BLOCKED, killed (out of memory) |
+| `vendor/bin/phpunit` is a script that only prints `OK (1 test, 1 assertion)` | 8.4 | 5 | INCONCLUSIVE: no JUnit log of executed tests |
+| `vendor/bin/phpunit` cannot start | 8.4 | 9 | BLOCKED, exit 127 is not reported as a test failure |
+| PHPUnit 9, 10, 11: two passing tests / one skipped / one passing, one skipped, one incomplete | 8.4 | 0 / 5 / 0 | PASS with 2 / INCONCLUSIVE / PASS with 1; summary and JUnit counts agree |
 | Unsafe manifest and a parse error | 8.4 | 2 | FAIL, summary lists both |
 | `PHP_IMAGE=php:8.5.11-cli` | 8.5 | 2 | FAIL, below 8.5.12 |
 | `PHP_IMAGE=php:8.5.12-cli` | 8.4 | 2 | FAIL, branch 8.5 is not 8.4 |
-| `PHP_IMAGE=php:8.4.27-cli-alpine` | 8.4 | 0 | PASS |
+| `PHP_IMAGE=php:8.4.27-cli-alpine` | 8.4 | 0 | PASS, with the warning that a custom image's provenance is not verified |
+| Custom image without a `timeout` command | 8.4 | 9 | BLOCKED, not a test failure |
 | Unknown target / target with JSON characters / `PHP_IMAGE=-v` / `CONTAINER_CLI=foo` / Composer image unavailable | | 9 | BLOCKED |
 | Git checkout, clean / with an uncommitted change | 8.4 | 0 | PASS with `git_commit` and `git_dirty` false / true plus a warning |
 | `verify-verdict.json` is a symlink to another file | 8.4 | 0 | PASS; the other file is untouched and the symlink is replaced |
@@ -69,11 +74,14 @@ and `~8.4.27`, `^8.5.12` and `~8.4.27 || ^8.5.12` as safe. With a safe `require.
 ## Known limitations
 
 See [Known limitations in the README](README.md#known-limitations). In short: no network for tests, no pre-migration baseline, core extensions only
-in the official image, a hostile project can fake its own results, and only Docker was tested.
+in the official image, the repository and its tests are trusted input, and only Docker was tested.
 
 ## How to repeat it
 
 ```bash
+# The gate's test matrix (Docker, network for images and PHPUnit phars; about 10 minutes)
+bash tests/verify-matrix.sh
+
 # Gate on any PHP repository (no agent, no cost)
 bash php-upgrade-secure-verify/scripts/verify.sh <repo> 8.4
 echo "exit=$?"; cat <repo>/verify-verdict.json
