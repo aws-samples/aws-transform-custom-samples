@@ -19,7 +19,7 @@ Facts about the CVEs and patched releases change quickly; see the [README](READM
 | Realistic `vendor/` (Laravel 11, Symfony 7, PHPStan, PHP-CS-Fixer, PHP_CodeSniffer, PHPUnit 11) | 8,398 files linted in 65 s; 1 file (Symfony `polyfill-uuid/bootstrap85.php`) parses only on 8.5 and was accepted as version-guarded with a warning; 0 failures |
 | Verify as a continuous modernization custom analysis | legacy: 3 findings (high manifest, high parse error naming `AWS/php-version-upgrade`, medium "no tests executed"); upgraded as left: 1 high manifest finding with the exact fix; fixed manifest: 0 findings |
 | Verify run through the engine (target given as prose) | PASS; only the report files written; one commit "Step 1: Run PHP patched-runtime verify gate" |
-| Agent minutes per verify run | 8.5 to 15.8 over 9 runs during development (about US$ 0.30 to 0.55); `verify.sh` alone costs nothing |
+| Agent minutes per verify run | 8.5 to 15.8 over 11 runs during development (about US$ 0.30 to 0.55); `verify.sh` alone costs nothing |
 | Step 4 on Amazon Linux 2023, from `php8.4-fpm` 8.4.26 | The README commands, run verbatim in a container: worker on 8.4.27, `ALAS2023-2026-3303` installed, master started after the install, `session.upload_progress.enabled` Off in CLI and FPM |
 
 Observation that motivated the gate: the managed upgrade ran its own tests on PHP 8.5.3, which is **below** the patched 8.5.12, and wrote a
