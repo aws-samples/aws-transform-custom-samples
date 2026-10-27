@@ -1,6 +1,6 @@
 # Benchmark Results - PHP2Shell patch and verify
 
-Measured from 2026-10-23 to 2026-10-26 on AWS Transform CLI 3.20.0, `us-east-1`, Amazon Linux 2023, Docker 25. Single runs (n=1); minutes vary.
+Measured from 2026-10-23 to 2026-10-27 on AWS Transform CLI 3.20.0, `us-east-1`, Amazon Linux 2023, Docker 25. Single runs (n=1); minutes vary.
 Facts about the CVEs and patched releases change quickly; see the [README](README.md).
 
 ## Executive Summary
@@ -9,8 +9,9 @@ Facts about the CVEs and patched releases change quickly; see the [README](READM
 |--------|--------|
 | Fixture | `samples/legacy-php-app` (PHP 7.4 app, 13 files: 5 classes, 5 test files with 7 tests, deliberate PHP 8 breakages) |
 | Rapid analysis (`rapid-techdebt-analysis`) | about 1 minute, 1 high finding (PHP 7.4 end of life, fix `AWS/php-version-upgrade`) |
-| Comprehensive analysis (`tech-debt-comprehensive`) | about 7 minutes, 11 findings (3 high), including silent PHP 8 behavior changes |
-| Managed upgrade (`AWS/php-version-upgrade`) | 35.6 agent minutes (about US$ 1.25). Code migration good; it wrote `"php": ">=8.5"`, kept `'abc' == 0` true, and ran its tests on PHP 8.5.3 (unpatched) |
+| Comprehensive analysis (`tech-debt-comprehensive`) | about 7 minutes, 6 to 11 findings (2 to 3 high; number and titles vary between runs), including silent PHP 8 behavior changes |
+| Managed upgrade from the findings (`atx ct remediation create`) | 3 runs, 20.9 to 38.1 agent minutes (about US$ 0.73 to 1.33), 4 to 5 minutes wall-clock. Wrote `"^8.5"` or `">=8.4"`, validated on PHP 8.5.3 every time (also for target 8.4), verify FAIL exit 2 as left and PASS after the floor fix. Details below |
+| Managed upgrade, direct run (`atx custom def exec`) | 35.6 agent minutes (about US$ 1.25). Code migration good; it wrote `"php": ">=8.5"`, kept `'abc' == 0` true, and ran its tests on PHP 8.5.3 (unpatched) |
 | Verify gate, legacy code | **FAIL**, exit 2: `"php": ">=7.4"` allows unpatched PHP, and `src/Initials.php` does not parse |
 | Verify gate, upgraded code as the transformation left it | **FAIL**, exit 2: `"php": ">=8.5"` allows 8.5.0 to 8.5.11, although 7 of 7 tests passed and 1,545 files parse |
 | Verify gate, upgraded code with `"php": "^8.5.12"` | **PASS**, exit 0: 7 of 7 tests on PHP 8.5.12, 1,545 files linted (`vendor/` included) |
@@ -103,3 +104,24 @@ bash <this-folder>/php-upgrade-secure-verify/scripts/verify.sh /tmp/repos/upgrad
 ```
 
 Cost is US$ 0.035 per agent minute ([pricing](https://aws.amazon.com/transform/pricing/)).
+
+## Remediation from findings (`atx ct remediation create`), 2026-10-27
+
+Fresh copy of `samples/legacy-php-app` on a `local` source; host PHP 8.5.3 (unpatched, left on purpose to see which PHP the run uses).
+The comprehensive analysis returned 6 findings; 3 named `AWS/php-version-upgrade` (PHP 7.4 end of life, PHPUnit 9.6 end of life, silent
+change in `Matcher::isZeroLike`), and those 3 ids were passed with `--ids`.
+
+| Run | Command | Agent minutes | `require.php` written | Validated on | `isZeroLike("abc")` | Verify as left | After the floor fix |
+|---|---|---|---|---|---|---|---|
+| 1 | `--ids` (CLI interrupted after the branch was written; status stayed `running`, cancelled) | 20.9 | `^8.5` | 8.5.3 | false (PHP 8), but `"0.5"` is zero | FAIL, exit 2 | `^8.5.12`: PASS, 7 tests, 1,549 files |
+| 2 | `--ids` | 38.1 | `^8.5` | 8.5.3 | true (PHP 7 kept) | FAIL, exit 2 | not rerun (same manifest as run 1) |
+| 3 | `--ids` + `--transformation-name` + `-g` target 8.4 | 27.3 | `>=8.4` | 8.5.3 | false (PHP 8) | FAIL, exit 2 on 8.4.27 | `~8.4.27 \|\| ^8.5.12`: PASS on 8.4.27 |
+
+Observed behavior:
+- The job ran on the local machine although the CLI printed "remote mode" (`exact_compute_mode` UNKNOWN), with every tool trusted. Run 1
+  installed Composer 2.10.3 into `/usr/local/bin` with `sudo`.
+- Each run committed to a new branch `atx/php-version-upgrade-<timestamp>` (run 1: `atx-result-staging-<timestamp>`); the status reports
+  that branch as `transform_pr_url` with repo status `pr_open`, and the findings move to `change_ready`.
+- The run plans around the findings: all three runs also upgraded PHPUnit to 11.5 and migrated `phpunit.xml`, which were findings.
+- `-g` was combined with the findings context (the target line came first in the agent's plan context).
+- `atx ct remediation list` and `findings list --fix-transform AWS/php-version-upgrade` worked as documented.

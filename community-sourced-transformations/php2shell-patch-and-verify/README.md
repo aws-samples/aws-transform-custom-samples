@@ -6,7 +6,7 @@ it, and verify the result on a patched runtime before you ship.
 
 | | |
 |---|---|
-| **Status** | Sample guidance, facts dated 2026-10-25. Read the [disclaimer](#disclaimer) |
+| **Status** | Sample guidance, facts dated 2026-10-27. Read the [disclaimer](#disclaimer) |
 | **Tested with** | AWS Transform CLI 3.20.0, `us-east-1`, Docker 25, Amazon Linux 2023 |
 | **License** | MIT-0 (see the repository [LICENSE](../../LICENSE)) |
 
@@ -36,7 +36,7 @@ flowchart TB
     R[("Your PHP repositories")]
     S1[["1 Analyze: atx ct analysis"]]
     F1[/"Findings; the PHP finding names its fix"/]
-    S2[["2 Upgrade: AWS/php-version-upgrade"]]
+    S2[["2 Upgrade: atx ct remediation, AWS/php-version-upgrade"]]
     B[/"New branch with upgraded code"/]
     H{"Review the diff and composer.json"}
     S3[["3 Verify: php-upgrade-secure-verify"]]
@@ -73,7 +73,7 @@ an automatic gate; green = passed; red = stopped.
 
 ## Before you start
 
-- An AWS account and credentials with the managed policy `AWSTransformCustomFullAccess`; Node.js 22+; Git; Docker (step 3; other
+- An AWS account and credentials with the managed policy `AWSTransformCustomFullAccess`; Node.js 22+; Git; `jq` (step 2); Docker (step 3; other
   container CLIs are accepted through `CONTAINER_CLI` but were not tested).
 - The AWS Transform CLI, in a [supported Region](https://docs.aws.amazon.com/transform/latest/userguide/custom-get-started.html):
 
@@ -103,16 +103,18 @@ atx ct source add --name my-php --provider local --path ~/repos        # a folde
 atx ct discovery scan --source my-php
 atx ct analysis run --type rapid-techdebt-analysis --source my-php --wait     # about 1 minute per repository: reads composer.json
 atx ct analysis run --type tech-debt-comprehensive --source my-php --wait     # 5 to 10+ minutes: reads the code
-atx ct findings list --source my-php --status open --json                     # note the id of the PHP finding
+atx ct findings list --source my-php --status open --json                     # each finding names its fix, if one exists
 ```
 
 On the sample app the rapid scan returned one high finding (PHP 7.4 is end of life, fix `AWS/php-version-upgrade`). The comprehensive
-analysis returned 11 findings, including silent PHP 8 behavior changes that raise no error.
+analysis returned 6 to 11 findings (the number and the titles vary between runs), including silent PHP 8 behavior changes that raise no
+error. In each run, the findings about the PHP version, removed constructs, silent changes and PHPUnit named `AWS/php-version-upgrade` as
+their fix; step 2 hands exactly those findings to it.
 
 On a local source the analysis writes an `ATXDocumentation/` folder and a branch into each repository. Switch back to your branch and
 remove them before step 2 (a remediation refuses a repository with uncommitted changes).
 
-## Step 2. Upgrade with the managed transformation
+## Step 2. Upgrade from the findings with a continuous modernization remediation
 
 `AWS/php-version-upgrade` migrates PHP code to PHP 8.5 unless told otherwise. It was **early access** on 2026-10-25 and not on the public
 managed-transformations page, so confirm it exists in your account first:
@@ -121,25 +123,42 @@ managed-transformations page, so confirm it exists in your account first:
 atx custom def list | grep -i php            # must show AWS/php-version-upgrade; if not, upgrade the code your usual way and continue at step 3
 ```
 
-Run it on one repository first, with a cost cap:
+Start the upgrade from the step 1 findings whose fix is `AWS/php-version-upgrade`. The remediation passes those findings to the
+transformation, so the run plans around them (PHP version, removed constructs, silent changes, PHPUnit) instead of only the version:
 
 ```bash
-atx custom def exec -n AWS/php-version-upgrade -p ~/repos/svc -x -t -d --limit 100 \
+IDS=$(atx ct findings list --source my-php --status open --fix-transform AWS/php-version-upgrade --json | jq -r '[.[].id] | join(",")')
+echo "$IDS"                                  # must not be empty
+atx ct remediation create --ids "$IDS" --name php-upgrade \
+  --transformation-name AWS/php-version-upgrade \
   -g "{\"additionalPlanContext\":\"The target PHP version is $TARGET\"}"
+atx ct remediation status --id <remediation-id>   # the id is printed above; done = repo status pr_open, findings change_ready
 ```
 
-- `-x` runs without asking you anything and `-t` lets the agent run every tool it wants (shell commands included) without a prompt: that is
-  why the machine must be disposable.
-- `-d` opts this run out of knowledge-item extraction. Use it for proprietary code.
-- `--limit 100` caps the run at 100 agent minutes (US$ 3.50 at US$ 0.035 per agent minute). At the cap the CLI exits with code 2; run the
-  same command with a higher `--limit` to resume.
-- The same upgrade can be started from the finding with `atx ct remediation create --ids <finding-id> --name php-upgrade --local --wait`.
-  That run has **no cost cap**.
+- The command returns when the run ends (4 to 5 minutes on the sample). **Do not interrupt it:** an interrupted run stayed `running` even
+  though its branch was written, and had to be removed with `atx ct remediation cancel --id <remediation-id>`.
+- `-g` is accepted only together with `--transformation-name`, which is why both are there. Without them, `--ids` alone migrates to PHP 8.5.
+- On a `local` source the job runs **on your machine**, even without `--local`: the CLI prints "remote mode", but the run used the local
+  checkout, the local PHP and the local tools, trusting every tool without a prompt (one run installed Composer system-wide with `sudo`).
+  That is why the machine must be disposable and must have a patched PHP. Remediation on a GitHub or GitLab source was not tested.
+- **No cost cap and no `-d`.** `remediation create` has no `--limit` and no opt-out of knowledge-item extraction. On the 13-file sample,
+  three runs used 20.9 to 38.1 agent minutes (about US$ 0.73 to 1.33 at US$ 0.035 per agent minute). To cap the cost or keep proprietary
+  code out of knowledge items, run the transformation directly instead:
 
-The result is a new branch (`atx/php-version-upgrade-<timestamp>` or `atx-result-staging-<timestamp>`). Check it out and review it:
+  ```bash
+  atx custom def exec -n AWS/php-version-upgrade -p ~/repos/svc -x -t -d --limit 100 \
+    -g "{\"additionalPlanContext\":\"The target PHP version is $TARGET\"}"
+  ```
 
-1. **`composer.json` must not allow an unpatched PHP.** In test runs the transformation wrote `"php": ">=8.4"` or `">=8.5"` (and once a
-   `config.platform.php` of `"8.4"`). Both allow unpatched releases. Use the constraint for your target, and a matching platform pin if
+  `-x -t` run it unattended with every tool trusted, `-d` opts out of knowledge-item extraction, and `--limit 100` caps it at 100 agent
+  minutes (US$ 3.50); at the cap the CLI exits with code 2, and the same command with a higher `--limit` resumes. This direct run does not
+  read the findings.
+
+The result is a new branch in the repository (`atx/php-version-upgrade-<timestamp>`, or `atx-result-staging-<timestamp>` for a direct run).
+Check it out and review it:
+
+1. **`composer.json` must not allow an unpatched PHP.** In test runs the transformation wrote `"php": ">=8.4"`, `">=8.5"` or `"^8.5"` (and
+   once a `config.platform.php` of `"8.4"`), with the remediation as well as with the direct run. All of them allow unpatched releases. Use the constraint for your target, and a matching platform pin if
    the file has one:
 
    | Target | `require.php` | `config.platform.php` (only if present) |
@@ -149,8 +168,9 @@ The result is a new branch (`atx/php-version-upgrade-<timestamp>` or `atx-result
 
    `>=8.4.27` is **not** enough: it also allows 8.5.0 to 8.5.11. Then run `composer update --lock` so `composer.lock` matches.
 2. **Preserving behavior can preserve insecure behavior.** PHP 8 changed loose comparisons on purpose: `'abc' == 0` was true on 7.4 and is
-   false on 8. That class of bug is behind loose-comparison authentication bypasses. In all three test runs the transformation kept the PHP 7 result
-   in the sample's `Matcher::isZeroLike` and kept the test that asserts it. Review every `==`, `!=`, `switch` and `in_array` without strict
+   false on 8. That class of bug is behind loose-comparison authentication bypasses. The result varied between runs: in 4 of 6 test runs the
+   transformation kept the PHP 7 result in the sample's `Matcher::isZeroLike` and the test that asserts it; one run that switched to the PHP 8
+   result still treated `"0.5"` as zero. Review every `==`, `!=`, `switch` and `in_array` without strict
    mode on values that come from users, and prefer the PHP 8 result unless you have a reason. The secure version of the sample:
 
    ```php
@@ -162,12 +182,13 @@ The result is a new branch (`atx/php-version-upgrade-<timestamp>` or `atx-result
    ```
 
 3. Review the rest of the diff as you would any change: removed functions replaced, deprecations fixed, PHPUnit and dependencies updated.
-4. If the run stopped at its limit or ended in a partial migration, resume with a higher `--limit`, or keep the branch and finish by hand.
+4. If a direct run stopped at its limit or a run ended in a partial migration, resume with a higher `--limit`, or keep the branch and finish by hand.
    Step 3 tells you what is still broken.
 
 ## Step 3. Verify with the custom transformation in this folder
 
-The managed transformation tests its work on whatever PHP is on the machine. In test runs that was PHP 8.5.3 and 8.4.26, both **unpatched**.
+The managed transformation tests its work on whatever PHP is on the machine. In test runs that was PHP 8.5.3 and 8.4.26, both **unpatched**;
+a remediation that targeted 8.4 validated on 8.5.3, another branch.
 `php-upgrade-secure-verify/` closes that gap. It never edits your code. It runs your repository inside locked-down containers (no network,
 read-only, no capabilities, unprivileged user) on the **official image of a patched PHP release** by default, and checks that:
 
@@ -290,6 +311,9 @@ and update a pinned PHP managed rule group to the latest version.
 | Step 3 `BLOCKED`, timeout or killed | A suite slower than `TEST_TIMEOUT` (default 600 s), or a test using more than 2 GB. Raise `TEST_TIMEOUT` or fix the test |
 | Step 3 `FAIL` exit 3 on a file under `vendor/` | An old dependency that does not parse on PHP 8. Update it. `LINT_VENDOR=0` skips `vendor/` for diagnosis only: the verdict is then at best `INCONCLUSIVE` |
 | Step 2 refuses the repository | Uncommitted changes, often the step 3 report files or `ATXDocumentation/`. Remove them first |
+| `IDS` is empty | The findings are no longer `open`: after a remediation they are `change_ready`. Drop `--status open`, or rerun step 1 |
+| `atx ct remediation status` stays `running` after the CLI was interrupted | Check the branch, then `atx ct remediation cancel --id <id>` and create it again if needed |
+| "-g ... Only valid with --transformation-name" | Add `--transformation-name AWS/php-version-upgrade` to the remediation |
 | Step 2 spends minutes and fails on a machine without PHP | Install a patched PHP and Composer first (see Before you start) |
 
 ## Known limitations
@@ -313,7 +337,7 @@ and update a pinned PHP managed rule group to the latest version.
   Test in a non-production environment first. You are responsible for your systems. Facts are dated 2026-10-25 and change quickly; if this
   page and an AWS bulletin disagree, the bulletin wins.
 - **It does not patch anything** and **does not detect a compromise.** Amazon Threat Intelligence reported a first exploitation
-  attempt on 2026-10-17, four days before the fixes, and broad exploitation since ([BleepingComputer](https://www.bleepingcomputer.com/news/security/amazon-says-php2shell-exploitation-began-4-days-before-patches/));
+  attempt on 2026-10-17, four days before the fixes, and broad exploitation attempts since ([Amazon Threat Intelligence](https://aws.amazon.com/blogs/security/amazon-threat-intelligence-identifies-php2shell-exploitation-prior-to-public-disclosure-in-madpot/));
   if a system was exposed unpatched, investigate separately and rotate credentials the application could read. Start from at least 2026-10-17;
   a [community checklist](https://builder.aws.com/content/3L1O3OGdUB5loyuR2tCQKI9E3Yu/find-it-patch-it-watch-it-a-community-checklist-for-php2shell-on-aws)
   citing Aikido suggests looking back to at least June 2026 (for example, PHP files changed since then that you did not deploy).
@@ -321,7 +345,7 @@ and update a pinned PHP managed rule group to the latest version.
   products, or managed platforms' runtimes.
 - **`AWS/php-version-upgrade` is early access.** It is an AI agent: review every diff. `-x -t` makes it run commands unattended, so use a
   disposable machine. The same flags apply when you run step 3 through the engine (running `verify.sh` by itself needs no agent). It is billed
-  per agent minute, and the run started from a finding has no cost cap. The CLI collects usage telemetry by default; opt out with
+  per agent minute, and a remediation (`atx ct remediation create`) has no cost cap; the direct run takes `--limit`. The CLI collects usage telemetry by default; opt out with
   `ATX_DISABLE_TELEMETRY=true`.
 - **A `PASS` is evidence, not proof.** It means no regressions in the code paths your tests cover, a safe manifest and a clean parse on a
   patched PHP. It does not show identical behavior. `INCONCLUSIVE` and `BLOCKED` mean not verified. The verification transformation is itself
