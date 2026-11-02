@@ -1889,6 +1889,15 @@ The complete report structure, for reference:
 ```
 
 
+### Next Steps — Engagement Programs (Portfolio-Level)
+
+This per-repo report intentionally does NOT recommend AWS engagement programs (MAP, EBA, AppMod, AI Assessment, SHIP, ACP, etc.). Program eligibility depends on cross-repo scope, customer segment, ARR, and partner context that a single-repo analysis does not have.
+
+Engagement-level program recommendations are produced by the **Portfolio Agentic Readiness Analysis**, which aggregates all per-repo ARA reports and evaluates them against the shared AWS Program & GTM Library. Run the portfolio TD after all per-repo reports are generated.
+
+Code-level remediation for this repo is captured in the BLOCKERs, RISKs, and INFO sections above.
+
+
 ## Constraints and Guardrails
 
 Strictly follow these rules at all times:
@@ -2200,8 +2209,8 @@ Ordered by severity (High → Medium → Low) then by section order (AUTH → AP
 Source: `remediation_roadmap.items[]`
 
 **Recommended Actions:**
-- Custom Transformation row (always present)
-- AWS Programs subsection: EBA, MAP
+- AWS Transform Custom row (always present) — expand analysis to additional repositories
+- Engagement-program recommendations (MAP, EBA, AppMod, etc.) are NOT produced per-repo; they come from the Portfolio Agentic Readiness Analysis. If no portfolio analysis is available, this subsection shows only the AWS Transform Custom row plus a pointer to run the portfolio TD.
 
 **Agent Deployment Recommendation** (footer block):
 
