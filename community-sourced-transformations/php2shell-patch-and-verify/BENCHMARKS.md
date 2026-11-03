@@ -103,7 +103,21 @@ cd ../upgraded && docker run --rm --user "$(id -u):$(id -g)" -e COMPOSER_HOME=/t
 bash <this-folder>/php-upgrade-secure-verify/scripts/verify.sh /tmp/repos/upgraded 8.5    # FAIL exit 2: ">=8.5"
 ```
 
-Cost is US$ 0.035 per agent minute ([pricing](https://aws.amazon.com/transform/pricing/)).
+## Cost per run
+
+AWS Transform bills per agent minute (US$ 0.035 on 2026-10-27, see [pricing](https://aws.amazon.com/transform/pricing/)). Measured on the
+13-file `samples/legacy-php-app` fixture. Few runs per row, and the minutes vary from run to run; a larger application costs more.
+
+| Run | Agent minutes | Approx. cost |
+|---|---|---|
+| Rapid analysis (`rapid-techdebt-analysis`) | not measured (1 to 2 minutes wall-clock) | not measured |
+| Comprehensive analysis (`tech-debt-comprehensive`) | not measured (about 7 minutes wall-clock) | not measured |
+| Managed upgrade, direct run (`atx custom def exec`), 3 runs, minutes measured on 2 | 21.0 to 35.6 | US$ 0.74 to 1.25 |
+| Managed upgrade from findings (`atx ct remediation create`), 3 runs | 20.9 to 38.1 | US$ 0.73 to 1.33 |
+| Verify gate through the engine or as a custom analysis, 12 runs | 8.4 to 15.8 | US$ 0.29 to 0.55 |
+| `verify.sh` on its own, no agent | 0 | US$ 0 |
+
+`--limit` caps a direct run. A run started from a continuous modernization finding has no cap.
 
 ## Remediation from findings (`atx ct remediation create`), 2026-10-27
 
