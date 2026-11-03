@@ -167,6 +167,17 @@ Check it out and review it:
    | 8.5 | `^8.5.12` | `8.5.12` |
 
    `>=8.4.27` is **not** enough: it also allows 8.5.0 to 8.5.11. Then run `composer update --lock` so `composer.lock` matches.
+
+   Every shape below was checked with Composer's own semver library (2.10.3), the same library the step 3 manifest gate uses:
+
+   | `require.php` | Allows an unpatched release? |
+   |---|---|
+   | `>=8.4`, `>=8.5`, `8.4.*` | Yes: every vulnerable release of the branch |
+   | `>=8.4.27`, `^8.4.27` | Yes: the floor is right for 8.4, but the range runs into 8.5.0 to 8.5.11 |
+   | `~8.4.27 \|\| ^8.5.12` | No |
+   | `^8.5.12` | No |
+
+   The trailing caret admits unreleased 8.x branches (8.6 and later). That is intended: do not cap it with `~8.5.12`.
 2. **Preserving behavior can preserve insecure behavior.** PHP 8 changed loose comparisons on purpose: `'abc' == 0` was true on 7.4 and is
    false on 8. That class of bug is behind loose-comparison authentication bypasses. The result varied between runs: in 4 of 6 test runs the
    transformation kept the PHP 7 result in the sample's `Matcher::isZeroLike` and the test that asserts it; one run that switched to the PHP 8
