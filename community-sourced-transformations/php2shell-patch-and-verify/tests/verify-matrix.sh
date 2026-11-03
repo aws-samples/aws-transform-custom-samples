@@ -11,7 +11,34 @@ V="$HERE/php-upgrade-secure-verify/scripts/verify.sh"
 command -v timeout >/dev/null 2>&1 || { echo "this matrix needs GNU or busybox timeout on the host" >&2; exit 1; }
 B="$(mktemp -d "${TMPDIR:-/tmp}/verify-matrix.XXXXXX")"; cd "$B" || exit 1
 echo "work dir: $B"
-phar() { local f="$B/phpunit$1.phar"; [ -s "$f" ] || curl -fsSL "https://phar.phpunit.de/phpunit-$1.phar" -o "$f"; printf '%s' "$f"; }
+# PHPUnit phars are pinned to an exact release and verified against a recorded SHA-256 before they are
+# made executable: a major-version URL (phpunit-11.phar) floats, and this script runs what it downloads.
+# To move to a newer release, change the version here and replace the hash with the one you verified
+# against the signature published at https://phar.phpunit.de/phpunit-<version>.phar.asc
+phar_version() { case "$1" in 9) echo 9.6.38;; 10) echo 10.5.66;; 11) echo 11.5.57;; *) return 1;; esac; }
+phar_sha256() { case "$1" in
+  9)  echo 6b5235f282c6ccab3674ac27c5b1ddbd1da838e74bf07002ddcfd030d31298d7;;
+  10) echo 42bcac97bbf9fb1aecf5a7d6a1b37123a11e7e295458978f0e268999f6d9e50f;;
+  11) echo c704fdd37c6c6ab7adb386f31b4e186cd51156801fa9028b5ea8099a2cd7f106;;
+  *)  return 1;; esac; }
+sha256_of() { if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | cut -d' ' -f1
+              else shasum -a 256 "$1" | cut -d' ' -f1; fi; }
+phar() { # major -> path of a verified phar; never returns an unverified file
+  local mv="$1" ver want f got
+  ver="$(phar_version "$mv")" || { echo "unsupported PHPUnit major: $mv" >&2; exit 1; }
+  want="$(phar_sha256 "$mv")"; f="$B/phpunit-$ver.phar"
+  if [ ! -s "$f" ]; then
+    curl -fsSL "https://phar.phpunit.de/phpunit-$ver.phar" -o "$f.part" || {
+      echo "could not download PHPUnit $ver" >&2; exit 1; }
+    mv -f "$f.part" "$f"
+  fi
+  got="$(sha256_of "$f")"
+  if [ "$got" != "$want" ]; then
+    rm -f "$f"
+    echo "PHPUnit $ver checksum mismatch: expected $want, got $got. Refusing to run it." >&2; exit 1
+  fi
+  printf '%s' "$f"
+}
 P11="$(phar 11)"
 GOOD='{"name":"x/y","require":{"php":"~8.2.35 || ~8.3.36 || ~8.4.27 || ^8.5.12"}}'
 src() { mkdir -p "$1/src"; echo '<?php function a(){return 1;}' > "$1/src/a.php"; }
