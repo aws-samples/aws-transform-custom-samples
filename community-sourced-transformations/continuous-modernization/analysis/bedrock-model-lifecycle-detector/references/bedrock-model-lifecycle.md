@@ -1,6 +1,6 @@
 # Amazon Bedrock Model Lifecycle (Legacy and EOL models)
 
-Snapshot date: 2026-10-25.
+Snapshot date: 2026-11-03.
 
 Point-in-time snapshot of the Amazon Bedrock model lifecycle, used to assign
 severity, plus the replacement for each Legacy, EOL, and retired model. It covers
@@ -38,7 +38,7 @@ the worst state wins (`eol` over `legacy`, then the earliest EOL date).
 ## Matching rules
 
 1. Strip a leading cross-region inference profile prefix before lookup, such as
-   `us.`, `us-gov.`, `eu.`, `apac.`, `jp.`, `au.`, `ca.`, or `global.`. For
+   `us.`, `us-gov.`, `eu.`, `apac.`, `jp.`, `au.`, `in.`, `ca.`, or `global.`. For
    example `us.meta.llama3-3-70b-instruct-v1:0` is looked up as
    `meta.llama3-3-70b-instruct-v1:0`.
 2. For an ARN, take the final path segment after `foundation-model/`,
@@ -50,11 +50,23 @@ the worst state wins (`eol` over `legacy`, then the earliest EOL date).
    code alone.
 3. Strip framework prefixes such as LiteLLM `bedrock/`, `bedrock/converse/`, and
    `bedrock/invoke/`.
-4. A reference that omits the trailing `:N` version, or carries a context-window
-   suffix such as `:0:200k`, matches the base row. For example
-   `anthropic.claude-3-haiku-20240307-v1` and
-   `anthropic.claude-3-haiku-20240307-v1:0:200k` both match
-   `anthropic.claude-3-haiku-20240307-v1:0`.
+4. A reference matches exactly one model ID, the first of these that exists in
+   either table:
+   - the ID that equals the reference after dropping a context-window suffix
+     after the version, such as the `:200k` in `:0:200k`
+     (`anthropic.claude-3-haiku-20240307-v1:0:200k` matches
+     `anthropic.claude-3-haiku-20240307-v1:0`);
+   - for a reference without a trailing `:N` version, the ID that equals it
+     plus a `:N` version, taking the lowest `N` when several do
+     (`anthropic.claude-3-haiku-20240307-v1` matches
+     `anthropic.claude-3-haiku-20240307-v1:0`, and `amazon.nova-reel-v1`
+     matches `amazon.nova-reel-v1:0`);
+   - for a reference with version `:0`, the ID that equals it without the
+     version (`anthropic.claude-v2:0:100k` matches `anthropic.claude-v2`).
+
+   A reference with any other explicit version matches only the ID with that
+   version: `amazon.nova-reel-v1:1` never matches `amazon.nova-reel-v1:0`, and
+   `anthropic.claude-v2:1` never matches `anthropic.claude-v2`.
 5. The bedrock-mantle variant IDs listed in the table, such as `deepseek.v3.1`,
    match their own row.
 6. A model ID that is in neither the Legacy and EOL models table nor the
@@ -100,7 +112,10 @@ the family with its Modalities for choosing a closer one.
   gets its own row.
 - A replacement model has one row per endpoint (`bedrock-runtime` or
   `bedrock-mantle`), each with the model ID for that endpoint. Prefer the row
-  whose endpoint matches the one the code calls.
+  whose endpoint matches the one the code calls. When no row is on that
+  endpoint, or the row lacks the inference profile geography the reference
+  needs (for example `jp` or `us-gov`), an older model of the same family in
+  the Active models table may have it.
 - The "Inference profile prefixes" column lists the cross-region inference
   profile prefixes (for example `us`, `eu`, `global`) the replacement supports on
   that endpoint. `-` means none: call the model ID directly. When prefixes are
@@ -166,10 +181,10 @@ snapshot date.
 | `anthropic.claude-3-haiku-20240307-v1:0` | Anthropic | Claude 3 Haiku | eol | us-gov-east-1, us-gov-west-1 | 2026-03-10 | 2026-09-10 | 2026-06-10 |
 | `anthropic.claude-3-haiku-20240307-v1:0` | Anthropic | Claude 3 Haiku | legacy | ap-northeast-2, ap-south-1, ap-southeast-1 | 2026-10-10 | 2026-11-13 | 2026-10-10 |
 | `anthropic.claude-3-haiku-20240307-v1:0` | Anthropic | Claude 3 Haiku | legacy | eu-central-2, sa-east-1 | 2026-10-13 | 2026-11-13 | 2026-10-13 |
-| `anthropic.claude-3-haiku-20240307-v1:0` | Anthropic | Claude 3 Haiku | legacy | ca-central-1 | 2026-10-15 | 2026-11-13 | 2026-10-15 |
+| `anthropic.claude-3-haiku-20240307-v1:0` | Anthropic | Claude 3 Haiku | legacy | ca-central-1 | 2026-10-15 | 2026-11-27 | 2026-10-15 |
 | `anthropic.claude-3-sonnet-20240229-v1:0` | Anthropic | Claude 3 Sonnet | legacy | ap-south-1, ap-southeast-1, eu-west-2 | 2026-10-10 | 2026-11-13 | 2026-10-10 |
 | `anthropic.claude-3-sonnet-20240229-v1:0` | Anthropic | Claude 3 Sonnet | legacy | sa-east-1 | 2026-10-13 | 2026-11-13 | 2026-10-13 |
-| `anthropic.claude-3-sonnet-20240229-v1:0` | Anthropic | Claude 3 Sonnet | legacy | ca-central-1 | 2026-10-15 | 2026-11-13 | 2026-10-15 |
+| `anthropic.claude-3-sonnet-20240229-v1:0` | Anthropic | Claude 3 Sonnet | legacy | ca-central-1 | 2026-10-15 | 2026-11-27 | 2026-10-15 |
 | `anthropic.claude-opus-4-1-20250805-v1:0` | Anthropic | Claude Opus 4.1 | legacy | us-east-1, us-east-2, us-west-2 | 2026-07-08 | 2027-01-08 | 2026-10-08 |
 | `anthropic.claude-sonnet-4-20250514-v1:0` | Anthropic | Claude Sonnet 4 | eol | ap-northeast-1, eu-central-1, eu-north-1, eu-south-1, eu-south-2, eu-west-1, eu-west-3, us-east-1, us-east-2, us-west-1, us-west-2, ap-east-2, ap-northeast-2, ap-northeast-3, ap-south-1, ap-south-2, ap-southeast-1, ap-southeast-2, ap-southeast-3, ap-southeast-4, ap-southeast-5, ap-southeast-7, il-central-1 | 2026-04-14 | 2026-10-14 | 2026-07-14 |
 | `anthropic.claude-sonnet-4-5-20250929-v1:0` | Anthropic | Claude Sonnet 4.5 | legacy | af-south-1, ap-east-2, ap-northeast-1, ap-northeast-2, ap-northeast-3, ap-south-1, ap-south-2, ap-southeast-1, ap-southeast-2, ap-southeast-3, ap-southeast-4, ap-southeast-5, ap-southeast-6, ap-southeast-7, ca-central-1, ca-west-1, eu-central-1, eu-central-2, eu-north-1, eu-south-1, eu-south-2, eu-west-1, eu-west-2, eu-west-3, il-central-1, mx-central-1, sa-east-1, us-east-1, us-east-2, us-west-1, us-west-2 | 2026-10-08 | 2027-04-08 | 2027-01-08 |
@@ -218,7 +233,7 @@ snapshot date.
 
 ## Replacement models and Active models
 
-From 137 model cards (97 Active model IDs) and the lifecycle data above, on the
+From 138 model cards (98 Active model IDs) and the lifecycle data above, on the
 snapshot date: 88 replacement rows for 60 Legacy, EOL, and retired model IDs, 30
 of them with no Active model in the family. See "Model families and
 replacements" for how to read these tables.
@@ -239,13 +254,13 @@ replacements" for how to read these tables.
 | `anthropic.claude-3-5-sonnet-20241022-v2:0` | Claude Sonnet | `anthropic.claude-sonnet-5-5` | bedrock-mantle | Claude Sonnet 5.5 | 2026-09-28 | - |
 | `anthropic.claude-3-7-sonnet-20250219-v1:0` | Claude Sonnet | `anthropic.claude-sonnet-5-5` | bedrock-runtime | Claude Sonnet 5.5 | 2026-09-28 | us, eu, au, global |
 | `anthropic.claude-3-7-sonnet-20250219-v1:0` | Claude Sonnet | `anthropic.claude-sonnet-5-5` | bedrock-mantle | Claude Sonnet 5.5 | 2026-09-28 | - |
-| `anthropic.claude-3-haiku-20240307-v1:0` | Claude Haiku | `anthropic.claude-haiku-5-5` | bedrock-runtime | Claude Haiku 5.5 | 2026-10-07 | us, eu, au, jp, global |
+| `anthropic.claude-3-haiku-20240307-v1:0` | Claude Haiku | `anthropic.claude-haiku-5-5` | bedrock-runtime | Claude Haiku 5.5 | 2026-10-07 | us, ca, eu, au, jp, global |
 | `anthropic.claude-3-haiku-20240307-v1:0` | Claude Haiku | `anthropic.claude-haiku-5-5` | bedrock-mantle | Claude Haiku 5.5 | 2026-10-07 | - |
 | `anthropic.claude-3-opus-20240229-v1:0` | Claude Opus | `anthropic.claude-opus-5-5` | bedrock-runtime | Claude Opus 5.5 | 2026-09-22 | us, eu, au, jp, global |
 | `anthropic.claude-3-opus-20240229-v1:0` | Claude Opus | `anthropic.claude-opus-5-5` | bedrock-mantle | Claude Opus 5.5 | 2026-09-22 | - |
 | `anthropic.claude-3-sonnet-20240229-v1:0` | Claude Sonnet | `anthropic.claude-sonnet-5-5` | bedrock-runtime | Claude Sonnet 5.5 | 2026-09-28 | us, eu, au, global |
 | `anthropic.claude-3-sonnet-20240229-v1:0` | Claude Sonnet | `anthropic.claude-sonnet-5-5` | bedrock-mantle | Claude Sonnet 5.5 | 2026-09-28 | - |
-| `anthropic.claude-instant-v1` | Claude Haiku | `anthropic.claude-haiku-5-5` | bedrock-runtime | Claude Haiku 5.5 | 2026-10-07 | us, eu, au, jp, global |
+| `anthropic.claude-instant-v1` | Claude Haiku | `anthropic.claude-haiku-5-5` | bedrock-runtime | Claude Haiku 5.5 | 2026-10-07 | us, ca, eu, au, jp, global |
 | `anthropic.claude-instant-v1` | Claude Haiku | `anthropic.claude-haiku-5-5` | bedrock-mantle | Claude Haiku 5.5 | 2026-10-07 | - |
 | `anthropic.claude-opus-4-1-20250805-v1:0` | Claude Opus | `anthropic.claude-opus-5-5` | bedrock-runtime | Claude Opus 5.5 | 2026-09-22 | us, eu, au, jp, global |
 | `anthropic.claude-opus-4-1-20250805-v1:0` | Claude Opus | `anthropic.claude-opus-5-5` | bedrock-mantle | Claude Opus 5.5 | 2026-09-22 | - |
@@ -336,7 +351,7 @@ replacements" for how to read these tables.
 | `anthropic.claude-fable-5` | bedrock-mantle | Anthropic | Claude Fable 5 | Claude Fable | 2026-06-09 | - | in: Image, Text; out: Text | https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-fable-5.html |
 | `anthropic.claude-fable-5` | bedrock-runtime | Anthropic | Claude Fable 5 | Claude Fable | 2026-06-09 | us, global | in: Image, Text; out: Text | https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-fable-5.html |
 | `anthropic.claude-haiku-5-5` | bedrock-mantle | Anthropic | Claude Haiku 5.5 | Claude Haiku | 2026-10-07 | - | in: Image, Text; out: Text | https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-haiku-5-5.html |
-| `anthropic.claude-haiku-5-5` | bedrock-runtime | Anthropic | Claude Haiku 5.5 | Claude Haiku | 2026-10-07 | us, eu, au, jp, global | in: Image, Text; out: Text | https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-haiku-5-5.html |
+| `anthropic.claude-haiku-5-5` | bedrock-runtime | Anthropic | Claude Haiku 5.5 | Claude Haiku | 2026-10-07 | us, ca, eu, au, jp, global | in: Image, Text; out: Text | https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-haiku-5-5.html |
 | `anthropic.claude-haiku-4-5` | bedrock-mantle | Anthropic | Claude Haiku 4.5 | Claude Haiku | 2025-10-16 | - | in: Image, Text; out: Text | https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-haiku-4-5.html |
 | `anthropic.claude-mythos-5-1` | bedrock-runtime | Anthropic | Claude Mythos 5.1 | Claude Mythos | 2026-09-01 | us, global | in: Image, Text; out: Text | https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-mythos-5-1.html |
 | `anthropic.claude-mythos-5` | bedrock-mantle | Anthropic | Claude Mythos 5 | Claude Mythos | 2026-06-09 | - | in: Image, Text; out: Text | https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-anthropic-claude-mythos-5.html |
@@ -413,6 +428,8 @@ replacements" for how to read these tables.
 | `openai.gpt-6-sol` | bedrock-runtime | OpenAI | GPT-6 Sol | GPT Sol | 2026-09-22 | us, global | in: Image, Text; out: Text | https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-6-sol.html |
 | `openai.gpt-5.6-sol` | bedrock-mantle | OpenAI | GPT-5.6 Sol | GPT Sol | 2026-07-13 | - | in: Image, Text; out: Text | https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-56-sol.html |
 | `openai.gpt-5.6-sol` | bedrock-runtime | OpenAI | GPT-5.6 Sol | GPT Sol | 2026-07-13 | us, global | in: Image, Text; out: Text | https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-56-sol.html |
+| `openai.gpt-6.1-terra` | bedrock-mantle | OpenAI | GPT-6.1 Terra | GPT Terra | 2026-10-26 | - | in: Image, Text; out: Text | https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-6-1-terra.html |
+| `openai.gpt-6.1-terra` | bedrock-runtime | OpenAI | GPT-6.1 Terra | GPT Terra | 2026-10-26 | us, global | in: Image, Text; out: Text | https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-6-1-terra.html |
 | `openai.gpt-5.6-terra` | bedrock-mantle | OpenAI | GPT-5.6 Terra | GPT Terra | 2026-07-13 | - | in: Image, Text; out: Text | https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-56-terra.html |
 | `openai.gpt-5.6-terra` | bedrock-runtime | OpenAI | GPT-5.6 Terra | GPT Terra | 2026-07-13 | us, global | in: Image, Text; out: Text | https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-openai-gpt-56-terra.html |
 | `qwen.qwen3-32b` | bedrock-mantle | Qwen | Qwen3 32B | Qwen | 2025-04-29 | - | in: Text; out: Text | https://docs.aws.amazon.com/bedrock/latest/userguide/model-card-qwen-qwen3-32b.html |

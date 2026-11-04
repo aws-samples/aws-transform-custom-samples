@@ -5,7 +5,7 @@ description: Report every place a repository references an Amazon Bedrock model 
 
 # Bedrock Model Lifecycle Detector
 
-Version: 1.0.0
+Version: 1.1.0
 
 Find where the repository references an Amazon Bedrock model, from any provider,
 that is Legacy or End-of-Life (EOL) on Bedrock, rate the risk of each reference
@@ -110,22 +110,33 @@ transformation definition.
    `anthropic.claude-3-haiku-20240307-v1:0`). This catches base IDs, inference
    profile IDs, ARNs, framework-prefixed IDs, and context-window suffixes in one
    pass. Discard matches that are not model selectors, and discard matches where
-   the ID continues with more ID characters into a different model (for example a
-   search for `zai.glm-4.7` that matched `zai.glm-4.7-flash`). Search with
+   the ID continues into a longer, different model ID: more letters or digits,
+   or a `-` or `.` followed by a letter or digit (for example a search for
+   `zai.glm-4.7` that matched `zai.glm-4.7-flash`). Keep matches that continue
+   with a `:N` version or a context-window suffix (for example a search for
+   `amazon.nova-reel-v1` that matched `amazon.nova-reel-v1:1`); step 3 decides
+   their row. A reference can match the searches of several model IDs (for
+   example `anthropic.claude-v2:1` matches the searches for both
+   `anthropic.claude-v2` and `anthropic.claude-v2:1`): keep it once. Search with
    commands that print only the matching lines and their line numbers (for
    example `grep -rnE`), not whole files. In a code file, read only the lines
    around a match that step 7 needs. In an `.env`, env, or other configuration
    file, use only the matched line.
 3. Normalize each matched reference to a model ID in either table using the matching
    rules in `references/bedrock-model-lifecycle.md`: strip the inference profile
-   prefix, take the model ID from an ARN, strip a framework prefix, and match a
-   reference without a `:N` version or with a context-window suffix to its base
-   row.
+   prefix, take the model ID from an ARN, strip a framework prefix, and match the
+   result to exactly one model ID with matching rule 4, which decides between
+   IDs that differ only by `:N` version (`amazon.nova-reel-v1:0` and
+   `amazon.nova-reel-v1:1`, `anthropic.claude-v2` and `anthropic.claude-v2:1`).
+   Each reference yields exactly one finding, for that model ID's rows only.
 4. Determine the lifecycle state as of the analysis date (today), not the
    snapshot date: the state is `eol` if any row for that model ID has an EOL date
    on or before the analysis date, otherwise `legacy`. Record the earliest relevant
    EOL date (the earliest passed EOL date for `eol`, the earliest upcoming EOL date
-   for `legacy`) and the union of the Regions listed in that model ID's rows. A
+   for `legacy`) and `regions`: for `eol`, the union of the Regions of the rows
+   whose EOL date has passed; for `legacy`, the union of the Regions of all that
+   model ID's rows. For `eol`, also note any rows whose EOL date has not passed,
+   with their Regions and earliest EOL date, for the recommendation. A
    model ID from the retired models table is `eol`, with `eol_date` and `regions`
    recorded as `-`.
 5. Select the replacement for each reference from the Replacement models table:
@@ -145,6 +156,26 @@ transformation definition.
      closest in size or tier to the current model, for example by parameter
      count (`12B` against `26B` or `31B`) or by Lite, Pro, or Large naming, and
      list the other Replacement model IDs in the recommendation.
+   - Check that the selected replacement can be reached the way the reference
+     is. The reference's geo prefixes are the prefixes that step 6 tries before
+     `global.`: the prefix of `matched_text`, and the geo prefixes for the
+     deployment Region when the code or configuration shows it. The selected
+     replacement falls short if its endpoint differs from the reference's
+     endpoint, or if the reference is on `bedrock-runtime`, has geo prefixes,
+     and the selected row lists none of them. In that case, look in the Active
+     models table for models with the same Provider and Model family on the
+     reference's endpoint that list at least one of those geo prefixes (any
+     model, when the reference has none). If there is one, take the one with
+     the latest Launch date as the replacement: use its Model ID, Endpoint,
+     Model name, Launch date, and Inference profile prefixes in place of the
+     selected row's in the rest of this step, step 6, and the recommendation,
+     and note the originally selected model as a newer alternative and what it
+     lacks (the endpoint or the geo prefix). If there is none, keep the
+     selected row. For example, a `moonshotai.kimi-k2-thinking` reference on
+     `bedrock-mantle` gets `moonshotai.kimi-k2.5`, which is on that endpoint,
+     instead of `moonshotai.kimi-k3`, and a Claude Sonnet reference deployed in
+     `ap-northeast-1` gets `anthropic.claude-sonnet-4-6`, which lists `jp`,
+     instead of `anthropic.claude-sonnet-5-5`.
    - Check that the selected replacement fits the current model. Families
      ignore size and modality, so the latest Active model can be much smaller
      or larger, or lack an input modality. Compare the parameter count or tier
@@ -167,14 +198,17 @@ transformation definition.
      ID, taking the first of these that the row lists:
      - the prefix of `matched_text` (for example `us.`);
      - the geo prefix for the deployment Region, when the code or configuration
-       shows it: `us.` for a `us-` Region, `eu.` for an `eu-` Region, `ca.`
-       for a `ca-` Region; for an `ap-` Region in Japan (`ap-northeast-1`,
-       `ap-northeast-3`) `jp.`, then `apac.`; in Australia
-       (`ap-southeast-2`, `ap-southeast-4`) `au.`, then `apac.`; and for any
-       other `ap-` Region only `apac.`, because the `jp.` and `au.` profiles
-       accept requests only from their own geography (check the Regions on
-       the replacement's model card when unsure);
-     - `global.`.
+       shows it: `us-gov.` for a `us-gov-` Region, `us.` for any other `us-`
+       Region, `eu.` for an `eu-` Region, `ca.` for a `ca-` Region; for an
+       `ap-` Region in Japan (`ap-northeast-1`, `ap-northeast-3`) `jp.`, then
+       `apac.`; in Australia (`ap-southeast-2`, `ap-southeast-4`) `au.`, then
+       `apac.`; in India (`ap-south-1`, `ap-south-2`) `in.`, then `apac.`; and
+       for any other `ap-` Region only `apac.`, because the `jp.`, `au.`, and
+       `in.` profiles accept requests only from their own geography (check the
+       Regions on the replacement's model card when unsure);
+     - `global.`, except for a GovCloud reference (a `us-gov.` prefix in
+       `matched_text` or a `us-gov-` deployment Region), which never gets a
+       `global.` or other non-GovCloud prefix.
 
      If the row lists none of these, use the base Replacement model ID.
    - Framework prefix: keep it, for example LiteLLM `bedrock/` or
@@ -197,7 +231,13 @@ transformation definition.
    - Version: use the Replacement model ID exactly as listed. Do not carry over
      the old model's `:N` version or context-window suffix.
 7. Determine the binding type of each reference - this decides whether the
-   reference is on an active code path:
+   reference is on an active code path. Check `test-or-sample` first:
+   - `test-or-sample` - the reference is in a test, fixture, example, or sample
+     rather than in the deployed workload: a file under a `test/`, `tests/`,
+     `__tests__/`, `spec/`, `fixtures/`, `testdata/`, `examples/`, `samples/`,
+     or `demo/` directory, or a test file by its name (for example
+     `test_*.py`, `*_test.py`, `*_test.go`, `*.test.ts`, `*.spec.js`, or
+     `*Test.java`). This applies even when the file calls a model.
    - `hardcoded-active` - the model ID is written directly into code that invokes
      a model or creates an agent, for example a literal passed to `invoke_model`,
      `invoke_model_with_response_stream`, `converse`, `converse_stream`,
@@ -217,7 +257,11 @@ transformation definition.
    - `configuration-option` - the model ID appears only as a changeable setting
      rather than the value a call site uses: a CloudFormation or Terraform
      parameter `Default`, a value in a settings or config file, a CI or deployment
-     variable, a documented example, or a commented-out line.
+     variable, an example inside documentation, a commented-out line, or an
+     entry in a model registry in code (a dict, map, list, or enum of model IDs
+     that the caller chooses from, such as `MODELS = {...}`). A registry entry
+     is `hardcoded-active` instead when code on a call path selects that entry
+     by a literal key or uses it as the default.
 8. For a notebook, treat a reference in a code cell as active and a reference in a
    markdown cell as documentation. If the same model ID appears on several lines,
    report each line separately. Do not collapse occurrences across files.
@@ -235,7 +279,8 @@ transformation definition.
     `.model-risk/findings.md` containing the version of this transformation
     definition (from the top of this file), the reference snapshot date, the
     analysis date, a count by severity, and a table of findings grouped by file
-    with a column for `replacement_model_id`. If the snapshot is stale (step 1),
+    with columns for `severity`, `regions`, and `replacement_model_id`. If the
+    snapshot is stale (step 1),
     start `findings.md` with a warning that states the snapshot date and that
     models announced as Legacy or EOL after that date are not reported. Create
     the `.model-risk/` directory if it does not exist. These two files are the
@@ -254,9 +299,9 @@ transformation definition.
 Apply the first rule that matches. An active code path is a reference with binding
 type `hardcoded-active`, `env-default-active`, or `infrastructure-active`.
 
-- **low** - the reference is a `configuration-option`, or appears only in
-  documentation or prose, regardless of which model it names. These do not select
-  the model at runtime.
+- **low** - the reference is a `configuration-option` or `test-or-sample`, or
+  appears only in documentation or prose, regardless of which model it names.
+  These do not select the model of the deployed workload at runtime.
 - **high** - the reference is on an active code path and the lifecycle state is
   `eol`.
 - **high** - the reference is on an active code path, the lifecycle state is
@@ -267,17 +312,26 @@ type `hardcoded-active`, `env-default-active`, or `infrastructure-active`.
 
 Every finding gets a recommendation that names the replacement selected in
 Implementation Steps 5 and 6. Use the selected row of the Replacement models table
-for the Replacement name, Model family, and Replacement launch date:
+for the Replacement name, Model family, and Replacement launch date, or the
+Active models row when the reachability check in step 5 chose it:
 
 - `legacy`: "Replace `<matched_text>` with `<replacement_model_id>`
   (<Replacement name>, the latest Active model in the <Model family> family,
   launched <Replacement launch date>) before <eol_date>."
 - `eol`: the same sentence, ending with "as soon as possible, because requests in
-  the listed Regions already fail" instead of "before <eol_date>". For a retired
-  model, whose `regions` is `-`, say that requests already fail in every Region.
+  the listed Regions already fail" instead of "before <eol_date>". When step 4
+  noted rows whose EOL date has not passed, add that the model is still Legacy
+  until <their earliest EOL date> in <their Regions>. For a retired model, whose
+  `regions` is `-`, say that requests already fail in every Region.
+
+When the reachability check in step 5 chose the replacement, write "the latest
+Active model in the <Model family> family that is offered on the
+<endpoint> endpoint" or "... that offers a `<prefix>.` inference profile"
+instead of "the latest Active model in the <Model family> family", and name the
+newer model it passed over as an alternative, with what that model lacks.
 
 A `low` finding gets the same recommendation, so that configuration defaults,
-examples, and documentation are updated along with the code. Add to the
+tests, examples, and documentation are updated along with the code. Add to the
 recommendation, where it applies:
 
 - When the Replacement endpoint differs from the reference's endpoint, say that
@@ -290,6 +344,14 @@ recommendation, where it applies:
   `global.`, say that a global profile can route requests to Regions outside the
   deployment geography, so the user should confirm that this meets their data
   residency requirements.
+- For a GovCloud reference (step 6) whose replacement lists no `us-gov`
+  inference profile prefix, say that no Active model in the <Model family>
+  family offers a `us-gov.` inference profile as of the reference snapshot
+  date, so the replacement may not be available in AWS GovCloud (US), and tell
+  the user to confirm on its model card. Then name up to three Active models
+  from the same provider whose Inference profile prefixes include `us-gov`,
+  latest Launch date first, labeled as candidates from a different family, or
+  say that the provider has none.
 - When step 5 found a size, tier, or modality mismatch, say what differs and
   list the closer Active models it recorded, labeled as alternatives from the
   same family.
@@ -328,9 +390,10 @@ every case, never invent a model ID.
 3. Every finding, whatever its severity (including `low`), has a recommendation
    as defined under Severity Criteria.
 4. Every finding has `model_family` and `replacement_model_id`, and
-   `replacement_model_id` is either `-` or a Replacement model ID from the
-   Replacement models table, rewritten as in Implementation Step 6. No model ID is
-   invented.
+   `replacement_model_id` is either `-`, a Replacement model ID from the
+   Replacement models table, or a Model ID from the Active models table chosen
+   by the reachability check in Implementation Step 5, rewritten as in
+   Implementation Step 6. No model ID is invented.
 5. `.model-risk/findings.json` and `.model-risk/findings.md` agree on the total
    count of findings and the count per severity. `findings.md` records the
    transformation definition version, the snapshot date, and the analysis date,

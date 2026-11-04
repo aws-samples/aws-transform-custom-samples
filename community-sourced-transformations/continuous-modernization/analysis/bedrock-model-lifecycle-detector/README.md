@@ -15,7 +15,6 @@ Finds every place a repository references an Amazon Bedrock model, from any prov
 - [How Replacements Are Chosen](#how-replacements-are-chosen)
 - [Keeping the Reference Current](#keeping-the-reference-current)
 - [Getting Started](#getting-started)
-- [Benchmarks](#benchmarks)
 - [Troubleshooting](#troubleshooting)
 - [Known Limitations](#known-limitations)
 - [Documentation & References](#documentation--references)
@@ -41,14 +40,14 @@ This transformation finds those references, looks each one up in a point-in-time
 2. **Match** every Legacy, EOL and retired model ID from the reference file, in all of its forms: base ID, inference profile ID, ARN, bedrock-mantle variant ID, framework-prefixed ID, with or without the `:N` version or a context-window suffix.
 3. **Classify** each reference:
    - lifecycle state as of the analysis date (`eol` or `legacy`), re-derived from the EOL dates rather than trusted from the snapshot;
-   - binding type: `hardcoded-active`, `env-default-active`, `infrastructure-active` or `configuration-option`.
+   - binding type: `hardcoded-active`, `env-default-active`, `infrastructure-active`, `configuration-option` or `test-or-sample`.
 4. **Rate** severity under the single category `Model Risk`:
 
    | Severity | Rule |
    |---|---|
    | high | Active code path and `eol`, or active code path and `legacy` with the EOL date within 90 days |
    | medium | Active code path and `legacy` with the EOL date more than 90 days away |
-   | low | Configuration option, documentation or prose |
+   | low | Configuration option, test or sample, documentation or prose |
 
 5. **Recommend** a replacement for every finding, including `low` ones, from the Replacement models table (see [How Replacements Are Chosen](#how-replacements-are-chosen)). Example:
 
@@ -87,21 +86,21 @@ flowchart LR
 
 ## How Replacements Are Chosen
 
-Each finding's replacement is the latest Active model in the same provider's model family, taken from the Replacement models table, and rewritten in the same form as the original reference (prefix, ARN shape, endpoint), with an inference profile when the replacement needs one. The rules live in one place each:
+Each finding's replacement is the latest Active model in the same provider's model family, taken from the Replacement models table, and rewritten in the same form as the original reference (prefix, ARN shape, endpoint), with an inference profile when the replacement needs one. When that model is not offered on the reference's endpoint or through an inference profile for the deployment's geography, the latest family member that is gets recommended instead, and the newer model is listed as an alternative. The rules live in one place each:
 
 - How families and replacements are derived, and the family overrides: [Model families and replacements](references/bedrock-model-lifecycle.md#model-families-and-replacements) and [Family overrides](references/bedrock-model-lifecycle.md#family-overrides) in the reference file.
-- How the analysis picks a row and rewrites the ID (endpoint, ties, size and modality fit, inference profile prefix, ARNs, families with no Active model): Implementation Steps 5 and 6 and Severity Criteria in [SKILL.md](SKILL.md#implementation-steps).
+- How the analysis picks a row and rewrites the ID (endpoint, ties, endpoint and geography reachability, size and modality fit, inference profile prefix, ARNs, families with no Active model): Implementation Steps 5 and 6 and Severity Criteria in [SKILL.md](SKILL.md#implementation-steps).
 
 ## Keeping the Reference Current
 
-The reference file is a point-in-time snapshot. Snapshot of 2026-10-25: 56 Legacy or EOL model IDs (14 `eol`, 48 `legacy`), 4 retired models, and 97 Active model IDs from 137 model cards. 30 of the 60 Legacy, EOL and retired model IDs have a same-family Active replacement.
+The reference file is a point-in-time snapshot. Snapshot of 2026-11-03: 62 lifecycle rows for 56 Legacy or EOL model IDs (14 `eol` and 48 `legacy` rows), 4 retired models, and 98 Active model IDs from 138 model cards. 30 of the 60 Legacy, EOL and retired model IDs have a same-family Active replacement.
 
-The skill does not include an updater. To take a new snapshot, write a script that rebuilds the tables from the AWS documentation; the sample below is a starting point. It uses only the Python 3 standard library and needs no AWS credentials. It fetches the two Bedrock lifecycle pages, the `model-cards.md` index and every `model-card-*.md` it links to (HTTPS on `docs.aws.amazon.com` only, size-capped), derives the families and replacements as described in the reference file, and prints the three tables as Markdown.
+The skill does not include an updater. To take a new snapshot, write a script that rebuilds the tables from the AWS documentation; the sample below is a starting point. It uses only the Python 3 standard library and needs no AWS credentials, and it was last run end to end with Python 3.13 to take the 2026-11-03 snapshot. It fetches the two Bedrock lifecycle pages (HTML), the `model-cards.md` index and every `model-card-*.md` it links to (Markdown), over HTTPS from `docs.aws.amazon.com` only and size-capped, derives the families and replacements as described in the reference file, and prints the three tables as Markdown.
 
-1. Run it from the repository root:
+1. Save the script as `update_reference_sample.py` and run it from the root of this repository:
 
    ```bash
-   python3 update_reference_sample.py bedrock-model-lifecycle-detector/references/bedrock-model-lifecycle.md > tables.md
+   python3 update_reference_sample.py community-sourced-transformations/continuous-modernization/analysis/bedrock-model-lifecycle-detector/references/bedrock-model-lifecycle.md > tables.md
    ```
 
 2. Replace the tables under "Legacy and EOL models", "Replacement models" and "Active models" with the printed ones, and update the snapshot date at the top of the file and the counts above the tables.
@@ -511,10 +510,10 @@ Clone this repository and run the commands below from its root.
 A skill-style definition may contain only `SKILL.md`, `workflow.yaml`, `references/`, `scripts/` and `summaries.md`. Publishing this folder as is fails with `Unsupported file(s) or directory in SKILL transformation definition: README.md`, so publish from a staged copy without the docs. Continuous modernization runs only skills with the `analysis` category as a custom analysis ([Transformation definition categories](https://docs.aws.amazon.com/transform/latest/userguide/custom.html#custom-transformation-categories)):
 
 ```bash
+skill=community-sourced-transformations/continuous-modernization/analysis/bedrock-model-lifecycle-detector
 stage=$(mktemp -d)/bedrock-model-lifecycle-detector
 mkdir -p "$stage"
-cp -R bedrock-model-lifecycle-detector/SKILL.md \
-      bedrock-model-lifecycle-detector/references "$stage"/
+cp -R "$skill"/SKILL.md "$skill"/references "$stage"/
 
 atx custom def publish -n bedrock-model-lifecycle-detector \
     --sd "$stage" \
@@ -571,6 +570,7 @@ Continuous modernization records each reported reference as a finding with sever
 │                   # binding_type, category, severity, recommendation
 └── findings.md     # skill version, reference snapshot date, analysis date,
                     # counts by severity, findings grouped by file
+                    # with severity, Regions and replacement
                     # (starts with a warning if the snapshot is over 30 days old)
 ```
 
@@ -599,7 +599,7 @@ No other file is created or modified. A repository with no Legacy or EOL referen
 | Model IDs built at runtime | IDs assembled by string concatenation, or read from an external store such as SSM Parameter Store, are not visible in the repository |
 | Families ignore size and modality | The latest family member can differ a lot from the current model; alternatives are listed, but the final choice is a human decision |
 | Family heuristics are name-based | Mismatches are fixed through the "Family overrides" table, which currently holds 9 rows |
-| Region availability of the replacement | Not checked by the analysis; the recommendation links the model card so you can confirm the Region |
+| Region availability of the replacement | The analysis checks the replacement's endpoint and inference profile geography, not its Region list; the recommendation links the model card so you can confirm the Region |
 | No code changes | The skill reports and recommends only; prompts and request parameters must be re-tested after a model change |
 
 ## Documentation & References
