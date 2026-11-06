@@ -36,7 +36,7 @@ flowchart TB
     R[("Your PHP repositories")]
     S1[["1 Analyze: atx ct analysis"]]
     F1[/"Findings; the PHP finding names its fix"/]
-    S2[["2 Upgrade and validate on patched PHP: atx ct remediation, AWS/php-version-upgrade"]]
+    S2[["2 Upgrade, validates on patched PHP when available: atx ct remediation, AWS/php-version-upgrade"]]
     B[/"New branch with upgraded code and a run summary"/]
     H{"Review the diff, composer.json and the run summary"}
     S3[["3 Optional independent check: php-upgrade-secure-verify"]]
@@ -74,8 +74,8 @@ an automatic gate; green = passed; red = stopped; dashed arrow = optional path.
 
 ## Before you start
 
-- An AWS account and credentials with the managed policy `AWSTransformCustomFullAccess`; Node.js 22+; Git; `jq` (step 2); Docker (steps 2
-  and 3; other container CLIs are accepted by step 3 through `CONTAINER_CLI` but were not tested).
+- An AWS account and credentials with the managed policy `AWSTransformCustomFullAccess`; Node.js 22+; Git; `jq` (step 2); Docker for
+  step 3 (other container CLIs are accepted through `CONTAINER_CLI` but were not tested) and, for step 2, Docker or a patched PHP (below).
 - The AWS Transform CLI, in a [supported Region](https://docs.aws.amazon.com/transform/latest/userguide/custom-get-started.html):
 
 ```bash
@@ -86,12 +86,14 @@ export AWS_REGION=us-east-1
 ```
 
 - **Docker or a patched PHP on the machine that runs step 2.** Version 2026-11-02 of the managed transformation picks the PHP it validates
-  on: a host PHP at or above the patched release of your target branch, or else the official image of the patched release in Docker. It
-  installs nothing on the host and does not use `sudo`. In three test runs on 2026-11-06, on a host with Docker and no PHP or Composer, it
-  validated on 8.4.27 or 8.5.12 and left no container behind. With neither a patched PHP nor Docker, it validates on an older PHP, its
-  summary says `Validated on PHP x.y.z - NOT a patched ... interpreter` and the status is **Success with warnings**; in that case run
-  step 3 before you deploy. Its own instructions say the Docker path takes roughly three times as long as a host PHP, so a patched host
-  PHP is cheaper. On Amazon Linux 2023:
+  on: a host PHP at or above the patched release of your target branch, or else the official image of the patched release in Docker. Its
+  instructions forbid installing anything on the host or using `sudo`. In five test runs on 2026-11-06, three on a host with Docker and no
+  PHP or Composer and two on a host with Docker and an unpatched PHP 8.5.3, none of them installed anything, each validated on 8.4.27 or
+  8.5.12 (the two runs with PHP 8.5.3 on the host rejected it as below the floor), and none left a container behind. When it cannot get
+  a patched interpreter (no patched host PHP and no Docker, or an extension it cannot add to the image), its instructions say it validates
+  on an older one, writes `Validated on PHP x.y.z - NOT a patched ... interpreter` and reports **Success with warnings**. That path was
+  not tested; in that case run step 3 before you deploy. Its instructions also say the Docker path takes roughly three times as long as a
+  host PHP (not measured here). On Amazon Linux 2023:
 
 ```bash
 sudo dnf install -y --releasever=2023.12.20261021 php$TARGET-cli php$TARGET-xml php$TARGET-mbstring composer
@@ -107,7 +109,7 @@ php -v                               # must show the patched release (8.4.27 or 
 atx ct source add --name my-php --provider local --path ~/repos        # a folder of git repositories
 #   GitHub instead: --provider github --org <org> --token "$GITHUB_TOKEN"   (take the token from your secret store)
 atx ct discovery scan --source my-php
-atx ct analysis run --type rapid-techdebt-analysis --source my-php --wait     # about 1 minute per repository: reads composer.json
+atx ct analysis run --type rapid-techdebt-analysis --source my-php --wait     # about 1 to 2 minutes per repository: reads composer.json
 atx ct analysis run --type tech-debt-comprehensive --source my-php --wait     # 5 to 10+ minutes: reads the code
 atx ct findings list --source my-php --status open --json                     # each finding names its fix, if one exists
 ```
@@ -115,8 +117,8 @@ atx ct findings list --source my-php --status open --json                     # 
 On the sample app the rapid scan returned one high finding (PHP 7.4 is end of life, fix `AWS/php-version-upgrade`). The comprehensive
 analysis returned 6 to 11 findings (the number and the titles vary between runs), including silent PHP 8 behavior changes that raise no
 error. In the run of 2026-11-06 it returned 11; the 9 about the PHP version, removed constructs, deprecations and the silent comparison
-change named `AWS/php-version-upgrade` as their fix, and step 2 hands exactly those to it. The PHPUnit finding named no fix that time
-(it did on 2026-10-27), but the upgrade updated PHPUnit anyway.
+change named `AWS/php-version-upgrade` as their fix. Step 2 hands those, plus the rapid scan's finding, to it (10 that day). The PHPUnit
+finding named no fix that time (it did on 2026-10-27), but the upgrade updated PHPUnit anyway.
 
 On a local source the analysis writes an `ATXDocumentation/` folder and a branch into each repository. Switch back to your branch and
 remove them before step 2 (a remediation refuses a repository with uncommitted changes).
@@ -124,15 +126,16 @@ remove them before step 2 (a remediation refuses a repository with uncommitted c
 ## Step 2. Upgrade from the findings with a continuous modernization remediation
 
 `AWS/php-version-upgrade` migrates PHP code to PHP 8.5 unless told otherwise. It was **early access** on 2026-11-06 and not on the public
-managed-transformations page, so confirm it exists in your account first. This guide was tested with its version **2026-11-02** (in
-production since 2026-11-04); older versions wrote constraints that still allowed unpatched PHP:
+managed-transformations page, so confirm it exists in your account first. This guide was tested with its version **2026-11-02** (listed
+by `atx custom def list` in `us-east-1` on 2026-11-06); older versions wrote constraints that still allowed unpatched PHP:
 
 ```bash
 atx custom def list | grep -i php            # must show AWS/php-version-upgrade, version 2026-11-02 or later; if not, upgrade the code your usual way and run step 3
 ```
 
 Start the upgrade from the step 1 findings whose fix is `AWS/php-version-upgrade`. The remediation passes those findings to the
-transformation, so the run plans around them (PHP version, removed constructs, silent changes, PHPUnit) instead of only the version:
+transformation, so the run plans around them (PHP version, removed constructs, silent changes, and PHPUnit when the analysis names it)
+instead of only the version:
 
 ```bash
 IDS=$(atx ct findings list --source my-php --status open --fix-transform AWS/php-version-upgrade --json | jq -r '[.[].id] | join(",")')
@@ -148,7 +151,7 @@ atx ct remediation status --id <remediation-id>   # the id is printed above; don
   `atx ct remediation cancel --id <remediation-id>`.
 - `-g` is accepted only together with `--transformation-name`, which is why both are there. Without them, `--ids` alone migrates to PHP 8.5.
 - On a `local` source the job runs **on your machine**, even without `--local`: the CLI prints "remote mode", but the run used the local
-  checkout and the local tools, trusting every tool without a prompt. Version 2026-11-02 installed nothing on the host in the three test
+  checkout and the local tools, trusting every tool without a prompt. Version 2026-11-02 installed nothing on the host in the five test
   runs (an earlier version installed Composer system-wide with `sudo`); the machine should still be disposable. Remediation on a GitHub
   or GitLab source was not tested.
 - **No cost cap and no `-d`.** `remediation create` has no `--limit` and no opt-out of knowledge-item extraction. On the 13-file sample,
@@ -163,14 +166,16 @@ atx ct remediation status --id <remediation-id>   # the id is printed above; don
 
   `-x -t` run it unattended with every tool trusted, `-d` opts out of knowledge-item extraction, and `--limit 100` caps it at 100 agent
   minutes (US$ 3.50); at the cap the CLI exits with code 2, and the same command with a higher `--limit` resumes. This direct run does not
-  read the findings. On the sample it used 64.1 agent minutes for target 8.4 and 78.7 for target 8.5 (Docker path); a larger application
-  needs a higher limit.
+  read the findings. On the sample, four direct runs used 64.1 to 78.7 agent minutes (Docker path, with and without an unpatched host
+  PHP); a larger application needs a higher limit.
 
 The result is a new branch in the repository (`atx/php-version-upgrade-<timestamp>`, or `atx-result-staging-<timestamp>` for a direct run).
-Check it out and review it. The run summary is in the commit message and ends with Target, Preflight, Validation runtime, Constraints
-written, Behaviour changes, Security review required, Open blockers and Runtime action required:
+The remediation branch can also carry the step 1 analysis commit in its history; its diff against your branch contains only code changes.
+Check it out and review it. The transformation writes a run summary (Target, Preflight, Validation runtime, Constraints written, Behaviour
+changes, Security review required, Open blockers, Runtime action required) to the run's artifacts folder and a condensed copy into the
+commit message. In the test runs the commit message did not always carry every item, but the `Validated on PHP ...` line was there every time:
 
-1. **`composer.json` must not allow an unpatched PHP.** Version 2026-11-02 wrote the safe constraint in all three test runs
+1. **`composer.json` must not allow an unpatched PHP.** Version 2026-11-02 wrote the safe constraint in all five test runs
    (`~8.4.27 || ^8.5.12` for target 8.4, `^8.5.12` for 8.5) and added no `config.platform.php`. Earlier versions wrote `"php": ">=8.4"`,
    `">=8.5"` or `"^8.5"`, which allow unpatched releases. Check that your branch matches this table, including a platform pin if the file
    has one:
@@ -193,9 +198,10 @@ written, Behaviour changes, Security review required, Open blockers and Runtime 
 
    The trailing caret admits unreleased 8.x branches (8.6 and later). That is intended: do not cap it with `~8.5.12`.
 2. **Preserving behavior can preserve insecure behavior.** PHP 8 changed loose comparisons on purpose: `'abc' == 0` was true on 7.4 and is
-   false on 8. That class of bug is behind loose-comparison authentication bypasses. In the three runs of version 2026-11-02, the
+   false on 8. That class of bug is behind loose-comparison authentication bypasses. In the five runs of version 2026-11-02, the
    transformation kept the PHP 8 result in the sample's `Matcher::isZeroLike`, changed the test that asserted the PHP 7 result, and listed
-   that change under **Behaviour changes**; a site where it keeps the old result on purpose goes under **Security review required**.
+   that change under **Behaviour changes**. Its instructions put a site where it keeps the old result on purpose under **Security review
+   required** (no such site came up on the sample).
    Earlier versions kept the PHP 7 result in 4 of 6 runs. Still review every `==`, `!=`, `switch` and `in_array` without strict mode on
    values that come from users, and prefer the PHP 8 result unless you have a reason. The secure version of the sample:
 
@@ -219,13 +225,14 @@ written, Behaviour changes, Security review required, Open blockers and Runtime 
 ## Step 3 (optional). Verify independently with the custom transformation in this folder
 
 Version 2026-11-02 of the managed transformation already validates its work on a patched PHP when the machine allows it (see
-[Before you start](#before-you-start)). In the three test runs of 2026-11-06 its own validation and this check agreed: PASS each time.
+[Before you start](#before-you-start)). In the five test runs of 2026-11-06 its own validation and this check agreed: PASS each time.
 Use this step when you want a second, independent opinion, in particular when:
 
 - the run summary says `NOT a patched ... interpreter` (no patched PHP and no Docker on the machine that ran step 2);
 - the code was upgraded by another tool, by hand, or by an older version of the managed transformation;
 - you need a verdict that a script decides and that CI can enforce, rather than an agent's summary;
-- the next PHP CVE arrives: the floors are one line of `scripts/verify.sh` (`FLOORS`), explained in `references/patched-versions.md`.
+- the next PHP CVE arrives: the floors are `FLOORS` in `scripts/verify.sh`, plus `NEWEST_IMAGE` for the `vendor/` re-check, explained in
+  `references/patched-versions.md`.
 
 `php-upgrade-secure-verify/` never edits your code. It runs your repository inside locked-down containers (no network,
 read-only, no capabilities, unprivileged user) on the **official image of a patched PHP release** by default, and checks that:
@@ -412,7 +419,8 @@ php2shell-patch-and-verify/
 
 To apply the patch: `cd samples && git apply legacy-php-app.php85.patch` (it edits `legacy-php-app/` in place). It is the real output of an
 earlier version of the transformation (October 2026), kept unedited on purpose as a known-bad case for step 3: its `composer.json`
-constraint fails the check, and its `Matcher` keeps the PHP 7 comparison (step 2, item 2). Version 2026-11-02 produces code that passes.
+constraint fails the check, and its `Matcher` keeps the PHP 7 comparison (step 2, item 2). Code from version 2026-11-02 passed the check in
+5 of 5 test runs on this sample.
 
 `atx custom def publish` accepts only `SKILL.md`, `references/` and `scripts/` in the folder it publishes, which is why the transformation sits in its own subfolder.
 
