@@ -86,18 +86,19 @@ export AWS_REGION=us-east-1
 ```
 
 - **Docker or a patched PHP on the machine that runs step 2.** Version 2026-11-02 of the managed transformation picks the PHP it validates
-  on: a host PHP at or above the patched release of your target branch, or else the official image of the patched release in Docker. Its
-  instructions forbid installing anything on the host or using `sudo`. In five test runs on 2026-11-06, three on a host with Docker and no
-  PHP or Composer and two on a host with Docker and an unpatched PHP 8.5.3, none of them installed anything, each validated on 8.4.27 or
-  8.5.12 (the two runs with PHP 8.5.3 on the host rejected it as below the floor), and none left a container behind. When it cannot get
-  a patched interpreter (no patched host PHP and no Docker, or an extension it cannot add to the image), its instructions say it validates
-  on an older one, writes `Validated on PHP x.y.z - NOT a patched ... interpreter` and reports **Success with warnings**. That path was
-  not tested; in that case run step 3 before you deploy. Its instructions also say the Docker path takes roughly three times as long as a
-  host PHP (not measured here). On Amazon Linux 2023:
+  on: a host PHP on your target branch at or above its patched release (a patched 8.5 does not count for target 8.4), or else the
+  official image of the patched release in Docker. Its instructions forbid installing anything on the host or using `sudo`. In five test
+  runs on 2026-11-06, three on a host with Docker and no PHP or Composer and two on a host with Docker whose `php` reported an unpatched
+  8.5.3 (a wrapper around the official `php:8.5.3-cli` image; direct runs only), none of them installed anything, each validated on
+  8.4.27 or 8.5.12, and none left a container behind. The 8.4 run rejected the host's 8.5.3 as not an 8.4 release, the 8.5 run as below
+  the 8.5.12 floor. When it cannot get a patched interpreter (no patched host PHP on the target branch and no Docker, or an extension it
+  cannot add to the image), its instructions say it validates on an older one, writes `Validated on PHP x.y.z - NOT a patched ...
+  interpreter` and reports **Success with warnings**. That path was not tested; in that case run step 3 before you deploy. Its
+  instructions also say the Docker path takes roughly three times as long as a host PHP (not measured here). On Amazon Linux 2023:
 
 ```bash
 sudo dnf install -y --releasever=2023.12.20261021 php$TARGET-cli php$TARGET-xml php$TARGET-mbstring composer
-php -v                               # must show the patched release (8.4.27 or later for 8.4)
+php -v                               # must show the patched release of $TARGET (8.4.27 or a later 8.4 release for 8.4)
 ```
 
 - Use **throwaway clones** of your repositories with a clean working tree, and a **disposable machine** for step 2 (the agent runs commands
@@ -170,10 +171,11 @@ atx ct remediation status --id <remediation-id>   # the id is printed above; don
   PHP); a larger application needs a higher limit.
 
 The result is a new branch in the repository (`atx/php-version-upgrade-<timestamp>`, or `atx-result-staging-<timestamp>` for a direct run).
-The remediation branch can also carry the step 1 analysis commit in its history; its diff against your branch contains only code changes.
-Check it out and review it. The transformation writes a run summary (Target, Preflight, Validation runtime, Constraints written, Behaviour
-changes, Security review required, Open blockers, Runtime action required) to the run's artifacts folder and a condensed copy into the
-commit message. In the test runs the commit message did not always carry every item, but the `Validated on PHP ...` line was there every time:
+Check it out and review it. The transformation's instructions ask for a run summary (Target, Preflight, Validation runtime, Constraints
+written, Behaviour changes, Security review required, Open blockers, Runtime action required) in the run's folder under
+`~/.aws/atx/custom/<run>/artifacts/` and a condensed copy in the commit message. In the test runs the file was not always written (in two
+runs only after the run's own validation found it missing), and the commit message did not always carry every item, but the
+`Validated on PHP ...` line was in the commit message every time:
 
 1. **`composer.json` must not allow an unpatched PHP.** Version 2026-11-02 wrote the safe constraint in all five test runs
    (`~8.4.27 || ^8.5.12` for target 8.4, `^8.5.12` for 8.5) and added no `config.platform.php`. Earlier versions wrote `"php": ">=8.4"`,
@@ -216,8 +218,8 @@ commit message. In the test runs the commit message did not always carry every i
 3. **Check `Validation runtime` and act on `Runtime action required`.** `Validation runtime` must name a patched release (for example
    `Validated on PHP 8.4.27 (security floor 8.4.27)`). If it says `NOT a patched ... interpreter`, run step 3 before you deploy.
    `Runtime action required` is the step 4 work: the constraint is enforced when Composer installs, but at run time Composer's
-   `platform_check.php` checks only the lowest bound. The 8.4 output of the test run booted on PHP 8.5.11, which is vulnerable (the 8.5
-   output refused it). Only step 4 closes that gap.
+   `platform_check.php` checks only the lowest bound. The 8.4 outputs of the test runs booted on PHP 8.5.11, which is vulnerable (the 8.5
+   outputs refused it). Only step 4 closes that gap.
 4. Review the rest of the diff as you would any change: removed functions replaced, deprecations fixed, PHPUnit and dependencies updated.
 5. If a direct run stopped at its limit or a run ended in a partial migration, resume with a higher `--limit`, or keep the branch and finish by hand.
    Step 3 tells you what is still broken.
@@ -228,11 +230,12 @@ Version 2026-11-02 of the managed transformation already validates its work on a
 [Before you start](#before-you-start)). In the five test runs of 2026-11-06 its own validation and this check agreed: PASS each time.
 Use this step when you want a second, independent opinion, in particular when:
 
-- the run summary says `NOT a patched ... interpreter` (no patched PHP and no Docker on the machine that ran step 2);
+- the run summary says `NOT a patched ... interpreter` (the machine that ran step 2 had no usable patched PHP; see
+  [Before you start](#before-you-start));
 - the code was upgraded by another tool, by hand, or by an older version of the managed transformation;
 - you need a verdict that a script decides and that CI can enforce, rather than an agent's summary;
-- the next PHP CVE arrives: the floors are `FLOORS` in `scripts/verify.sh`, plus `NEWEST_IMAGE` for the `vendor/` re-check, explained in
-  `references/patched-versions.md`.
+- the next PHP CVE arrives: the floors are `FLOORS` in `scripts/verify.sh`, plus `NEWEST_IMAGE` for the `vendor/` re-check;
+  `references/patched-versions.md` explains the floors.
 
 `php-upgrade-secure-verify/` never edits your code. It runs your repository inside locked-down containers (no network,
 read-only, no capabilities, unprivileged user) on the **official image of a patched PHP release** by default, and checks that:

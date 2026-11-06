@@ -9,7 +9,7 @@ Facts about the CVEs and patched releases change quickly; see the [README](READM
 | Metric | Result |
 |--------|--------|
 | Fixture | `samples/legacy-php-app` (PHP 7.4 app, 13 files: 5 classes, 5 test files with 7 tests, deliberate PHP 8 breakages) |
-| Managed upgrade, version 2026-11-02, host with Docker | 5 runs: 3 with no PHP or Composer on the host (remediation target 8.4, direct 8.4, direct 8.5) and 2 with an unpatched PHP 8.5.3 on the host (direct 8.4, direct 8.5): 64.1 to 78.7 agent minutes, 8 to 25 minutes wall-clock. Wrote `~8.4.27 \|\| ^8.5.12` or `^8.5.12`, validated on 8.4.27 or 8.5.12 (never on the host's 8.5.3), kept the PHP 8 result of `'abc' == 0` and listed it, nothing installed on the host, no container left. Verify gate **PASS** as left, 5 of 5. Details below |
+| Managed upgrade, version 2026-11-02, host with Docker | 5 runs: 3 with no PHP or Composer on the host (remediation target 8.4, direct 8.4, direct 8.5) and 2 with an unpatched PHP 8.5.3 on the host (direct 8.4, direct 8.5): 64.1 to 78.7 agent minutes, 8 to 25 minutes wall-clock. Wrote `~8.4.27 \|\| ^8.5.12` or `^8.5.12`, final lint and tests on 8.4.27 or 8.5.12 (the host's 8.5.3 was rejected as the validation runtime, although the run's own validation step still ran `php -l` on it), kept the PHP 8 result of `'abc' == 0` and listed it, nothing installed on the host, no container left. Verify gate **PASS** as left, 5 of 5. Details below |
 | Rapid analysis (`rapid-techdebt-analysis`) | about 1 to 2 minutes, 1 high finding (PHP 7.4 end of life, fix `AWS/php-version-upgrade`) |
 | Comprehensive analysis (`tech-debt-comprehensive`) | about 5 to 7 minutes, 6 to 11 findings (2 to 6 high; number and titles vary between runs), including silent PHP 8 behavior changes |
 | Managed upgrade from the findings (`atx ct remediation create`), **earlier version** | 3 runs, 20.9 to 38.1 agent minutes (about US$ 0.73 to 1.33), 4 to 5 minutes wall-clock, host PHP 8.5.3. Wrote `"^8.5"` or `">=8.4"`, validated on PHP 8.5.3 every time (also for target 8.4), verify FAIL exit 2 as left and PASS after the floor fix. Details below |
@@ -27,8 +27,8 @@ Facts about the CVEs and patched releases change quickly; see the [README](READM
 
 Observation that motivated the gate: the earlier version of the managed upgrade ran its own tests on PHP 8.5.3, which is **below** the
 patched 8.5.12, and wrote a `composer.json` constraint that still allows unpatched releases. A migration could look green on a vulnerable
-runtime, and be installable on one. Version 2026-11-02 fixed both on the sample, including on a host with the same unpatched PHP 8.5.3
-(next section), which is why the README now treats the gate as an optional, independent check. It was not tested on a host without
+runtime, and be installable on one. Version 2026-11-02 fixed both on the sample, including on a host whose `php` reported the same 8.5.3 (a wrapper around the
+official image; direct runs only, next section), which is why the README now treats the gate as an optional, independent check. It was not tested on a host without
 Docker, where its instructions fall back to an older PHP and a `Success with warnings` status. One gap is by design of Composer and stays:
 its runtime `platform_check.php` checks only the lowest bound.
 
@@ -46,11 +46,11 @@ the README command exactly as written (`--limit 100`, JSON `-g`).
 | Remediation, target 8.4 | none | 65.8 | 8 min | `~8.4.27 \|\| ^8.5.12` | 8.4.27 | false (PHP 8), listed under Behaviour changes | Success; Runtime action required: patch, restart workers, upload progress off | PASS, 7 tests, 8.4.27 |
 | Direct, target 8.4 | none | 64.1 | 9 min | `~8.4.27 \|\| ^8.5.12` | 8.4.27 | false (PHP 8), listed | Success; same item | PASS, 7 tests, 8.4.27 |
 | Direct, target 8.5 | none | 78.7 | 10 min | `^8.5.12` | 8.5.12 | false (PHP 8), listed | Success; same item | PASS, 7 tests, 8.5.12 |
-| Direct, target 8.4 | 8.5.3 | 71.4 | 25 min | `~8.4.27 \|\| ^8.5.12` | 8.4.27; Preflight: host 8.5.3 "not a 8.4 release", rejected | false (PHP 8), listed | Success; same item. Its validation first ended PARTIAL (run summary missing) and the agent wrote it before finishing | PASS, 7 tests, 8.4.27 |
-| Direct, target 8.5 | 8.5.3 | 67.0 | 10 min | `^8.5.12` | 8.5.12; host 8.5.3 "below floor", container selected | false (PHP 8), listed | Success; same item (in the run's summary, not in the commit message) | PASS, 7 tests, 8.5.12 |
+| Direct, target 8.4 | 8.5.3 | 71.4 | 25 min | `~8.4.27 \|\| ^8.5.12` | 8.4.27; Preflight: host 8.5.3 "not a 8.4 release", rejected | false (PHP 8), listed | Success; same item. Its validation first ended PARTIAL (run summary missing; `OVERALL STATUS: PARTIAL` in the run log) and the agent wrote it before finishing | PASS, 7 tests, 8.4.27 |
+| Direct, target 8.5 | 8.5.3 | 67.0 | 10 min | `^8.5.12` | 8.5.12; host 8.5.3 "below floor", container selected | false (PHP 8), listed | Success; same item (in the run's summary, not in the commit message). Its worklog records a second pass that wrote the missing run summary | PASS, 7 tests, 8.5.12 |
 
 Also checked on each run: no `config.platform.php` added, no `platform-overrides`, no `vendor/` path committed, no Composer or PHP package
-installed on the host and nothing written to `/usr/local/bin` afterwards, no container with the run's label left; on the first two direct
+installed on the host afterwards (and, on the last two runs, nothing PHP-related in `/usr/local/bin`), no container with the run's label left; on the first two direct
 runs, `vendor/` was owned by the invoking user. The remediation moved the 10 findings to
 `change_ready`; 2 findings without a fix (PHPUnit unmaintained, no strict types or CI) stayed `open`, although the run upgraded PHPUnit to
 11.5. Boot probe (`require "vendor/autoload.php"` in official images): the 8.4 outputs refused 8.4.26 and booted on 8.4.27, 8.5.11 and
@@ -137,7 +137,7 @@ bash <this-folder>/php-upgrade-secure-verify/scripts/verify.sh /tmp/repos/upgrad
 
 ## Cost per run
 
-AWS Transform bills per agent minute (US$ 0.035 on 2026-10-27, see [pricing](https://aws.amazon.com/transform/pricing/)). Measured on the
+AWS Transform bills per agent minute (US$ 0.035 on 2026-11-06, see [pricing](https://aws.amazon.com/transform/pricing/)). Measured on the
 13-file `samples/legacy-php-app` fixture. Few runs per row, and the minutes vary from run to run; a larger application costs more.
 
 | Run | Agent minutes | Approx. cost |
