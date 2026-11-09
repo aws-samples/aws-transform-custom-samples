@@ -14,7 +14,7 @@ it, optionally verify the result on its own, and patch the runtime.
 > worker restarted**. Many teams are blocked because their code was written for PHP 7.4 or 8.0 and breaks on a supported version.
 > Steps 1 and 2 remove that blocker. Step 3 is an optional, independent check. Step 4 is the fix.
 
-## Do you need steps 1 to 3?
+## Which steps do you need?
 
 | You run... | Do this |
 |---|---|
@@ -37,8 +37,8 @@ flowchart TB
     S1[["1 Analyze: atx ct analysis"]]
     F1[/"Findings; the PHP finding names its fix"/]
     S2[["2 Upgrade, validates on patched PHP when available: atx ct remediation, AWS/php-version-upgrade"]]
-    B[/"New branch with upgraded code and a run summary"/]
-    H{"Review the diff, composer.json and the run summary"}
+    B[/"New branch with upgraded code; the commit message names the PHP it validated on"/]
+    H{"Review the diff, composer.json and the Validated on PHP line"}
     S3[["3 Optional independent check: php-upgrade-secure-verify"]]
     G{{"Patched PHP, manifest, lint, tests"}}
     OK(["PASS"])
@@ -161,21 +161,29 @@ atx ct remediation status --id <remediation-id>   # the id is printed above; don
   transformation directly instead:
 
   ```bash
-  atx custom def exec -n AWS/php-version-upgrade -p ~/repos/svc -x -t -d --limit 100 \
+  atx custom def exec -n AWS/php-version-upgrade -p ~/repos/svc -x -t -d --limit 300 \
     -g "{\"additionalPlanContext\":\"The target PHP version is $TARGET\"}"
   ```
 
-  `-x -t` run it unattended with every tool trusted, `-d` opts out of knowledge-item extraction, and `--limit 100` caps it at 100 agent
-  minutes (US$ 3.50); at the cap the CLI exits with code 2, and the same command with a higher `--limit` resumes. This direct run does not
-  read the findings. On the sample, four direct runs used 64.1 to 78.7 agent minutes (Docker path, with and without an unpatched host
-  PHP); a larger application needs a higher limit.
+  `-x -t` run it unattended with every tool trusted, `-d` opts out of knowledge-item extraction, and `--limit 300` caps it at 300 agent
+  minutes (a ceiling of US$ 10.50, not the expected cost). This direct run does not read the findings. On the 13-file sample, four
+  direct runs used 64.1 to 78.7 agent minutes (US$ 2.24 to 2.76; Docker path, with and without an unpatched host PHP), and one of them
+  used 87% of its 90-minute cap, so budget at least 100 agent minutes even for a small project. 300 is a starting point, not a measured
+  value for larger code: raise it for a real application. None of the test runs reached its limit. The CLI's `--limit` help (checked on CLI 3.11.0)
+  says a run that reaches it exits with code 2 and can be resumed with a higher limit; the resume command it prints
+  (`atx --conversation-id <id> -t --limit <n>`) must be run attended, because `-x` cannot be combined with it (seen on CLI 3.21.0, not
+  re-tested on 3.22.0). If you cannot attend it, rerun on a fresh clone with a higher `--limit`. Do not merge the branch a stopped run leaves.
 
 The result is a new branch in the repository (`atx/php-version-upgrade-<timestamp>`, or `atx-result-staging-<timestamp>` for a direct run).
-Check it out and review it. The transformation's instructions ask for a run summary (Target, Preflight, Validation runtime, Constraints
+Check it out and review it, but only once the run has finished: a direct run must have exited with code 0, and a remediation must show
+repo status `pr_open`. The transformation's instructions ask for a run summary (Target, Preflight, Validation runtime, Constraints
 written, Behaviour changes, Security review required, Open blockers, Runtime action required) in the run's folder under
-`~/.aws/atx/custom/<run>/artifacts/` and a condensed copy in the commit message. In the test runs the file was not always written (in two
-runs only after the run's own validation found it missing), and the commit message did not always carry every item, but the
-`Validated on PHP ...` line was in the commit message every time:
+`~/.aws/atx/custom/<run>/artifacts/` (one test run wrote it in `artifacts/final/`) and a condensed copy in the commit message. Do not
+rely on either being complete. In the five test runs the file was missing at the end of two runs, and in two more the agent wrote it
+only after its own validation found it missing. Only one run's commit messages carried all eight items (through a follow-up commit); in
+three runs the commit message described the change in prose but left out most of the labelled items, `Runtime action required` among
+them in two. The `Validated on PHP ...` line was in the commit message in all five, so item 3 below relies on that one line, and on
+step 3 for anything else. A missing item means unknown, not none:
 
 1. **`composer.json` must not allow an unpatched PHP.** Version 2026-11-02 wrote the safe constraint in all five test runs
    (`~8.4.27 || ^8.5.12` for target 8.4, `^8.5.12` for 8.5) and added no `config.platform.php`. Earlier versions wrote `"php": ">=8.4"`,
@@ -215,13 +223,25 @@ runs only after the run's own validation found it missing), and the commit messa
    // test: $this->assertFalse($m->isZeroLike("abc"));
    ```
 
-3. **Check `Validation runtime` and act on `Runtime action required`.** `Validation runtime` must name a patched release (for example
-   `Validated on PHP 8.4.27 (security floor 8.4.27)`). If it says `NOT a patched ... interpreter`, run step 3 before you deploy.
-   `Runtime action required` is the step 4 work: the constraint is enforced when Composer installs, but at run time Composer's
-   `platform_check.php` checks only the lowest bound. The 8.4 outputs of the test runs booted on PHP 8.5.11, which is vulnerable (the 8.5
-   outputs refused it). Only step 4 closes that gap.
+3. **Find the `Validated on PHP` line in the commit message,** on the branch as the run left it (before you add commits):
+
+   ```bash
+   BASE=main                                   # the git branch the run started from: note it before you start the run
+   git log --format=%B "$BASE..HEAD" | grep -oE 'Validated on PHP.{0,120}|NOT a patched.{0,40}'
+   ```
+
+   It must name a patched release of your target PHP version, for example `Validated on PHP 8.4.27 (security floor 8.4.27)`. If the
+   command prints nothing, names an unpatched release, or prints `NOT a patched ...`, run step 3 before you deploy. A `BASE` that does
+   not exist makes git report an unknown revision and the command print nothing; a different branch that does exist can still print a
+   line from other commits, so use the branch you noted, not one guessed from the output. The line says which PHP the run tested on,
+   not which PHP you deploy on.
+   If the run summary file exists, also read its `Open blockers` and `Security review required`. Step 4 is required whatever the
+   summary says: the constraint is enforced when Composer installs, but at run time Composer's `platform_check.php`
+   checks only the lowest bound. The 8.4 outputs of the test runs booted on PHP 8.5.11, which is vulnerable (the 8.5 outputs refused it).
+   Only step 4 closes that gap.
 4. Review the rest of the diff as you would any change: removed functions replaced, deprecations fixed, PHPUnit and dependencies updated.
-5. If a direct run stopped at its limit or a run ended in a partial migration, resume with a higher `--limit`, or keep the branch and finish by hand.
+5. If a direct run stopped at its limit, resume it attended as described above, or rerun it on a fresh clone with a higher `--limit`. If
+   a run ended in a partial migration, rerun it, or finish the branch by hand before you merge it.
    Step 3 tells you what is still broken.
 
 ## Step 3 (optional). Verify independently with the custom transformation in this folder
@@ -230,7 +250,8 @@ Version 2026-11-02 of the managed transformation already validates its work on a
 [Before you start](#before-you-start)). In the five test runs of 2026-11-06 its own validation and this check agreed: PASS each time.
 Use this step when you want a second, independent opinion, in particular when:
 
-- the run summary says `NOT a patched ... interpreter` (the machine that ran step 2 had no usable patched PHP; see
+- the commit message has no `Validated on PHP` line, or that line names an unpatched release or says `NOT a patched ... interpreter`
+  (for example, the machine that ran step 2 had no usable patched PHP; see
   [Before you start](#before-you-start));
 - the code was upgraded by another tool, by hand, or by an older version of the managed transformation;
 - you need a verdict that a script decides and that CI can enforce, rather than an agent's summary;
@@ -366,7 +387,8 @@ and update a pinned PHP managed rule group to the latest version.
 | `atx ct remediation status` stays `running` after the CLI was interrupted | Check the branch, then `atx ct remediation cancel --id <id>` and create it again if needed |
 | "-g ... Only valid with --transformation-name" | Add `--transformation-name AWS/php-version-upgrade` to the remediation |
 | Step 2 ends in FAILURE at preflight, naming missing tools | No PHP interpreter and no Docker, or no Composer and no network to download it. Install Docker or a patched PHP (see Before you start); the run installs nothing itself |
-| Step 2 summary says `NOT a patched ... interpreter`, status `Success with warnings` | It validated on an older PHP. Run step 3, or install Docker or a patched PHP and rerun |
+| Step 2 commit message has no `Validated on PHP` line | The run did not record its validation runtime, or it has not finished. Check that it ended (exit code 0, or `pr_open`), then run step 3 |
+| Step 2 commit message says `NOT a patched ... interpreter`, status `Success with warnings` | It validated on an older PHP. Run step 3, or install Docker or a patched PHP and rerun |
 
 ## Known limitations
 

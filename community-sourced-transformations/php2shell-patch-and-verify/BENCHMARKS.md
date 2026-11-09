@@ -39,13 +39,13 @@ two, `php` on the host was PHP 8.5.3 (unpatched; a wrapper on `PATH` that runs t
 Composer, to repeat the configuration of the earlier failure. Every run took the transformation's Docker path. The remediation used the
 README command and the 10 findings (9 comprehensive, 1 rapid) whose fix is `AWS/php-version-upgrade`. The first two direct runs used
 `-x -t -d --limit 90 --classic` and `-g 'additionalPlanContext=The target PHP version is <target>'` (key=value form); the last two used
-the README command exactly as written (`--limit 100`, JSON `-g`).
+the README command as written that day (`--limit 100`, JSON `-g`; the README now suggests `--limit 300`).
 
 | Run | Host PHP | Agent minutes | Wall-clock | `require.php` written | Validated on | `isZeroLike("abc")` | Run summary | Verify as left |
 |---|---|---|---|---|---|---|---|---|
-| Remediation, target 8.4 | none | 65.8 | 8 min | `~8.4.27 \|\| ^8.5.12` | 8.4.27 | false (PHP 8), listed under Behaviour changes | Success; Runtime action required: patch, restart workers, upload progress off | PASS, 7 tests, 8.4.27 |
-| Direct, target 8.4 | none | 64.1 | 9 min | `~8.4.27 \|\| ^8.5.12` | 8.4.27 | false (PHP 8), listed | Success; same item | PASS, 7 tests, 8.4.27 |
-| Direct, target 8.5 | none | 78.7 | 10 min | `^8.5.12` | 8.5.12 | false (PHP 8), listed | Success; same item | PASS, 7 tests, 8.5.12 |
+| Remediation, target 8.4 | none | 65.8 | 8 min | `~8.4.27 \|\| ^8.5.12` | 8.4.27 | false (PHP 8), listed under Behaviour changes | Success; Runtime action required: patch, restart workers, upload progress off. No summary file; seven of the eight items (all but Preflight) are in the commit message | PASS, 7 tests, 8.4.27 |
+| Direct, target 8.4 | none | 64.1 | 9 min | `~8.4.27 \|\| ^8.5.12` | 8.4.27 | false (PHP 8), listed | Success; same item (in the run's summary, not in the commit message) | PASS, 7 tests, 8.4.27 |
+| Direct, target 8.5 | none | 78.7 | 10 min | `^8.5.12` | 8.5.12 | false (PHP 8), listed | Success; same item. No summary file; a second commit, "Record run summary items missing from commit 4b380fb", added the items to the commit message | PASS, 7 tests, 8.5.12 |
 | Direct, target 8.4 | 8.5.3 | 71.4 | 25 min | `~8.4.27 \|\| ^8.5.12` | 8.4.27; Preflight: host 8.5.3 "not a 8.4 release", rejected | false (PHP 8), listed | Success; same item. Its validation first ended PARTIAL (run summary missing; `OVERALL STATUS: PARTIAL` in the run log) and the agent wrote it before finishing | PASS, 7 tests, 8.4.27 |
 | Direct, target 8.5 | 8.5.3 | 67.0 | 10 min | `^8.5.12` | 8.5.12; host 8.5.3 "below floor", container selected | false (PHP 8), listed | Success; same item (in the run's summary, not in the commit message). Its worklog records a second pass that wrote the missing run summary | PASS, 7 tests, 8.5.12 |
 
@@ -152,7 +152,9 @@ AWS Transform bills per agent minute (US$ 0.035 on 2026-11-06, see [pricing](htt
 | Verify gate through the engine or as a custom analysis, 12 runs during development (CLI 3.20.0) | 8.4 to 15.8 | US$ 0.29 to 0.55 |
 | `verify.sh` on its own, no agent | 0 | US$ 0 |
 
-`--limit` caps a direct run. A run started from a continuous modernization finding has no cap.
+`--limit` caps a direct run. A run started from a continuous modernization finding has no cap. The direct runs above stayed under 79
+agent minutes on this 13-file sample (one used 78.7 of a 90-minute cap); the README suggests `--limit 300` as a starting point, at least
+100 even for a small project, and more for real applications.
 
 ## Remediation from findings (`atx ct remediation create`), earlier version, 2026-10-27
 
