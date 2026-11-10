@@ -301,17 +301,17 @@ These are loaded on-demand by the agent when specific patterns are encountered d
 
 | Reference | Trigger Patterns | Description |
 |---|---|---|
-| [phase0-detection-flags.md](References/phase0-detection-flags.md) | Phase 0 library flag detection, pom.xml scanning | Full detection rules for all library flags (HAS_JODA_TIME, HAS_JACKSON_V1, HAS_C3P0, etc.) |
-| [jaxrs-spring-mvc-migration.md](References/jaxrs-spring-mvc-migration.md) | @Path, @ApplicationPath, @QueryParam, JAX-RS Response, SSE | Detailed JAX-RS → Spring MVC mapping: @ApplicationPath folding, @QueryParam required=false, UriInfo translation, ExceptionMapper→@ControllerAdvice, SSE→SseEmitter |
-| [jaxws-websocket-migration.md](References/jaxws-websocket-migration.md) | @WebService, @ServerEndpoint, @OnMessage | JAX-WS SOAP and WebSocket migration patterns |
-| [spring-batch5-migration.md](References/spring-batch5-migration.md) | jakarta.batch, META-INF/batch-jobs/, ItemWriter | Spring Batch 5 specifics: Chunk API, @StepScope, @BatchProperty→@Value |
-| [hibernate6-behavior-changes.md](References/hibernate6-behavior-changes.md) | @Embeddable, @Lob on array fields, CriteriaQuery | Hibernate 6 nulls handling, behavior changes, CriteriaQuery updates |
-| [test-configuration-patterns.md](References/test-configuration-patterns.md) | Arquillian, test context, H2, JUnit 4→5, *IT.java | Core test migration patterns: @SpringBootTest setup, H2 config, JUnit 5 assertion reordering, failsafe integration |
-| [test-mockito-advanced.md](References/test-mockito-advanced.md) | @InjectMocks, Mockito, STRICT_STUBS, @MockBean | Advanced Mockito patterns: ReflectionTestUtils for @PersistenceContext/@Value, UnnecessaryStubbingException, lenient stubs |
-| [jsf-backing-bean-migration.md](References/jsf-backing-bean-migration.md) | .xhtml, @ViewScoped, @FlowScoped, JSF backing beans | JSF backing bean → Spring @Controller patterns, Thymeleaf template conversion |
-| [common-pitfalls-extended.md](References/common-pitfalls-extended.md) | Build errors, runtime exceptions, JUL→SLF4J | Full troubleshooting reference: build errors, startup failures, configuration issues, JUL→SLF4J migration |
-| [worked-examples-conditional.md](References/worked-examples-conditional.md) | MDB→@JmsListener, JBoss Security examples | Worked before/after examples for conditional phases (JMS, Security) |
-| [verify-legacy-imports.md](References/verify-legacy-imports.md) | Post-migration verification | Legacy import verification procedure with copy-paste-ready grep commands, MIGRATION comment validation |
+| [phase0-detection-flags.md](references/phase0-detection-flags.md) | Phase 0 library flag detection, pom.xml scanning | Full detection rules for all library flags (HAS_JODA_TIME, HAS_JACKSON_V1, HAS_C3P0, etc.) |
+| [jaxrs-spring-mvc-migration.md](references/jaxrs-spring-mvc-migration.md) | @Path, @ApplicationPath, @QueryParam, JAX-RS Response, SSE | Detailed JAX-RS → Spring MVC mapping: @ApplicationPath folding, @QueryParam required=false, UriInfo translation, ExceptionMapper→@ControllerAdvice, SSE→SseEmitter |
+| [jaxws-websocket-migration.md](references/jaxws-websocket-migration.md) | @WebService, @ServerEndpoint, @OnMessage | JAX-WS SOAP and WebSocket migration patterns |
+| [spring-batch5-migration.md](references/spring-batch5-migration.md) | jakarta.batch, META-INF/batch-jobs/, ItemWriter | Spring Batch 5 specifics: Chunk API, @StepScope, @BatchProperty→@Value |
+| [hibernate6-behavior-changes.md](references/hibernate6-behavior-changes.md) | @Embeddable, @Lob on array fields, CriteriaQuery | Hibernate 6 nulls handling, behavior changes, CriteriaQuery updates |
+| [test-configuration-patterns.md](references/test-configuration-patterns.md) | Arquillian, test context, H2, JUnit 4→5, *IT.java | Core test migration patterns: @SpringBootTest setup, H2 config, JUnit 5 assertion reordering, failsafe integration |
+| [test-mockito-advanced.md](references/test-mockito-advanced.md) | @InjectMocks, Mockito, STRICT_STUBS, @MockBean | Advanced Mockito patterns: ReflectionTestUtils for @PersistenceContext/@Value, UnnecessaryStubbingException, lenient stubs |
+| [jsf-backing-bean-migration.md](references/jsf-backing-bean-migration.md) | .xhtml, @ViewScoped, @FlowScoped, JSF backing beans | JSF backing bean → Spring @Controller patterns, Thymeleaf template conversion |
+| [common-pitfalls-extended.md](references/common-pitfalls-extended.md) | Build errors, runtime exceptions, JUL→SLF4J | Full troubleshooting reference: build errors, startup failures, configuration issues, JUL→SLF4J migration |
+| [worked-examples-conditional.md](references/worked-examples-conditional.md) | MDB→@JmsListener, JBoss Security examples | Worked before/after examples for conditional phases (JMS, Security) |
+| [verify-legacy-imports.md](references/verify-legacy-imports.md) | Post-migration verification | Legacy import verification procedure with copy-paste-ready grep commands, MIGRATION comment validation |
 
 ## Known Limitations
 
@@ -339,7 +339,7 @@ These are loaded on-demand by the agent when specific patterns are encountered d
 | Build fails with "invalid flag: --release" | Maven on Java 8 targeting Java 17. Add compiler fork profile or use Maven Wrapper. |
 | Dependency conflicts after migration | Remove explicit versions managed by Spring Boot parent POM. Run mvn dependency:tree. |
 
-See [References/common-pitfalls-extended.md](References/common-pitfalls-extended.md) for the full troubleshooting reference.
+See [references/common-pitfalls-extended.md](references/common-pitfalls-extended.md) for the full troubleshooting reference.
 
 ## Repository Structure
 
@@ -347,7 +347,7 @@ See [References/common-pitfalls-extended.md](References/common-pitfalls-extended
 ├── SKILL.md                        # Skill definition (6-phase conditional pipeline)
 ├── README.md                       # This file — overview, architecture, getting started, benchmarks
 ├── BENCHMARKS.md                   # Detailed benchmark results (24 repos)
-├── References/                     # On-demand reference documents (11 files)
+├── references/                     # On-demand reference documents (11 files)
 │   ├── phase0-detection-flags.md   # Phase 0 library flag detection rules
 │   ├── jaxrs-spring-mvc-migration.md   # JAX-RS → Spring MVC mapping
 │   ├── jaxws-websocket-migration.md    # JAX-WS SOAP & WebSocket migration
