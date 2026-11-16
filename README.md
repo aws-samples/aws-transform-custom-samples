@@ -4,6 +4,7 @@ This repository contains the following components:
 
 ## Directory Structure
 - **aws-managed-definitions/** - AWS-Managed Transformations that can be leveraged for your project transformations
+- **community-sourced-transformations/** - Community-contributed transformation definitions for common migration scenarios, including [JBoss-to-Spring-Boot](community-sourced-transformations/jboss-to-springboot/README.md), [OpenShift-to-EKS](community-sourced-transformations/openshift-to-eks/README.md), [Tanzu-to-EKS](community-sourced-transformations/tanzu-to-eks/README.md), and more
 - **client-side-skills/** - [Client-side skills](https://docs.aws.amazon.com/transform/latest/userguide/custom-workflows.html) that extend the AWS Transform agent with custom tools, scripts, and instructions during transformation executions
 - **scaled-execution-bash/** - Running bulk transformations using bash scripts
 - **scaled-execution-containers/** - Scalable, production-ready infrastructure for [AWS Transform custom](https://docs.aws.amazon.com/transform/latest/userguide/custom.html) - Run AI-driven code transformations on 1000s of repositories in parallel using AWS Batch and Fargate.
