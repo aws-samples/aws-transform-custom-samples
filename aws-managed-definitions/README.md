@@ -8,6 +8,7 @@ Out-of-box transformation definitions provided by AWS for common migration and u
 |----------|---------------|-------------|
 | Java | [Version Upgrade](java/version-upgrade.md) | Upgrade Java applications to newer JDK versions |
 | Java | [AWS SDK v1 → v2](java/aws-sdk-v1-to-v2.md) | Migrate from AWS SDK for Java v1 to v2 |
+| Java | [Spring Boot Version Upgrade (3.x → 4.x)](java/spring-boot-version-upgrade.md) | Migrate Spring Boot 3.x applications to Spring Boot 4.x using an 18-step conditional pipeline covering core, security, observability, Jackson 3, Spring Cloud, Spring AI, and more |
 | Java | [x86 → Graviton](graviton-migration/java/transformation-definition_x86-to-graviton.md) | Validate and migrate Java apps to AWS Graviton (ARM64) |
 | Node.js | [Version Upgrade](nodejs/version-upgrade.md) | Upgrade Node.js applications to newer runtime versions |
 | Node.js | [AWS SDK v2 → v3](nodejs/aws-sdk-v2-to-v3.md) | Migrate from AWS SDK for JavaScript v2 to v3 |
